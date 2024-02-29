@@ -183,3 +183,56 @@ DarbouxFrame calcDarbouxFromTangentGuessAndNormal(
 
     return{t, n, b};
 }
+
+//==============================================================================
+//                      TRANSFORM
+//==============================================================================
+
+Vector3 calcPointInLocal(const Transf& transform, Vector3 pointInGround)
+{
+    return pointInGround - transform.position;
+}
+
+Vector3 calcPointInGround(const Transf& transform, Vector3 pointInLocal)
+{
+    return pointInLocal + transform.position;
+}
+
+Vector3 calcVectorInLocal(const Transf&, Vector3 vecInGround)
+{
+    return vecInGround;
+}
+
+Vector3 calcVectorInGround(const Transf&, Vector3 vecInLocal)
+{
+    return vecInLocal;
+}
+
+void calcDarbouxFrameInGlobal(const Transf& transform, DarbouxFrame& frame) {
+    frame.t = calcVectorInGround(transform, frame.t);
+    frame.n = calcVectorInGround(transform, frame.n);
+    frame.b = calcVectorInGround(transform, frame.b);
+    AssertDarbouxFrame(frame);
+}
+
+void calcBoundaryStateInGlobal(const Transf& transform, Geodesic::BoundaryState& x) {
+    x.position = calcPointInLocal(transform, x.position);
+    calcDarbouxFrameInGlobal(transform, x.frame);
+    for (Vector3& vi : x.v) {
+        vi = calcVectorInGround(transform, vi);
+    }
+    for (Vector3& wi : x.w) {
+        wi = calcVectorInGround(transform, wi);
+    }
+}
+
+void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic) {
+    calcBoundaryStateInGlobal(transform, geodesic.start);
+    calcBoundaryStateInGlobal(transform, geodesic.end);
+
+    // TODO this is a bit wasteful.
+    for (std::pair<Vector3, DarbouxFrame>& knot: geodesic.curveKnots) {
+        knot.first = calcPointInGround(transform, knot.first);
+        calcDarbouxFrameInGlobal(transform, knot.second);
+    }
+}
