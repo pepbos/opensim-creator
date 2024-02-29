@@ -557,6 +557,21 @@ Mesh osc::GenerateNbyNGridLinesMesh(size_t n)
     return CreateMeshFromData(std::move(data));
 }
 
+Mesh osc::GenerateXYZToXYZLineMesh()
+{
+    NewMeshData data;
+    data.verts = {{0.0f, 0.0f, 0.0f}, {+1.0f, +1.0f, +1.0f}};
+    data.normals = {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}};  // just give them *something* in-case they are rendered through a shader that requires normals
+    data.indices = {0, 1};
+    data.topology = MeshTopology::Lines;
+
+    OSC_ASSERT(data.verts.size() % 2 == 0);
+    OSC_ASSERT(data.normals.size() % 2 == 0);
+    OSC_ASSERT(data.verts.size() == data.indices.size());
+
+    return CreateMeshFromData(std::move(data));
+}
+
 Mesh osc::GenerateYToYLineMesh()
 {
     NewMeshData data;

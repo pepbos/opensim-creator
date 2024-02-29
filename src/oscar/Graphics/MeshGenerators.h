@@ -34,6 +34,9 @@ namespace osc
     // generates a single two-point line from (0,-1,0) to (0,+1,0)
     Mesh GenerateYToYLineMesh();
 
+    // generates a single two-point line from (0,0,0) to (+1,+1,+1)
+    Mesh GenerateXYZToXYZLineMesh();
+
     // generates a cube with [-1,+1] in each dimension
     Mesh GenerateCubeMesh();
 
