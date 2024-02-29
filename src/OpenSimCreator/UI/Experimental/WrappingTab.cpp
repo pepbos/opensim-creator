@@ -22,10 +22,10 @@ namespace
         {+10.0f, -10.0f, 0.0f},
     });
 
-    struct SphereSurface final
+    struct SceneSphereSurface final
     {
 
-        explicit SphereSurface(Vec3 pos_, double r_) : pos{pos_}, r{r_}
+        explicit SceneSphereSurface(Vec3 pos_, double r_) : pos{pos_}, r{r_}
         {}
 
         Vec3 pos;
@@ -203,7 +203,7 @@ private:
         // render sphere
         Graphics::DrawMesh(
             m_SphereMesh,
-            {.position = m_SphereSurface.pos},
+            {.position = m_SceneSphereSurface.pos},
             m_Material,
             m_Camera,
             m_RedColorMaterialProps);
@@ -328,7 +328,7 @@ private:
         GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
 
     // scene state
-    SphereSurface m_SphereSurface = SphereSurface(Vec3{0., 0., 0.}, 1.);
+    SceneSphereSurface m_SceneSphereSurface = SceneSphereSurface(Vec3{0., 0., 0.}, 1.);
     std::vector<SceneCurveSegment> m_SceneCurveSegments =
         GenerateSceneCurveSegments();
     std::vector<SceneSphere> m_SceneSpheres = GenerateSceneSpheres();
