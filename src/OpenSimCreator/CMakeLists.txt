@@ -1,4 +1,5 @@
 find_package(OpenSim REQUIRED CONFIG)
+find_package(Eigen3 3.4 REQUIRED)
 
 add_library(OpenSimCreator STATIC
 
@@ -414,6 +415,7 @@ target_link_libraries(OpenSimCreator PUBLIC
     osimTools
     osimLepton
     osimExampleComponents
+    Eigen3::Eigen
 )
 
 # additional compile options (on top of `oscar_compiler_configuration`)
