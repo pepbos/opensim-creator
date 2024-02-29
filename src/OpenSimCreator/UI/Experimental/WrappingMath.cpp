@@ -236,3 +236,21 @@ void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic) {
         calcDarbouxFrameInGlobal(transform, knot.second);
     }
 }
+
+//==============================================================================
+//                      SURFACE
+//==============================================================================
+
+Geodesic Surface::calcGeodesic(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length) const
+{
+    Vector3 p0 = calcPointInLocal(_transform, initPosition);
+    Vector3 v0 = calcPointInLocal(_transform, initVelocity);
+    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length);
+    calcGeodesicInGlobal(_transform, geodesic);
+    return geodesic;
+}
+
+const Transf& Surface::getOffsetFrame() const {return _transform;}

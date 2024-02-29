@@ -87,4 +87,41 @@ struct Geodesic
     std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
 };
 
+//==============================================================================
+//                      SURFACE
+//==============================================================================
+
+// An abstract component class that you can calculate geodesics over.
+class Surface
+{
+public:
+    virtual ~Surface() = default;
+
+protected:
+    Surface()                              = default;
+    Surface(Surface&&) noexcept            = default;
+    Surface& operator=(Surface&&) noexcept = default;
+    Surface(const Surface&)                = default;
+    Surface& operator=(const Surface&)     = default;
+
+public:
+    Geodesic calcGeodesic(Vector3 initPosition, Vector3 initVelocity, double length)
+        const;
+
+    // TODO This is just here for the current test.
+    void setOffsetFrame(Transf transform);
+
+    const Transf& getOffsetFrame() const;
+
+private:
+    virtual Geodesic calcLocalGeodesicImpl(
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length) const = 0;
+
+    // This would be a socket to an offset frame for example.
+    Transf _transform;
+};
+
+
 }
