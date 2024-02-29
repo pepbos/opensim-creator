@@ -43,9 +43,9 @@ namespace
 
     std::vector<SceneSphere> GenerateSceneSpheres()
     {
-        constexpr int32_t min = -30;
-        constexpr int32_t max = 30;
-        constexpr int32_t step = 6;
+        constexpr int32_t min = -2;
+        constexpr int32_t max = 2;
+        constexpr int32_t step = 2;
 
         std::vector<SceneSphere> rv;
         for (int32_t x = min; x <= max; x += step) {
@@ -53,7 +53,7 @@ namespace
                 for (int32_t z = min; z <= max; z += step) {
                     rv.emplace_back(Vec3{
                         static_cast<float>(x),
-                        50.0f + 2.0f*static_cast<float>(y),
+                        static_cast<float>(y),
                         static_cast<float>(z),
                     });
                 }
