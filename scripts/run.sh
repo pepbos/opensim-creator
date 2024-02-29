@@ -10,6 +10,6 @@ echo "WORKSPACE = $WORKSPACE"
 
 env -C $WORKSPACE cmake --build osc-build -j$(nproc)
 
-env -C $WORKSPACE/src ln -sf ../osc-build/compile_commands.json compile_commands.json
+env -C $WORKSPACE ln -sf osc-build/compile_commands.json compile_commands.json
 
 env -C $WORKSPACE ./osc-build/apps/osc/osc
