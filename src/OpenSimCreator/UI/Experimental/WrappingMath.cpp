@@ -75,24 +75,24 @@ namespace
 namespace
 {
 
-    /* void AssertEq( */
-    /*     const Vector3& lhs, */
-    /*     double norm, */
-    /*     const std::string& msg, */
-    /*     double eps = 1e-13) */
-    /* { */
-    /*     const bool cond = std::abs(lhs.norm() - norm) > eps; */
-    /*     if (cond) { */
-    /*         std::ostringstream os; */
-    /*         os << "FAILED ASSERT: " << msg << std::endl; */
-    /*         os << "    lhs.norm() = " << Print3{lhs} */
-    /*                   << ".norm() = " << lhs.norm() << std::endl; */
-    /*         os << "    expected = " << norm << std::endl; */
-    /*         os << "    err = " << lhs.norm() - norm << std::endl; */
-    /*         std::string msg = os.str(); */
-    /*         OSC_ASSERT(cond && msg.c_str()); */
-    /*     } */
-    /* } */
+    void AssertEq(
+        const Vector3& lhs,
+        double norm,
+        const std::string& msg,
+        double eps = 1e-13)
+    {
+        const bool cond = std::abs(lhs.norm() - norm) > eps;
+        if (cond) {
+            std::ostringstream os;
+            os << "FAILED ASSERT: " << msg << std::endl;
+            os << "    lhs.norm() = " << Print3{lhs}
+               << ".norm() = " << lhs.norm() << std::endl;
+            os << "    expected = " << norm << std::endl;
+            os << "    err = " << lhs.norm() - norm << std::endl;
+            std::string msg = os.str();
+            OSC_ASSERT(cond && msg.c_str());
+        }
+    }
 
     void AssertEq(
         double lhs,
@@ -230,19 +230,17 @@ DarbouxFrame calcDarbouxFromTangentGuessAndNormal(
     return {t, n, b};
 }
 
-namespace{
-DarbouxFrame
-operator*(
-        const Rotation& lhs,
-        const DarbouxFrame& rhs)
+namespace
 {
-    return {
-        lhs * rhs.t,
-        lhs * rhs.n,
-        lhs * rhs.b,
-    };
-}
-}
+    DarbouxFrame operator*(const Rotation& lhs, const DarbouxFrame& rhs)
+    {
+        return {
+            lhs * rhs.t,
+            lhs * rhs.n,
+            lhs * rhs.b,
+        };
+    }
+} // namespace
 
 //==============================================================================
 //                      TRANSFORM
@@ -517,11 +515,9 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
 
     std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
     size_t nSamples = 10;
-    for (size_t i =0; i < nSamples; ++i)
-    {
+    for (size_t i = 0; i < nSamples; ++i) {
         const double angle_i =
-            static_cast<double>(i) /
-            static_cast<double>(nSamples);
+            angle * static_cast<double>(i) / static_cast<double>(nSamples);
         const Rotation dq{Eigen::AngleAxisd(angle_i, axis)};
         const DarbouxFrame f = dq * K_P.frame;
         curveKnots.emplace_back(
@@ -529,4 +525,611 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     }
 
     return {K_P, K_Q, length, std::move(curveKnots)};
+}
+
+//==============================================================================
+//                      ANALYTIC CYLINDER SURFACE
+//==============================================================================
+
+Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length) const
+{
+    if (initPosition.norm() < 1e-13) {
+        throw std::runtime_error("Error: initial position at origin.");
+    }
+
+    const double r = _radius;
+    const double l = length;
+
+    // Cylinder axis assumed to be aligned with z-axis.
+    const Vector3 z{0., 0., 1.};
+
+    // Initial darboux frame.
+    DarbouxFrame f_P = calcDarbouxFromTangentGuessAndNormal(
+        initVelocity,
+        Vector3{initPosition.x(), initPosition.y(), 0.});
+
+    // Initial position on surface.
+    const Vector3 p_P = f_P.n * r + z * initPosition.z();
+
+    // Rotation angle between start and end frame about cylinder axis.
+    const double alpha = (l / r) * z.cross(f_P.n).dot(f_P.t);
+
+    // Distance along cylinder axis between start and end frame.
+    const double h = l * z.dot(f_P.t);
+
+    // Rotation angle variation to initial direction variation.
+    const double dAlpha_dTheta =
+        (l / r) * z.cross(f_P.n).dot(f_P.n.cross(f_P.t));
+
+    // Distance along axis variation to initial direction variation.
+    const double dh_dTheta = l * z.dot(f_P.n.cross(f_P.t));
+
+    // Rotation angle variation to length variation.
+    const double dAlpha_dl = (1. / r) * z.cross(f_P.n).dot(f_P.t);
+
+    // Distance along axis variation to length variation.
+    const double dh_dl = z.dot(f_P.t);
+
+    // Initial trihedron: K_P
+    Geodesic::BoundaryState K_P;
+
+    // Start position variation.
+    const Vector3 zeros{0., 0., 0.};
+    K_P.v = {
+        z.cross(f_P.n) * r,
+        z,
+        zeros,
+        zeros,
+    };
+
+    // Start frame variation.
+    K_P.w = {
+        z,
+        zeros,
+        zeros,
+        zeros,
+    };
+
+    // Set start frame fields.
+    K_P.frame    = f_P;
+    K_P.position = p_P;
+
+    // Integration of the angular rotation about cylinder axis.
+    const Rotation dq{Eigen::AngleAxisd(alpha, z)};
+
+    // Final darboux frame.
+    const Vector3 t_Q = dq * f_P.t;
+    const Vector3 n_Q = dq * f_P.n;
+    DarbouxFrame f_Q{t_Q, n_Q, t_Q.cross(n_Q)};
+
+    // Final position.
+    const Vector3 p_Q = f_Q.n * r + z * (p_P.z() + h);
+
+    // Final trihedron.
+    Geodesic::BoundaryState K_Q;
+
+    // Final position variation.
+    K_Q.v = {
+        z.cross(p_Q),
+        z,
+        z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta,
+        z.cross(p_Q) * dAlpha_dl + z * dh_dl,
+    };
+
+    K_Q.w = {
+        z,
+        zeros,
+        dAlpha_dTheta * z + f_Q.n,
+        dAlpha_dl * z + f_Q.n,
+    };
+
+    std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
+    size_t nSamples = 10;
+    for (size_t i = 0; i < nSamples; ++i) {
+        const double factor =
+            static_cast<double>(i) / static_cast<double>(nSamples);
+        const double angle_i = alpha * factor;
+        const double h_i     = h * factor;
+        const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
+        const DarbouxFrame f = dq * K_P.frame;
+        const Vector3 p_i    = dq * K_P.position + h_i * z;
+        curveKnots.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
+    }
+
+    return {K_P, K_Q, length, std::move(curveKnots)};
+}
+
+//==============================================================================
+//                      PATH CONTINUITY ERROR
+//==============================================================================
+
+void PathContinuityError::resize(size_t nSurfaces)
+{
+    const size_t dim = nSurfaces * 4;
+    _pathError.resize(dim);
+    _pathCorrections.resize(dim);
+    _pathErrorJacobian.resize(dim, dim);
+
+    // Reset values.
+    _pathCorrections.fill(NAN);
+    _pathError.fill(NAN);
+    // Fill with zeros because it is sparse.
+    _pathErrorJacobian.fill(0.);
+}
+
+Eigen::VectorXd& PathContinuityError::updPathError()
+{
+    return _pathError;
+}
+Eigen::MatrixXd& PathContinuityError::updPathErrorJacobian()
+{
+    return _pathErrorJacobian;
+}
+
+double PathContinuityError::calcMaxPathError() const
+{
+    double maxPathError = 0.;
+    for (int i = 0; i < _pathError.rows(); ++i) {
+        maxPathError = std::max(maxPathError, std::abs(_pathError[i]));
+    }
+    return maxPathError;
+}
+
+double PathContinuityError::calcMaxCorrectionStep() const
+{
+    double maxCorr = 0.;
+    for (int i = 0; i < _pathCorrections.rows(); ++i) {
+        maxCorr = std::max(maxCorr, std::abs(_pathCorrections[i]));
+    }
+    return maxCorr;
+}
+
+// Apply max angle limit to the path error.
+void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
+{
+
+    static constexpr double PI = M_PI;
+    const double cap           = sin(maxAngleDegrees / 180. * PI);
+
+    for (int r = 0; r < pathError.rows(); ++r) {
+        double& err = pathError[r];
+        err         = (std::abs(err) > cap) ? err / std::abs(err) * cap : err;
+    }
+
+    /* std::cout << "pathError =\n" << pathError << std::endl; */
+}
+
+void PathContinuityError::calcPathCorrection()
+{
+    clampPathError(_pathError, _maxAngleDegrees);
+
+    // Compute singular value decomposition. TODO or other decomposition?
+    _svd.compute(_pathErrorJacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    _pathCorrections = -_svd.solve(_pathError);
+    /* std::cout << "solverCorr =\n" << _pathCorrections << std::endl; */
+
+    _solverError = _pathErrorJacobian.transpose()
+                   * (_pathErrorJacobian * _pathCorrections + _pathError);
+    /* std::cout << "solverError =\n" << _solverError << std::endl; */
+    if (_solverError.norm() > _eps) {
+        std::cout << "solver error = " << _solverError.norm() << std::endl;
+        throw std::runtime_error("failed to compute corrections: failed to "
+                                 "invert path error jacobian");
+    }
+}
+
+const GeodesicCorrection* PathContinuityError::begin() const
+{
+    return reinterpret_cast<const GeodesicCorrection*>(&_pathCorrections(0));
+}
+
+const GeodesicCorrection* PathContinuityError::end() const
+{
+    return begin() + _pathCorrections.rows() / 4;
+}
+
+//==============================================================================
+//                      SOLVING THE WRAPPING PROBLEM
+//==============================================================================
+
+Vector3 calcNormalDerivative(const DarbouxFrame& frame, const Vector3& rate)
+{
+    Vector3 nDot = -rate[2] * frame.t + rate[0] * frame.b;
+
+    if (RUNTIME_UNIT_TESTS) {
+        const Vector3 w =
+            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
+        AssertEq(nDot, w.cross(frame.n), "nDot = w.cross(n)");
+    }
+
+    return nDot;
+}
+
+Vector3 calcBinormalDerivative(const DarbouxFrame& frame, const Vector3& rate)
+{
+    Vector3 bDot = rate[1] * frame.t - rate[0] * frame.n;
+
+    if (RUNTIME_UNIT_TESTS) {
+        const Vector3 w =
+            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
+        AssertEq(bDot, w.cross(frame.b), "bDot = w.cross(b)");
+    }
+
+    return bDot;
+}
+
+double calcPathErrorJacobian(
+    const Geodesic::BoundaryState& s0,
+    const Vector3& position,
+    Eigen::VectorXd& pathError,
+    Eigen::MatrixXd& pathErrorJacobian,
+    size_t idx)
+{
+    // Compute the length of the straight line segment.
+    const Vector3 d = position - s0.position;
+    const double l  = d.norm(); // segment length.
+
+    // Define the error as the direction from surface to point.
+    const Vector3 e = d / l;
+
+    // Fill the correct row of the path-error-vector and path-error-jacobian:
+    // The first straight line segment will add two constraints, and each
+    // following segment will add 4 constraints.
+    // We therefore start at row:
+    size_t row = idx * 4 + 2;
+
+    // Normal and binormal of surface.
+    const Vector3& N0 = s0.frame.n;
+    const Vector3& B0 = s0.frame.b;
+
+    // Compute path error as projection of error vector onto the normal and
+    // binormal.
+    pathError[row]     = e.dot(N0);
+    pathError[row + 1] = e.dot(B0);
+
+    for (size_t i = 0; i < 4; ++i) {
+        // Linear variation of position given ith natural geodesic variation.
+        const Vector3 v0 = s0.v.at(i);
+
+        // Angular variation of frame given ith natural geodesic variation.
+        const Vector3 w0 = s0.w.at(i);
+
+        // Frame variation given angular variation.
+        const Vector3 dN0 = calcNormalDerivative(s0.frame, w0);
+        const Vector3 dB0 = calcBinormalDerivative(s0.frame, w0);
+
+        // Variation of error vector.
+        const Vector3 de0 = -(v0 - e * e.dot(v0)) / l;
+
+        // Variation of path error values.
+        const size_t col                = idx * 4 + i;
+        pathErrorJacobian(row, col)     = de0.dot(N0) + e.dot(dN0);
+        pathErrorJacobian(row + 1, col) = de0.dot(B0) + e.dot(dB0);
+        /* std::cout << "    pathErrorJcobian[" << row <<"," << i << "] = " <<
+         * pathErrorJacobian(row, i) << "\n"; */
+    }
+
+    // Return the length of the straight line segment.
+    return l;
+}
+
+double calcPathErrorJacobian(
+    const Vector3& position,
+    const Geodesic::BoundaryState& s1,
+    Eigen::VectorXd& pathError,
+    Eigen::MatrixXd& pathErrorJacobian)
+{
+    /* std::cout << "\n"; */
+    /* std::cout << "START calcPathErrorJacobian (start)\n"; */
+    /* std::cout << "    p0 = " << Print3{position} << "\n"; */
+    /* std::cout << "    s1 = " << s1 << "\n"; */
+
+    const double l  = (s1.position - position).norm();
+    const Vector3 e = (s1.position - position) / l;
+
+    /* std::cout << "    l0 = " << l << "\n"; */
+    /* std::cout << "    e0 = " << Print3{e} << "\n"; */
+    /* std::cout << "    t1 = " << Print3{s1.frame.t} << "\n"; */
+
+    const Vector3 N1 = s1.frame.n;
+    const Vector3 B1 = s1.frame.b;
+
+    // Compute path error.
+    pathError[0] = e.dot(N1);
+    pathError[1] = e.dot(B1);
+    /* std::cout << "    eN1 = " << pathError[0] << "\n"; */
+    /* std::cout << "    eB1 = " << pathError[1] << "\n"; */
+
+    // Compute jacobian to natural geodesic variation.
+    for (size_t i = 0; i < 4; ++i) {
+        const Vector3 v1    = s1.v.at(i);
+        const Vector3 n1Dot = calcNormalDerivative(s1.frame, s1.w.at(i));
+        const Vector3 b1Dot = calcBinormalDerivative(s1.frame, s1.w.at(i));
+
+        const Vector3 de1 = (v1 - e * e.dot(v1)) / l;
+
+        pathErrorJacobian(0, i) = de1.dot(N1) + e.dot(n1Dot);
+        pathErrorJacobian(1, i) = de1.dot(B1) + e.dot(b1Dot);
+
+        /* std::cout << "        J0" */
+        /*           << "," << i << " = " << pathErrorJacobian(0, i) << "\n"; */
+        /* std::cout << "        J1" */
+        /*           << "," << i << " = " << pathErrorJacobian(1, i) << "\n"; */
+    }
+
+    /* std::cout << "\n"; */
+    return l;
+}
+
+double calcPathErrorJacobian(
+    const Geodesic::BoundaryState& s0,
+    const Geodesic::BoundaryState& s1,
+    Eigen::VectorXd& pathError,
+    Eigen::MatrixXd& pathErrorJacobian,
+    size_t idx0)
+{
+    Vector3 e      = s1.position - s0.position;
+    const double l = e.norm();
+    e              = e / l;
+
+    const Vector3& N0 = s0.frame.n;
+    const Vector3& B0 = s0.frame.b;
+
+    const Vector3& N1 = s1.frame.n;
+    const Vector3& B1 = s1.frame.b;
+
+    size_t row = idx0 * 4 + 2;
+
+    // Compute path error.
+    pathError[row]     = e.dot(N0);
+    pathError[row + 1] = e.dot(B0);
+
+    pathError[row + 2] = e.dot(N1);
+    pathError[row + 3] = e.dot(B1);
+
+    /* std::cout << "    pathError = " << row << "\n"; */
+
+    // Compute jacobian to natural geodesic variation.
+    for (size_t i = 0; i < 4; ++i) {
+        const size_t col = idx0 * 4 + i;
+        const Vector3 v0 = s0.v.at(i);
+        const Vector3 v1 = s1.v.at(i);
+
+        const Vector3 w0 = s0.w.at(i);
+        const Vector3 w1 = s1.w.at(i);
+
+        const Vector3 dN0 = calcNormalDerivative(s0.frame, w0);
+        const Vector3 dB0 = calcBinormalDerivative(s0.frame, w0);
+
+        const Vector3 dN1 = calcNormalDerivative(s1.frame, w1);
+        const Vector3 dB1 = calcBinormalDerivative(s1.frame, w1);
+
+        const Vector3 de0 = -(v0 - e * e.dot(v0)) / l;
+        const Vector3 de1 = (v1 - e * e.dot(v1)) / l;
+
+        {
+            pathErrorJacobian(row, col)     = de0.dot(N0) + e.dot(dN0);
+            pathErrorJacobian(row + 1, col) = de0.dot(B0) + e.dot(dB0);
+
+            pathErrorJacobian(row, col + 4)     = de1.dot(N0);
+            pathErrorJacobian(row + 1, col + 4) = de1.dot(B0);
+        }
+
+        {
+            pathErrorJacobian(row + 2, col) = de0.dot(N1);
+            pathErrorJacobian(row + 3, col) = de0.dot(B1);
+
+            pathErrorJacobian(row + 2, col + 4) = de1.dot(N1) + e.dot(dN1);
+            pathErrorJacobian(row + 3, col + 4) = de1.dot(B1) + e.dot(dB1);
+        }
+    }
+
+    return l;
+}
+
+// TODO reuse existin functions.
+Vector3 calcPointClosestToPointOnEdge(
+    const Vector3& edgePoint0,
+    const Vector3& edgePoint1,
+    const Vector3& targetPoint)
+{
+    Vector3 p0 = edgePoint0 - targetPoint;
+    Vector3 p1 = edgePoint1 - targetPoint;
+
+    const Vector3 e = p1 - p0;
+
+    Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
+
+    const double d0 = p0.dot(p0);
+    const double d1 = p1.dot(p1);
+    const double d  = p.dot(p);
+
+    if (d0 < d) {
+        return edgePoint0;
+    }
+    if (d1 < d) {
+        return edgePoint1;
+    }
+    return p + targetPoint;
+}
+
+std::vector<Geodesic> calcInitWrappingPathGuess(
+    const Vector3& pathStart,
+    const Vector3& pathEnd,
+    std::function<const Surface*(size_t)>& getSurface)
+{
+    std::vector<Geodesic> geodesics;
+    for (size_t i = 0; getSurface(i); ++i) {
+        Vector3 originSurface = getSurface(i)->getOffsetFrame().position;
+        const Vector3 pointBefore =
+            i == 0 ? pathStart : geodesics.back().end.position;
+        const Vector3& pointAfter = pathEnd;
+
+        Vector3 initPositon = calcPointClosestToPointOnEdge(
+            pointBefore,
+            pointAfter,
+            originSurface);
+        Vector3 initVelocity = (pathEnd - pathStart);
+
+        // Shoot a zero-length geodesic as initial guess.
+        geodesics.push_back(
+            getSurface(i)->calcGeodesic(initPositon, initVelocity, 0.));
+
+        if (geodesics.back().length != 0.) {
+            throw std::runtime_error("Failed to shoot a zero-length geodesic");
+        }
+    }
+    return geodesics;
+}
+
+WrappingPath Surface::calcNewWrappingPath(
+    Vector3 pathStart,
+    Vector3 pathEnd,
+    Surface::GetSurfaceFn& GetSurface,
+    double eps,
+    size_t maxIter)
+{
+    PathContinuityError smoothness;
+
+    size_t nSurfaces = 0;
+    for (; GetSurface(nSurfaces); ++nSurfaces) {
+    }
+    /* std::cout << "nSurfaces="<<nSurfaces << std::endl; */
+
+    WrappingPath path(pathStart, pathEnd);
+    path.smoothness.resize(nSurfaces);
+    path.segments = calcInitWrappingPathGuess(pathStart, pathEnd, GetSurface);
+
+    Surface::calcUpdatedWrappingPath(path, GetSurface, eps, maxIter);
+
+    return path;
+}
+
+void applyNaturalGeodesicVariation(
+    Geodesic::BoundaryState& geodesicStart,
+    const GeodesicCorrection& correction)
+{
+    Vector3& p = geodesicStart.position;
+
+    for (size_t i = 0; i < correction.size(); ++i) {
+        p += correction.at(i) * geodesicStart.v.at(i);
+    }
+
+    // TODO Or just use cross product?
+    Vector3 rotVec = {0., 0., 0.};
+    for (size_t i = 0; i < correction.size(); ++i) {
+        rotVec += correction.at(i) * geodesicStart.w.at(i);
+    }
+
+    AssertEq(
+        geodesicStart.v.at(3),
+        0.,
+        "Last geodesic correction field must be zero");
+    AssertEq(
+        geodesicStart.w.at(3),
+        0.,
+        "Last geodesic correction field must be zero");
+
+    double angle        = rotVec.norm();
+    Vector3 axis        = rotVec / angle;
+    Rotation dq         = angle > 1e-13
+                              ? Rotation(Eigen::AngleAxis<double>(angle, axis))
+                              : Rotation::Identity();
+    geodesicStart.frame = dq * geodesicStart.frame;
+}
+
+size_t Surface::calcUpdatedWrappingPath(
+    WrappingPath& path,
+    Surface::GetSurfaceFn& GetSurface,
+    double eps,
+    size_t maxIter)
+{
+    const ptrdiff_t nSurfaces = path.segments.size();
+    /* for (; at(nSurfaces); ++nSurfaces); */
+    /*     throw std::runtime_error("Number of geodesic segments in path does
+     * not match number of provided getSurface to wrap over"); */
+    /* } */
+
+    if (nSurfaces == 0) {
+        return 0;
+    }
+
+    /* std::cout << "START WrapSolver::calcPath\n"; */
+    for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
+        // Setup path error for first segment.
+        calcPathErrorJacobian(
+            path.startPoint,
+            path.segments.front().start,
+            path.smoothness.updPathError(),
+            path.smoothness.updPathErrorJacobian());
+
+        // Setup path error between segments.
+        for (ptrdiff_t idx = 0; idx + 1 < nSurfaces; ++idx) {
+            /* std::cout << "START WrapSolver::intermediate segment" <<
+             * std::endl; */
+            Geodesic::BoundaryState start = path.segments.at(idx).end;
+            Geodesic::BoundaryState end   = path.segments.at(idx + 1).start;
+            calcPathErrorJacobian(
+                start,
+                end,
+                path.smoothness.updPathError(),
+                path.smoothness.updPathErrorJacobian(),
+                idx++);
+        }
+
+        // Setup path error for last segment.
+        calcPathErrorJacobian(
+            path.segments.back().end,
+            path.endPoint,
+            path.smoothness.updPathError(),
+            path.smoothness.updPathErrorJacobian(),
+            nSurfaces - 1);
+
+        // Process the path errors.
+        path.smoothness.calcPathCorrection();
+        /* std::cout << "    ===== STEP ==== = " <<
+         * path.smoothness.calcMaxPathError() << "\n"; */
+
+        if (path.smoothness.calcMaxPathError() < eps) {
+            /* std::cout << "   Wrapping path solved in " << loopIter <<
+             * "steps\n"; */
+            return loopIter;
+        }
+
+        // Obtain the computed geodesic corrections from the path errors.
+        const auto* corrIt  = path.smoothness.begin();
+        const auto* corrEnd = path.smoothness.end();
+        if (corrEnd - corrIt != nSurfaces) {
+            std::runtime_error("Number of geodesic-corrections not equal ot "
+                               "number of geodesics");
+        }
+
+        // Apply corrections.
+        for (ptrdiff_t i = 0; i < nSurfaces; ++i) {
+            const GeodesicCorrection& correction = *(corrIt + i);
+            applyNaturalGeodesicVariation(
+                path.segments.at(i).start,
+                correction);
+
+            // TODO last field of correction must be lengthening.
+            path.segments.at(i).length += correction.at(3);
+            /* std::cout << "    state after correction: " <<
+             * path.segments.at(i).start << "\n"; */
+        }
+
+        // Shoot a the new geodesics.
+        for (ptrdiff_t i = 0; i < nSurfaces; ++i) {
+            /* std::cout << "    shoot a new geodesic over " << i << "th
+             * surface\n"; */
+            path.segments.at(i) = GetSurface(i)->calcGeodesic(
+                path.segments.at(i).start.position,
+                path.segments.at(i).start.frame.t,
+                path.segments.at(i).length);
+        }
+    }
+    throw std::runtime_error(
+        "failed to find wrapping path: exceeded max number of iterations");
 }

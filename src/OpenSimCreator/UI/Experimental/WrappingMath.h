@@ -9,6 +9,10 @@
 namespace osc
 {
 
+    // The actual step of each natural geodesic variation:
+    // {tangentiol, binormal, directional, lengthening}
+    using GeodesicCorrection = std::array<double, 4>;
+
     using Rotation = Eigen::Quaternion<double>;
     using Mat3x3d  = Eigen::Matrix<double, 3, 3>;
 
@@ -35,9 +39,9 @@ namespace osc
         Vector3 b{NAN, NAN, NAN};
     };
 
-/*     DarbouxFrame operator*( */
-/*             const Rotation& lhs, */
-/*             const DarbouxFrame& rhs); */
+    /*     DarbouxFrame operator*( */
+    /*             const Rotation& lhs, */
+    /*             const DarbouxFrame& rhs); */
 
     //==============================================================================
     //                      GEODESIC
@@ -91,6 +95,8 @@ namespace osc
     //                      SURFACE
     //==============================================================================
 
+    struct WrappingPath;
+
     // An abstract component class that you can calculate geodesics over.
     class Surface
     {
@@ -112,6 +118,21 @@ namespace osc
             Vector3 initPosition,
             Vector3 initVelocity,
             double length) const;
+
+        using GetSurfaceFn = std::function<const Surface*(size_t)>;
+
+        static WrappingPath calcNewWrappingPath(
+            Vector3 pathStart,
+            Vector3 pathEnd,
+            GetSurfaceFn& GetSurface,
+            double eps     = 1e-6,
+            size_t maxIter = 10);
+
+        static size_t calcUpdatedWrappingPath(
+            WrappingPath& path,
+            GetSurfaceFn& GetSurface,
+            double eps     = 1e-6,
+            size_t maxIter = 10);
 
         // TODO This is just here for the current test.
         void setOffsetFrame(Transf transform)
@@ -152,6 +173,115 @@ namespace osc
             double length) const override;
 
         double _radius;
+    };
+
+    //==============================================================================
+    //                      ANALYTIC CYLINDER SURFACE
+    //==============================================================================
+
+    // Concrete component.
+    class AnalyticCylinderSurface : public Surface
+    {
+    public:
+
+        explicit AnalyticCylinderSurface(double radius) : _radius(radius)
+        {}
+
+    private:
+
+        Geodesic calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length) const override;
+
+        double _radius;
+    };
+
+    //==============================================================================
+    //      WRAPPING PATH
+    //==============================================================================
+
+    // Captures the smoothness of the wrapping path.
+    class PathContinuityError final
+    {
+    public:
+
+        ~PathContinuityError()                                     = default;
+        PathContinuityError()                                      = default;
+        PathContinuityError(const PathContinuityError&)            = default;
+        PathContinuityError(PathContinuityError&&) noexcept        = default;
+        PathContinuityError& operator=(const PathContinuityError&) = default;
+        PathContinuityError& operator=(PathContinuityError&&) noexcept =
+            default;
+
+        // Maximum alignment error of the tangents.
+        double calcMaxPathError() const;
+
+        // Maximum natural geodesic correction for reducing the path error.
+        double calcMaxCorrectionStep() const;
+
+        /* private: */
+        // Pointer to first geodesic's correction.
+        const GeodesicCorrection* begin() const;
+        // Pointer to one past last geodesic's correction.
+        const GeodesicCorrection* end() const;
+
+        // Get access to the path error and path error jacobian.
+        Eigen::VectorXd& updPathError();
+        Eigen::MatrixXd& updPathErrorJacobian();
+
+        // Compute the geodesic corrections from the path error and path error
+        // jacobian.
+        void calcPathCorrection();
+
+        // Resize internal matrices to match the problem size (number of
+        // surfaces).
+        void resize(size_t nSurfaces);
+
+        double _maxAngleDegrees = 5.;
+        double _eps             = 1e-10;
+        Eigen::VectorXd _solverError; // For debugging.
+        Eigen::VectorXd _pathCorrections;
+        Eigen::VectorXd _pathError;
+        Eigen::MatrixXd _pathErrorJacobian;
+        Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
+        size_t _nSurfaces = 0;
+
+        friend Surface; // TODO change to whomever is calculating the path.
+        friend WrappingPath calcNewWrappingPath(
+            Vector3,
+            Vector3,
+            std::function<const Surface*(size_t)>,
+            double,
+            size_t);
+        friend size_t calcUpdatedWrappingPath(
+            WrappingPath& path,
+            std::function<const Surface*(size_t)> surfaces,
+            double,
+            size_t);
+    };
+
+    // The result of computing a path over surfaces.
+    struct WrappingPath
+    {
+        WrappingPath() = default;
+
+        WrappingPath(Vector3 pStart, Vector3 pEnd) :
+            startPoint(std::move(pStart)), endPoint(std::move(pEnd))
+        {}
+
+        Vector3 startPoint{
+            NAN,
+            NAN,
+            NAN,
+        };
+        Vector3 endPoint{
+            NAN,
+            NAN,
+            NAN,
+        };
+        std::vector<Geodesic> segments;
+        PathContinuityError smoothness;
     };
 
 } // namespace osc

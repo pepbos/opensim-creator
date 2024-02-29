@@ -30,7 +30,7 @@ namespace
     {
 
         explicit SceneSphereSurface(Vec3 pos_, double r_) :
-            surface{AnalyticSphereSurface(r_)}, pos{pos_}, r{r_}
+            surface{AnalyticSphereSurface(r_)}, pos{pos_}, r{r_ * 0.9}
         {
             surface.setOffsetFrame(Transf{
                 {
@@ -54,47 +54,6 @@ namespace
         Vec3 pos;
         double r;
     };
-
-    struct SceneCurveSegment final
-    {
-
-        SceneCurveSegment() = default;
-        ~SceneCurveSegment() = default;
-
-        explicit SceneCurveSegment(Vec3 pos0, Vec3 pos1) :
-            pos{pos0}, diff{pos1 - pos0}
-        {}
-
-        Vec3 pos;
-        Vec3 diff;
-    };
-
-    void writeSceneCurveSegments(
-        std::vector<SceneCurveSegment>& rv,
-        const Geodesic& geodesic)
-    {
-        rv.clear();
-        rv.resize(geodesic.curveKnots.size());
-
-        Vec3 prev = ToVec3(geodesic.start.position);
-        for (const std::pair<Vector3, DarbouxFrame>& knot: geodesic.curveKnots) {
-            const Vec3 next = ToVec3(knot.first);
-            rv.emplace_back(SceneCurveSegment{prev, next});
-            prev = next;
-        }
-        const Vec3 next = ToVec3(geodesic.end.position);
-        rv.emplace_back(SceneCurveSegment{prev, next});
-    }
-
-    std::vector<SceneCurveSegment> GenerateSceneCurveSegments()
-    {
-        std::vector<SceneCurveSegment> rv;
-        rv.emplace_back(SceneCurveSegment{
-            Vec3{0., 0., 0.},
-            Vec3{5., 1., 1.},
-        });
-        return rv;
-    }
 
     struct SceneSphere final
     {
@@ -121,6 +80,17 @@ public:
 
     Impl() : StandardTabImpl{c_TabStringID}
     {
+        {
+            // Initialize the wrapping path.
+            m_StartPoint    = {-3., 0.1, 0.};
+            m_EndPoint      = {3., 0.1, 0.};
+            Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+                return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
+            };
+            m_WrappingPath =
+                Surface::calcNewWrappingPath(m_StartPoint, m_EndPoint, GetSurface);
+        }
+
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
     }
 
@@ -155,14 +125,11 @@ private:
 
     void implOnTick() final
     {
-        static constexpr double PI  = M_PI;
-
-        Vector3 p0{1., 1., 0.};
-        Vector3 v0{0., 0., 1.};
-        const double l = 45. / 180. * PI * m_SceneSphereSurface.r;
-        m_Geodesic = m_SceneSphereSurface.surface.calcGeodesic(
-                p0, v0, l);
-        writeSceneCurveSegments(m_SceneCurveSegments, m_Geodesic);
+        // Analytic geodesic computation.
+        Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+            return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
+        };
+        Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
     }
 
     void implOnDraw() final
@@ -178,23 +145,38 @@ private:
         }
 
         // render sphere
-        /* Graphics::DrawMesh( */
-        /*     m_SphereMesh, */
-        /*     { */
-        /*     .position = m_SceneSphereSurface.getPosition(), */
-        /*     }, */
-        /*     m_Material, */
-        /*     m_Camera, */
-        /*     m_RedColorMaterialProps); */
+        Graphics::DrawMesh(
+            m_SphereMesh,
+            {
+            .position = m_SceneSphereSurface.getPosition(),
+            },
+            m_Material,
+            m_Camera,
+            m_RedColorMaterialProps);
 
         // render curve
-        for (SceneCurveSegment const& curve : m_SceneCurveSegments) {
-            Graphics::DrawMesh(
-                m_LineMesh,
-                {.scale = curve.diff, .position = curve.pos},
-                m_Material,
-                m_Camera,
-                m_BlackColorMaterialProps);
+        {
+            Vector3 prev              = m_StartPoint;
+            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1) {
+                Graphics::DrawMesh(
+                    m_LineMesh,
+                    {.scale = p1 - p0, .position = p0},
+                    m_Material,
+                    m_Camera,
+                    m_BlackColorMaterialProps);
+            };
+            for (const Geodesic& geodesic : m_WrappingPath.segments) {
+
+                // Iterate over the logged points in the Geodesic.
+                for (const std::pair<Vector3, DarbouxFrame>& knot :
+                     geodesic.curveKnots) {
+                    const Vector3 next = knot.first;
+                    DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+                    prev = next;
+                }
+            }
+            const Vector3 next = m_WrappingPath.endPoint;
+            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
         }
 
         Rect const viewport = GetMainViewportWorkspaceScreenRect();
@@ -205,7 +187,18 @@ private:
     }
 
     // Wrapping stuff.
-    Geodesic m_Geodesic                           = Geodesic();
+    Vector3 m_StartPoint{
+        NAN,
+        NAN,
+        NAN,
+    };
+    Vector3 m_EndPoint{
+        NAN,
+        NAN,
+        NAN,
+    };
+
+    WrappingPath m_WrappingPath = WrappingPath();
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -229,8 +222,6 @@ private:
     // scene state
     SceneSphereSurface m_SceneSphereSurface =
         SceneSphereSurface(Vec3{0., 0., 0.}, 1.);
-    std::vector<SceneCurveSegment> m_SceneCurveSegments =
-        GenerateSceneCurveSegments();
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 };
