@@ -22,6 +22,15 @@ namespace
         {+10.0f, -10.0f, 0.0f},
     });
 
+    struct SphereSurface final {
+
+        explicit SphereSurface(Vec3 pos_) :
+            pos{pos_}
+        {}
+
+        Vec3 pos;
+    };
+
     struct SceneSphere final {
 
         explicit SceneSphere(Vec3 pos_) :
@@ -269,6 +278,7 @@ private:
     MaterialPropertyBlock m_RedColorMaterialProps = GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
 
     // scene state
+    SphereSurface m_SphereSurface = SphereSurface(Vec3{0., 0., 0.});
     std::vector<SceneSphere> m_SceneSpheres = GenerateSceneSpheres();
     AABB m_SceneSphereAABB = m_SphereMesh.getBounds();
     Sphere m_SceneSphereBoundingSphere = BoundingSphereOf(m_SphereMesh);
