@@ -24,12 +24,34 @@ namespace
 
     struct SphereSurface final {
 
-        explicit SphereSurface(Vec3 pos_) :
-            pos{pos_}
+        explicit SphereSurface(Vec3 pos_, double r_) :
+            pos{pos_}, r{r_}
         {}
 
         Vec3 pos;
+        double r;
     };
+
+    struct SceneCurveSegment final {
+
+        explicit SceneCurveSegment(Vec3 pos0, Vec3 pos1) :
+            pos{pos0}, diff{pos1- pos0}
+        {}
+
+        Vec3 pos;
+        Vec3 diff;
+    };
+
+    std::vector<SceneCurveSegment> GenerateSceneCurveSegments()
+    {
+        std::vector<SceneCurveSegment> rv;
+        rv.emplace_back(
+                SceneCurveSegment{
+                Vec3{0., 0., 0.},
+                Vec3{1., 1., 1.},
+                });
+        return rv;
+    }
 
     struct SceneSphere final {
 
@@ -178,7 +200,25 @@ private:
             App::upd().setShowCursor(true);
         }
 
-        // render spheres
+        // render sphere
+        Graphics::DrawMesh(
+                m_SphereMesh,
+                {.position = m_SphereSurface.pos},
+                m_Material,
+                m_Camera,
+                m_RedColorMaterialProps);
+
+        // render curve
+        for (SceneCurveSegment const& curve : m_SceneCurveSegments) {
+                Graphics::DrawMesh(
+                    m_LineMesh,
+                    {.scale = curve.diff, .position = curve.pos},
+                    m_Material,
+                    m_Camera,
+                    m_BlackColorMaterialProps
+                );
+        }
+
         for (SceneSphere const& sphere : m_SceneSpheres) {
 
             Graphics::DrawMesh(
@@ -268,7 +308,10 @@ private:
         m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
         m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
     }};
+
     Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
+    Mesh m_LineMesh = GenerateXYZToXYZLineMesh();
+
     Mesh m_WireframeCubeMesh = GenerateCubeLinesMesh();
     Mesh m_CircleMesh = GenerateCircleMesh(36);
     Mesh m_CrosshairMesh = GenerateCrosshairMesh();
@@ -278,7 +321,8 @@ private:
     MaterialPropertyBlock m_RedColorMaterialProps = GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
 
     // scene state
-    SphereSurface m_SphereSurface = SphereSurface(Vec3{0., 0., 0.});
+    SphereSurface m_SphereSurface = SphereSurface(Vec3{0., 0., 0.}, 1.);
+    std::vector<SceneCurveSegment> m_SceneCurveSegments = GenerateSceneCurveSegments();
     std::vector<SceneSphere> m_SceneSpheres = GenerateSceneSpheres();
     AABB m_SceneSphereAABB = m_SphereMesh.getBounds();
     Sphere m_SceneSphereBoundingSphere = BoundingSphereOf(m_SphereMesh);
