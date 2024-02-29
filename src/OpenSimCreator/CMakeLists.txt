@@ -209,6 +209,8 @@ add_library(OpenSimCreator STATIC
     UI/Experimental/RendererGeometryShaderTab.h
     UI/Experimental/TPS2DTab.cpp
     UI/Experimental/TPS2DTab.h
+    UI/Experimental/WrappingTab.cpp
+    UI/Experimental/WrappingTab.h
 
     UI/FrameDefinition/FrameDefinitionTab.cpp
     UI/FrameDefinition/FrameDefinitionTab.h
