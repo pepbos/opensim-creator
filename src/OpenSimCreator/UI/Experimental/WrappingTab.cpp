@@ -91,6 +91,10 @@ public:
                 Surface::calcNewWrappingPath(m_StartPoint, m_EndPoint, GetSurface);
         }
 
+        // Configure sphere material.
+        m_Material.setTransparent(true);
+        /* m_Material.setWireframeMode(true); */
+
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
     }
 
@@ -152,7 +156,7 @@ private:
             },
             m_Material,
             m_Camera,
-            m_RedColorMaterialProps);
+            m_GreyColorMaterialProps);
 
         // render curve
         {
@@ -163,7 +167,7 @@ private:
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
                     m_Camera,
-                    m_BlackColorMaterialProps);
+                    m_RedColorMaterialProps);
             };
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
@@ -218,6 +222,8 @@ private:
         GeneratePropertyBlock({0.0f, 0.0f, 1.0f, 1.0f});
     MaterialPropertyBlock m_RedColorMaterialProps =
         GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
+    MaterialPropertyBlock m_GreyColorMaterialProps =
+        GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.5f});
 
     // scene state
     SceneSphereSurface m_SceneSphereSurface =
