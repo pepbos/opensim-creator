@@ -16,12 +16,6 @@ namespace
 {
     constexpr CStringView c_TabStringID = "OpenSim/Experimental/Wrapping";
 
-    constexpr auto c_TriangleVerts = std::to_array<Vec3>({
-        {-10.0f, -10.0f, 0.0f},
-        { +0.0f, +10.0f, 0.0f},
-        {+10.0f, -10.0f, 0.0f},
-    });
-
     struct SceneSphereSurface final
     {
 
@@ -48,7 +42,7 @@ namespace
         std::vector<SceneCurveSegment> rv;
         rv.emplace_back(SceneCurveSegment{
             Vec3{0., 0., 0.},
-            Vec3{1., 1., 1.},
+            Vec3{5., 1., 1.},
         });
         return rv;
     }
@@ -63,52 +57,6 @@ namespace
         bool isHovered = false;
     };
 
-    std::vector<SceneSphere> GenerateSceneSpheres()
-    {
-        constexpr int32_t min  = -2;
-        constexpr int32_t max  = 2;
-        constexpr int32_t step = 2;
-
-        std::vector<SceneSphere> rv;
-        for (int32_t x = min; x <= max; x += step) {
-            for (int32_t y = min; y <= max; y += step) {
-                for (int32_t z = min; z <= max; z += step) {
-                    rv.emplace_back(Vec3{
-                        static_cast<float>(x),
-                        static_cast<float>(y),
-                        static_cast<float>(z),
-                    });
-                }
-            }
-        }
-        return rv;
-    }
-
-    Mesh GenerateCrosshairMesh()
-    {
-        Mesh rv;
-        rv.setTopology(MeshTopology::Lines);
-        rv.setVerts({
-  // -X to +X
-            {-0.05f,   0.0f, 0.0f},
-            {+0.05f,   0.0f, 0.0f},
-
- // -Y to +Y
-            {  0.0f, -0.05f, 0.0f},
-            {  0.0f, +0.05f, 0.0f},
-        });
-        rv.setIndices({0, 1, 2, 3});
-        return rv;
-    }
-
-    Mesh GenerateTriangleMesh()
-    {
-        Mesh rv;
-        rv.setVerts(c_TriangleVerts);
-        rv.setIndices({0, 1, 2});
-        return rv;
-    }
-
     MaterialPropertyBlock GeneratePropertyBlock(Color const& color)
     {
         MaterialPropertyBlock p;
@@ -116,13 +64,6 @@ namespace
         return p;
     }
 
-    Line GetCameraRay(Camera const& camera)
-    {
-        return {
-            camera.getPosition(),
-            camera.getDirection(),
-        };
-    }
 } // namespace
 
 class osc::WrappingTab::Impl final : public StandardTabImpl
@@ -165,27 +106,6 @@ private:
 
     void implOnTick() final
     {
-        // hittest spheres
-
-        Line ray                        = GetCameraRay(m_Camera);
-        float closestEl                 = std::numeric_limits<float>::max();
-        SceneSphere* closestSceneSphere = nullptr;
-
-        for (SceneSphere& ss : m_SceneSpheres) {
-            ss.isHovered = false;
-
-            Sphere s{ss.pos, m_SceneSphereBoundingSphere.radius};
-
-            std::optional<RayCollision> res = GetRayCollisionSphere(ray, s);
-            if (res && res->distance >= 0.0f && res->distance < closestEl) {
-                closestEl          = res->distance;
-                closestSceneSphere = &ss;
-            }
-        }
-
-        if (closestSceneSphere) {
-            closestSceneSphere->isHovered = true;
-        }
     }
 
     void implOnDraw() final
@@ -218,86 +138,7 @@ private:
                 m_BlackColorMaterialProps);
         }
 
-        for (SceneSphere const& sphere : m_SceneSpheres) {
-
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {.position = sphere.pos},
-                m_Material,
-                m_Camera,
-                sphere.isHovered ? m_BlueColorMaterialProps
-                                 : m_RedColorMaterialProps);
-
-            // draw sphere AABBs
-            if (m_IsShowingAABBs) {
-
-                Graphics::DrawMesh(
-                    m_WireframeCubeMesh,
-                    {.scale    = HalfWidths(m_SceneSphereAABB),
-                     .position = sphere.pos},
-                    m_Material,
-                    m_Camera,
-                    m_BlackColorMaterialProps);
-            }
-        }
-
-        // hittest + draw disc
-        {
-            Line const ray = GetCameraRay(m_Camera);
-
-            Disc const sceneDisc{
-                .origin = {0.0f, 0.0f, 0.0f},
-                .normal = {0.0f, 1.0f, 0.0f},
-                .radius = 10.0f,
-            };
-
-            std::optional<RayCollision> const maybeCollision =
-                GetRayCollisionDisc(ray, sceneDisc);
-
-            Disc const meshDisc{
-                .origin = {0.0f, 0.0f, 0.0f},
-                .normal = {0.0f, 0.0f, 1.0f},
-                .radius = 1.0f,
-            };
-
-            Graphics::DrawMesh(
-                m_CircleMesh,
-                DiscToDiscMat4(meshDisc, sceneDisc),
-                m_Material,
-                m_Camera,
-                maybeCollision ? m_BlueColorMaterialProps
-                               : m_RedColorMaterialProps);
-        }
-
-        // hittest + draw triangle
-        {
-            Line const ray = GetCameraRay(m_Camera);
-            std::optional<RayCollision> const maybeCollision =
-                GetRayCollisionTriangle(
-                    ray,
-                    Triangle{
-                        c_TriangleVerts.at(0),
-                        c_TriangleVerts.at(1),
-                        c_TriangleVerts.at(2)});
-
-            Graphics::DrawMesh(
-                m_TriangleMesh,
-                Identity<Transform>(),
-                m_Material,
-                m_Camera,
-                maybeCollision ? m_BlueColorMaterialProps
-                               : m_RedColorMaterialProps);
-        }
-
         Rect const viewport = GetMainViewportWorkspaceScreenRect();
-
-        // draw crosshair overlay
-        Graphics::DrawMesh(
-            m_CrosshairMesh,
-            m_Camera.getInverseViewProjectionMatrix(AspectRatio(viewport)),
-            m_Material,
-            m_Camera,
-            m_BlackColorMaterialProps);
 
         // draw scene to screen
         m_Camera.setPixelRect(viewport);
@@ -316,10 +157,6 @@ private:
     Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
 
-    Mesh m_WireframeCubeMesh = GenerateCubeLinesMesh();
-    Mesh m_CircleMesh        = GenerateCircleMesh(36);
-    Mesh m_CrosshairMesh     = GenerateCrosshairMesh();
-    Mesh m_TriangleMesh      = GenerateTriangleMesh();
     MaterialPropertyBlock m_BlackColorMaterialProps =
         GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_BlueColorMaterialProps =
@@ -331,12 +168,8 @@ private:
     SceneSphereSurface m_SceneSphereSurface = SceneSphereSurface(Vec3{0., 0., 0.}, 1.);
     std::vector<SceneCurveSegment> m_SceneCurveSegments =
         GenerateSceneCurveSegments();
-    std::vector<SceneSphere> m_SceneSpheres = GenerateSceneSpheres();
-    AABB m_SceneSphereAABB                  = m_SphereMesh.getBounds();
-    Sphere m_SceneSphereBoundingSphere      = BoundingSphereOf(m_SphereMesh);
     bool m_IsMouseCaptured                  = false;
     Eulers m_CameraEulers{};
-    bool m_IsShowingAABBs = true;
 };
 
 // public API
