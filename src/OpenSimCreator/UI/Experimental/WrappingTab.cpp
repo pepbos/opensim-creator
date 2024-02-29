@@ -1,13 +1,14 @@
+#include "WrappingMath.h"
 #include "WrappingTab.h"
 
-#include <oscar/oscar.h>
 #include <SDL_events.h>
-
 #include <array>
 #include <cstdint>
+#include <eigen3/Eigen/Geometry>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <oscar/oscar.h>
 #include <vector>
 
 using namespace osc;
@@ -144,6 +145,9 @@ private:
         m_Camera.setPixelRect(viewport);
         m_Camera.renderToScreen();
     }
+
+    // Wrapping stuff.
+    Geodesic  m_Geodesic = Geodesic();
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
