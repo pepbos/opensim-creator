@@ -187,3 +187,9 @@ ExternalProject_Add(opensim-core
         -DBUILD_TESTING:BOOL=OFF
         -DBUILD_API_EXAMPLES:BOOL=OFF
 )
+
+ExternalProject_Add(eigen
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/eigen
+    CMAKE_CACHE_ARGS
+        ${OSC_DEPENDENCY_CMAKE_ARGS}
+)
