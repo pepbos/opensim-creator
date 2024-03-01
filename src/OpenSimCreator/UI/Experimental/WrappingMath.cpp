@@ -21,13 +21,13 @@ namespace
 
     std::ostream& operator<<(std::ostream& os, Print3 p)
     {
-        os << "Vector3{";
+        os << "[";
         std::string delim;
         for (size_t r = 0; r < 3; ++r) {
             os << delim << p.x(r);
             delim = ", ";
         }
-        return os << "}";
+        return os << "]";
     }
 
     /* std::ostream& operator<<(std::ostream& os, const DarbouxFrame& frame) */
