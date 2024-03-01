@@ -624,7 +624,7 @@ calcLocalImplicitGeodesic(
     Vector3 velocityInit,
     double length,
     size_t steps,
-    std::vector<std::pair<Vector3, DarbouxFrame>> log)
+    std::vector<std::pair<Vector3, DarbouxFrame>>& log)
 {
     ImplicitGeodesicState xStart{positionInit, velocityInit};
     calcProjectedToSurface(s, xStart);
