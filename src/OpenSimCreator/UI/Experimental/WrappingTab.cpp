@@ -30,7 +30,7 @@ namespace
     {
 
         explicit SceneSphereSurface(Vec3 pos_, double r_) :
-            surface{AnalyticSphereSurface(r_)}, pos{pos_}, r{r_ * 0.9}
+            surface{AnalyticSphereSurface(r_)}, pos{pos_}, r{r_ * 1.0}
         {
             surface.setOffsetFrame(Transf{
                 {
@@ -72,6 +72,20 @@ namespace
         return p;
     }
 
+    struct PathTerminalPoint {
+        float radius = 1.;
+        float phi = 0.;
+        float theta = 0.;
+    };
+
+    Vector3 ComputePoint(const PathTerminalPoint& pt) {
+        return {
+                pt.radius * cos(pt.phi), // z
+                pt.radius * sin(pt.phi) * sin(pt.theta), // y
+                -pt.radius * sin(pt.phi) * cos(pt.theta), // x
+        };
+    }
+
 } // namespace
 
 class osc::WrappingTab::Impl final : public StandardTabImpl
@@ -83,12 +97,12 @@ public:
         {
             // Initialize the wrapping path.
             m_StartPoint    = {-3., 0.1, 0.};
-            m_EndPoint      = {3., 0.1, 0.};
+            m_EndPoint.radius = 1.5;
             Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
             };
             m_WrappingPath =
-                Surface::calcNewWrappingPath(m_StartPoint, m_EndPoint, GetSurface);
+                Surface::calcNewWrappingPath(m_StartPoint, ComputePoint(m_EndPoint), GetSurface);
         }
 
         // Configure sphere material.
@@ -133,7 +147,10 @@ private:
         Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
             return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
         };
-        Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
+            m_WrappingPath =
+                Surface::calcNewWrappingPath(m_StartPoint, ComputePoint(m_EndPoint), GetSurface, 1e-3, 25);
+        /* m_WrappingPath.endPoint = ComputePoint(m_EndPoint); */
+        /* Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface); */
     }
 
     void implOnDraw() final
@@ -146,6 +163,11 @@ private:
         } else {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
             App::upd().setShowCursor(true);
+        }
+
+        if (ImGui::Begin("viewer")) {
+            ImGui::SliderAngle("phi", &m_EndPoint.phi);
+            ImGui::SliderAngle("theta", &m_EndPoint.theta);
         }
 
         // render sphere
@@ -161,13 +183,13 @@ private:
         // render curve
         {
             Vector3 prev              = m_StartPoint;
-            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1) {
+            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, bool red = true) {
                 Graphics::DrawMesh(
                     m_LineMesh,
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
                     m_Camera,
-                    m_RedColorMaterialProps);
+                    red? m_RedColorMaterialProps : m_BlueColorMaterialProps);
             };
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
@@ -181,6 +203,14 @@ private:
             }
             const Vector3 next = m_WrappingPath.endPoint;
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+
+            DrawCurveSegmentMesh(
+                    ToVec3(m_StartPoint),
+                    {0., 0., 0.}, false);
+
+            DrawCurveSegmentMesh(
+                    {0., 0., 0.},
+                    ToVec3(ComputePoint(m_EndPoint)), false);
         }
 
         Rect const viewport = GetMainViewportWorkspaceScreenRect();
@@ -196,11 +226,7 @@ private:
         NAN,
         NAN,
     };
-    Vector3 m_EndPoint{
-        NAN,
-        NAN,
-        NAN,
-    };
+    PathTerminalPoint m_EndPoint = {};
 
     WrappingPath m_WrappingPath = WrappingPath();
 

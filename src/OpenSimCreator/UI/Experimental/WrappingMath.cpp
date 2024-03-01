@@ -75,25 +75,25 @@ namespace
 namespace
 {
 
-    void AssertEq(
-        const Vector3& lhs,
-        double norm,
-        const std::string& msg,
-        double eps = 1e-13)
-    {
-        const bool cond = std::abs(lhs.norm() - norm) > eps;
-        if (cond) {
-            std::ostringstream os;
-            os << "FAILED ASSERT: " << msg << std::endl;
-            os << "    lhs.norm() = " << Print3{lhs}
-               << ".norm() = " << lhs.norm() << std::endl;
-            os << "    expected = " << norm << std::endl;
-            os << "    err = " << lhs.norm() - norm << std::endl;
-            std::string msg = os.str();
-            throw std::runtime_error(msg.c_str());
-            /* OSC_ASSERT(cond && msg.c_str()); */
-        }
-    }
+    /* void AssertEq( */
+    /*     const Vector3& lhs, */
+    /*     double norm, */
+    /*     const std::string& msg, */
+    /*     double eps = 1e-13) */
+    /* { */
+    /*     const bool cond = std::abs(lhs.norm() - norm) > eps; */
+    /*     if (cond) { */
+    /*         std::ostringstream os; */
+    /*         os << "FAILED ASSERT: " << msg << std::endl; */
+    /*         os << "    lhs.norm() = " << Print3{lhs} */
+    /*            << ".norm() = " << lhs.norm() << std::endl; */
+    /*         os << "    expected = " << norm << std::endl; */
+    /*         os << "    err = " << lhs.norm() - norm << std::endl; */
+    /*         std::string msg = os.str(); */
+    /*         throw std::runtime_error(msg.c_str()); */
+    /*         /1* OSC_ASSERT(cond && msg.c_str()); *1/ */
+    /*     } */
+    /* } */
 
     void AssertEq(
         double lhs,
@@ -366,7 +366,8 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     }
 
     // Initial darboux frame.
-    DarbouxFrame f_P = calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
+    DarbouxFrame f_P =
+        calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
 
     // Initial trihedron: K_P
     Geodesic::BoundaryState K_P;
@@ -408,7 +409,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     // For a sphere the rotation of the initial frame directly rotates the final
     // frame:
     K_Q.w       = K_P.w;
-    K_Q.w.at(3) = K_P.w.at(0);
+    K_Q.w.at(3) = -f_Q.b;
 
     // End frame position variation is the same: dp = w x n * r
     for (size_t i = 0; i < 4; ++i) {
@@ -509,6 +510,15 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
                 "Failed to verify final binormal variation",
                 eta);
         }
+    }
+
+    auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
+        return Vector3{f.t.dot(x), -f.n.dot(x), f.b.dot(x)};
+    };
+
+    for (size_t i = 0; i < 4; ++i) {
+        K_P.w.at(i) = ApplyAsTransform(K_P.frame, K_P.w.at(i));
+        K_Q.w.at(i) = ApplyAsTransform(K_P.frame, K_Q.w.at(i));
     }
 
     std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
@@ -1006,37 +1016,35 @@ WrappingPath Surface::calcNewWrappingPath(
     return path;
 }
 
+
+double calcClamped(double x, double bnd) {
+    if (std::abs(x) > std::abs(bnd)) {
+        return x / std::abs(x) * std::abs(bnd);
+    }
+    return x;
+}
+
 void applyNaturalGeodesicVariation(
     Geodesic::BoundaryState& geodesicStart,
     const GeodesicCorrection& correction)
 {
     Vector3& p = geodesicStart.position;
 
-    for (size_t i = 0; i < correction.size(); ++i) {
-        p += correction.at(i) * geodesicStart.v.at(i);
-    }
+    // Darboux frame:
+    const Vector3& t = geodesicStart.frame.t;
+    /* const Vector3& n = geodesicStart.frame.n; */
+    const Vector3& b = geodesicStart.frame.b;
 
-    // TODO Or just use cross product?
-    Vector3 rotVec = {0., 0., 0.};
-    for (size_t i = 0; i < correction.size(); ++i) {
-        rotVec += correction.at(i) * geodesicStart.w.at(i);
-    }
+    const double maxStep = 1e-1;
+    Vector3 dp = calcClamped(correction.at(1), maxStep) * b + calcClamped(correction.at(0), maxStep) * t;
 
-    AssertEq(
-        geodesicStart.v.at(3),
-        0.,
-        "Last geodesic correction field must be zero");
-    AssertEq(
-        geodesicStart.w.at(3),
-        0.,
-        "Last geodesic correction field must be zero");
+    // TODO use start frame to rotate both vectors properly.
+    // TODO overload vor ANALYTIC?
+    geodesicStart.position += dp;
 
-    double angle        = rotVec.norm();
-    Vector3 axis        = rotVec / angle;
-    Rotation dq         = angle > 1e-13
-                              ? Rotation(Eigen::AngleAxis<double>(angle, axis))
-                              : Rotation::Identity();
-    geodesicStart.frame = dq * geodesicStart.frame;
+    Vector3 velocity = cos(calcClamped(correction.at(2), maxStep)) * t + sin(calcClamped(correction.at(2), maxStep)) * b;
+    geodesicStart.frame.t = velocity;
+    /* throw std::runtime_error("failed to compute corrections: failed to "); */
 }
 
 size_t Surface::calcUpdatedWrappingPath(
