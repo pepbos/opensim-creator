@@ -178,6 +178,91 @@ namespace
 
 } // namespace
 
+
+namespace{
+//==============================================================================
+//                         IMPLICIT SURFACE STATE
+//==============================================================================
+
+struct ImplicitGeodesicState
+{
+    ImplicitGeodesicState() = default;
+
+    ImplicitGeodesicState(Vector3 aPosition, Vector3 aVelocity):
+        position(std::move(aPosition)),
+        velocity(std::move(aVelocity)){};
+
+    Vector3 position = {NAN, NAN, NAN};
+    Vector3 velocity = {NAN, NAN, NAN};
+    double a      = 1.;
+    double aDot   = 0.;
+    double r      = 0.;
+    double rDot   = 1.;
+};
+
+struct ImplicitGeodesicStateDerivative
+{
+    Vector3 velocity     = {NAN, NAN, NAN};
+    Vector3 acceleration = {NAN, NAN, NAN};
+    double aDot       = NAN;
+    double aDDot      = NAN;
+    double rDot       = NAN;
+    double rDDot      = NAN;
+};
+
+ImplicitGeodesicStateDerivative calcImplicitGeodesicStateDerivative(
+    const ImplicitGeodesicState& y,
+    const Vector3& acceleration,
+    double gaussianCurvature)
+{
+    ImplicitGeodesicStateDerivative dy;
+    dy.velocity     = y.velocity;
+    dy.acceleration = acceleration;
+    dy.aDot         = y.aDot;
+    dy.aDDot        = -y.a * gaussianCurvature;
+    dy.rDot         = y.rDot;
+    dy.rDDot        = -y.r * gaussianCurvature;
+    return dy;
+}
+
+ImplicitGeodesicState operator*(double dt, ImplicitGeodesicStateDerivative& dy)
+{
+    ImplicitGeodesicState y;
+    y.position = dt * dy.velocity;
+    y.velocity = dt * dy.acceleration;
+    y.a        = dt * dy.aDot;
+    y.aDot     = dt * dy.aDDot;
+    y.r        = dt * dy.rDot;
+    y.rDot     = dt * dy.rDDot;
+    return y;
+}
+
+ImplicitGeodesicState operator+(
+    const ImplicitGeodesicState& lhs,
+    const ImplicitGeodesicState& rhs)
+{
+    ImplicitGeodesicState y;
+    y.position = lhs.position + rhs.position;
+    y.velocity = lhs.velocity + rhs.velocity;
+    y.a        = lhs.a + rhs.a;
+    y.aDot     = lhs.aDot + rhs.aDot;
+    y.r        = lhs.r + rhs.r;
+    y.rDot     = lhs.rDot + rhs.rDot;
+    return y;
+}
+
+std::ostream& operator<<(std::ostream& os, const ImplicitGeodesicState& x)
+{
+    return os << "ImplicitGeodesicState{"
+              << "p: " << Print3{x.position} << ", "
+              << "v: " << Print3{x.velocity} << ", "
+              << "a: " << x.a << ", "
+              << "aDot: " << x.a << ", "
+              << "r: " << x.r << ", "
+              << "rDot: " << x.rDot << "}";
+}
+}
+
 //==============================================================================
 //                      DARBOUX FRAME
 //==============================================================================
@@ -322,6 +407,308 @@ Geodesic Surface::calcGeodesic(
 const Transf& Surface::getOffsetFrame() const
 {
     return _transform;
+}
+
+//==============================================================================
+//                      CURVATURES
+//==============================================================================
+
+/// Calculates adjoint of matrix.
+/// Assumes matrix is symmetric.
+Mat3x3 calcAdjoint(const Mat3x3& mat)
+{
+    double fxx = mat(0, 0);
+    double fyy = mat(1, 1);
+    double fzz = mat(2, 2);
+
+    double fxy = mat(0, 1);
+    double fxz = mat(0, 2);
+    double fyz = mat(1, 2);
+
+    std::array<double, 9> elements = {
+        fyy * fzz - fyz * fyz,
+        fyz * fxz - fxy * fzz,
+        fxy * fyz - fyy * fxz,
+        fxz * fyz - fxy * fzz,
+        fxx * fzz - fxz * fxz,
+        fxy * fxz - fxx * fyz,
+        fxy * fyz - fxz * fyy,
+        fxy * fxz - fxx * fyz,
+        fxx * fyy - fxy * fxy};
+    Mat3x3 adj;
+    size_t i = 0;
+    for (size_t r = 0; r < 3; ++r) {
+        for (size_t c = 0; c < 3; ++c) {
+            adj(r, c) = elements[i];
+            ++i;
+        }
+    }
+    return adj;
+}
+
+double calcNormalCurvature(
+    const ImplicitSurface& s,
+    const ImplicitGeodesicState& q)
+{
+    const Vector3& p  = q.position;
+    const Vector3& v  = q.velocity;
+    const Vector3 g   = s.calcSurfaceConstraintGradient(p);
+    const Vector3 h_v = s.calcSurfaceConstraintHessian(p) * v;
+    // Sign flipped compared to thesis: kn = negative, see eq 3.63
+    return -v.dot(h_v) / g.norm();
+}
+
+double calcGeodesicTorsion(
+    const ImplicitSurface& s,
+    const ImplicitGeodesicState& q)
+{
+    // TODO verify this!
+    const Vector3& p  = q.position;
+    const Vector3& v  = q.velocity;
+    const Vector3 g   = s.calcSurfaceConstraintGradient(p);
+    const Vector3 h_v = s.calcSurfaceConstraintHessian(p) * v;
+    const Vector3 gxv = g.cross(v);
+    return h_v.dot(gxv) / g.dot(g);
+}
+
+// TODO use normalized vector.
+Vector3 calcSurfaceNormal(const ImplicitSurface& s, const ImplicitGeodesicState& q)
+{
+    const Vector3& p       = q.position;
+    const Vector3 gradient = s.calcSurfaceConstraintGradient(p);
+    return gradient / gradient.norm();
+}
+
+Vector3 calcAcceleration(const ImplicitSurface& s, const ImplicitGeodesicState& q)
+{
+    // TODO Writing it out saves a root, but optimizers are smart.
+    // Sign flipped compared to thesis: kn = negative, see eq 3.63
+    return calcNormalCurvature(s, q) * calcSurfaceNormal(s, q);
+}
+
+double calcGaussianCurvature(
+    const ImplicitSurface& s,
+    const ImplicitGeodesicState& q)
+{
+    const Vector3& p = q.position;
+    Vector3 g        = s.calcSurfaceConstraintGradient(p);
+    double gDotg  = g.dot(g);
+    Mat3x3 adj    = calcAdjoint(s.calcSurfaceConstraintHessian(p));
+
+    return (g.dot(adj * g)) / (gDotg * gDotg);
+}
+
+DarbouxFrame calcDarbouxFrame(
+    const ImplicitSurface& s,
+    const ImplicitGeodesicState& q)
+{
+    return {q.velocity, calcSurfaceNormal(s, q)};
+}
+
+size_t calcPointProjectedToSurface(
+    const ImplicitSurface& s,
+    Vector3& position,
+    double eps = 1e-13,
+    size_t maxIter = 10)
+{
+    Vector3 p0 = position;
+    Vector3 pk = position;
+    for (size_t iteration = 0; iteration < maxIter; ++iteration) {
+        const double c = s.calcSurfaceConstraint(pk);
+
+        const double error = std::abs(c);
+
+        if (error < eps) {
+            position = pk;
+            return iteration;
+        }
+
+        const Vector3 g = s.calcSurfaceConstraintGradient(pk);
+
+        pk += - g * c / g.dot(g);
+    }
+    throw std::runtime_error("Failed to project point to surface");
+}
+
+size_t calcProjectedToSurface(
+    const ImplicitSurface& s,
+    ImplicitGeodesicState& q,
+    double eps = 1e-13,
+    size_t maxIter = 100)
+{
+    /* std::cout << "START calcProjectedToSurface\n"; */
+    size_t steps = calcPointProjectedToSurface(s, q.position, eps, maxIter);
+    std::cout << "    point projected in " << steps << " steps.";
+
+    Vector3 n = calcSurfaceNormal(s, q);
+    q.velocity = q.velocity - n.dot(q.velocity) * n;
+    q.velocity = q.velocity / q.velocity.norm();
+
+    return steps;
+}
+
+//==============================================================================
+//                      IMPLICIT SURFACE HELPERS
+//==============================================================================
+
+// Compute generic geodesic state from implicit geodesic state.
+Geodesic::BoundaryState calcGeodesicBoundaryState(
+        const ImplicitSurface& s,
+        const ImplicitGeodesicState& x, bool isEnd)
+{
+    Geodesic::BoundaryState y;
+    y.frame = calcDarbouxFrame(s, x);
+
+    y.position = x.position;
+
+    // Implicit surface uses natural geodesic variations:
+    //   0. Tangential
+    //   1. Binormal
+    //   2. InitialDirection
+    //   3. Lengthening
+    y.v = {
+        y.frame.t,
+        y.frame.b * x.a,
+        y.frame.b * x.r,
+        isEnd ? y.frame.t : Vector3{0., 0., 0.},
+    };
+
+    const double tau_g = calcGeodesicTorsion(s, x);
+    const double kappa_n = calcNormalCurvature(s, x);
+    ImplicitGeodesicState qB {x.position, y.frame.b};
+    const double kappa_a = calcNormalCurvature(s, qB);
+
+    y.w = {
+        Vector3{tau_g, 0., kappa_n},
+        Vector3{ -x.a * kappa_a, -x.aDot, -x.a * tau_g, },
+        Vector3{ -x.r * kappa_a, -x.rDot, -x.r * tau_g},
+        isEnd ? Vector3{tau_g, 0., kappa_n} : Vector3{0., 0., 0.},
+    };
+    return y;
+}
+
+void RungeKutta4(
+    const ImplicitSurface& s,
+    ImplicitGeodesicState& q,
+    double& t,
+    double dt)
+{
+    RungeKutta4<ImplicitGeodesicState, ImplicitGeodesicStateDerivative>(
+        q,
+        t,
+        dt,
+        [&](const ImplicitGeodesicState& qk) -> ImplicitGeodesicStateDerivative {
+        return calcImplicitGeodesicStateDerivative(qk,
+                calcAcceleration(s, qk),
+                calcGaussianCurvature(s, qk));
+        });
+}
+
+// Implicit geodesic shooter.
+std::pair<ImplicitGeodesicState, ImplicitGeodesicState>
+calcLocalImplicitGeodesic(
+    const ImplicitSurface& s,
+    Vector3 positionInit,
+    Vector3 velocityInit,
+    double length,
+    size_t steps,
+    std::vector<std::pair<Vector3, DarbouxFrame>> log)
+{
+    ImplicitGeodesicState xStart{positionInit, velocityInit};
+    calcProjectedToSurface(s, xStart);
+
+    double l  = 0.;
+    double dl = length / static_cast<double>(steps);
+    std::cout << "ImplicitSurface::calcLocalGeodesic" << std::endl;
+    ImplicitGeodesicState xEnd(xStart);
+    std::cout << "    xStart = " << xEnd << std::endl;
+
+    log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+
+    if (length <= 0) {
+        return {xStart, xEnd};
+    }
+
+    // For unit testing.
+    for (size_t k = 0; k < steps; ++k) {
+        RungeKutta4(s, xEnd, l, dl);
+
+        calcProjectedToSurface(s, xEnd);
+
+        // TODO don't log all points.
+        log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+    }
+
+    AssertEq(length, l, "Total length does not match integrated length");
+
+    return {xStart, xEnd};
+}
+
+//==============================================================================
+//                      IMPLICIT SURFACE
+//==============================================================================
+
+double ImplicitSurface::calcSurfaceConstraint(Vector3 position) const
+{
+    return calcSurfaceConstraintImpl(position);
+}
+
+Vector3 ImplicitSurface::calcSurfaceConstraintGradient(Vector3 position) const
+{
+    return calcSurfaceConstraintGradientImpl(position);
+}
+
+ImplicitSurface::Hessian ImplicitSurface::calcSurfaceConstraintHessian(
+    Vector3 position) const
+{
+    return calcSurfaceConstraintHessianImpl(position);
+}
+
+Geodesic ImplicitSurface::calcLocalGeodesicImpl(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length) const
+{
+    Geodesic geodesic;
+
+    std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
+        calcLocalImplicitGeodesic(
+            *this,
+            initPosition, initVelocity,
+            length,
+            _integratorSteps,
+            geodesic.curveKnots);
+
+    geodesic.start  = calcGeodesicBoundaryState(*this, out.first, false);
+    geodesic.end  = calcGeodesicBoundaryState(*this, out.second, true);
+    geodesic.length = length;
+
+    return geodesic;
+}
+
+//==============================================================================
+//                      IMPLICIT SPHERE SURFACE
+//==============================================================================
+
+double ImplicitSphereSurface::calcSurfaceConstraintImpl(Vector3 p) const
+{
+    return p.dot(p) - _radius * _radius;
+}
+
+Vector3 ImplicitSphereSurface::calcSurfaceConstraintGradientImpl(Vector3 p) const
+{
+    return 2. * p;
+}
+
+Mat3x3 ImplicitSphereSurface::calcSurfaceConstraintHessianImpl(Vector3) const
+{
+    Mat3x3 hessian;
+    for (size_t r = 0; r < hessian.rows(); ++r) {
+        for (size_t c = 0; c < hessian.cols(); ++c) {
+            hessian(r, c) = r == c ? 2. : 0.;
+        }
+    }
+    return hessian;
 }
 
 //==============================================================================

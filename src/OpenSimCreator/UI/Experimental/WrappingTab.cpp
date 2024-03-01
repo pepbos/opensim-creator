@@ -94,20 +94,36 @@ public:
 
     Impl() : StandardTabImpl{c_TabStringID}
     {
+        // Set some surface params.
         {
-            // Initialize the wrapping path.
-            m_StartPoint    = {-3., 0.1, 0.};
-            m_EndPoint.radius = 1.5;
+            // Set surface position.
+            m_AnalyticSphereSurface.setOffsetFrame(Transf{
+                Vector3{3., 0.1, 0.}
+            });
+            // Set radius.
+            m_AnalyticSphereSurface.setRadius(0.5);
+
+            m_ImplicitSphereSurface.setOffsetFrame(Transf{
+                Vector3{3., 1., 0.}
+            });
+            m_ImplicitSphereSurface.setRadius(0.25);
+        }
+
+        // Initialize the wrapping path.
+        {
+            m_StartPoint                     = {-3., 0.1, 0.};
+            m_EndPoint.radius                = 1.5;
             Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
             };
-            m_WrappingPath =
-                Surface::calcNewWrappingPath(m_StartPoint, ComputePoint(m_EndPoint), GetSurface);
+            m_WrappingPath = Surface::calcNewWrappingPath(
+                m_StartPoint,
+                ComputePoint(m_EndPoint),
+                GetSurface);
         }
 
         // Configure sphere material.
         m_Material.setTransparent(true);
-        /* m_Material.setWireframeMode(true); */
 
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
     }
@@ -147,8 +163,12 @@ private:
         Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
             return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
         };
-            m_WrappingPath =
-                Surface::calcNewWrappingPath(m_StartPoint, ComputePoint(m_EndPoint), GetSurface, 1e-3, 25);
+        m_WrappingPath = Surface::calcNewWrappingPath(
+            m_StartPoint,
+            ComputePoint(m_EndPoint),
+            GetSurface,
+            1e-3,
+            25);
         /* m_WrappingPath.endPoint = ComputePoint(m_EndPoint); */
         /* Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface); */
     }
@@ -171,14 +191,40 @@ private:
         }
 
         // render sphere
-        Graphics::DrawMesh(
-            m_SphereMesh,
-            {
-            .position = m_SceneSphereSurface.getPosition(),
-            },
-            m_Material,
-            m_Camera,
-            m_GreyColorMaterialProps);
+        {
+            Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                    .position = m_SceneSphereSurface.getPosition(),
+                },
+                m_Material,
+                m_Camera,
+                m_GreyColorMaterialProps);
+
+            Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                    .scale    = Vec3{static_cast<float>(
+                        m_AnalyticSphereSurface.getRadius())},
+                    .position = ToVec3(
+                        m_AnalyticSphereSurface.getOffsetFrame().position),
+                },
+                m_Material,
+                m_Camera,
+                m_BlueColorMaterialProps);
+
+            Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                    .scale    = Vec3{static_cast<float>(
+                        m_ImplicitSphereSurface.getRadius())},
+                    .position = ToVec3(
+                        m_ImplicitSphereSurface.getOffsetFrame().position),
+                },
+                m_Material,
+                m_Camera,
+                m_GreenColorMaterialProps);
+        }
 
         // render curve
         {
@@ -189,7 +235,7 @@ private:
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
                     m_Camera,
-                    red? m_RedColorMaterialProps : m_BlueColorMaterialProps);
+                    red ? m_RedColorMaterialProps : m_BlueColorMaterialProps);
             };
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
@@ -204,13 +250,12 @@ private:
             const Vector3 next = m_WrappingPath.endPoint;
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
 
-            DrawCurveSegmentMesh(
-                    ToVec3(m_StartPoint),
-                    {0., 0., 0.}, false);
+            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, false);
 
             DrawCurveSegmentMesh(
-                    {0., 0., 0.},
-                    ToVec3(ComputePoint(m_EndPoint)), false);
+                {0., 0., 0.},
+                ToVec3(ComputePoint(m_EndPoint)),
+                false);
         }
 
         Rect const viewport = GetMainViewportWorkspaceScreenRect();
@@ -245,7 +290,9 @@ private:
     MaterialPropertyBlock m_BlackColorMaterialProps =
         GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_BlueColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 1.0f, 1.0f});
+        GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.5f});
+    MaterialPropertyBlock m_GreenColorMaterialProps =
+        GeneratePropertyBlock({0.0f, 0.5f, 0.0f, 0.5f});
     MaterialPropertyBlock m_RedColorMaterialProps =
         GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_GreyColorMaterialProps =
@@ -254,6 +301,10 @@ private:
     // scene state
     SceneSphereSurface m_SceneSphereSurface =
         SceneSphereSurface(Vec3{0., 0., 0.}, 1.);
+
+    AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
+    ImplicitSphereSurface m_ImplicitSphereSurface = ImplicitSphereSurface(1.);
+
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 };

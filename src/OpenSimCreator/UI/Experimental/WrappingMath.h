@@ -14,7 +14,7 @@ namespace osc
     using GeodesicCorrection = std::array<double, 4>;
 
     using Rotation = Eigen::Quaternion<double>;
-    using Mat3x3d  = Eigen::Matrix<double, 3, 3>;
+    using Mat3x3   = Eigen::Matrix<double, 3, 3>;
 
     using Vector3 = Eigen::Vector3d;
 
@@ -154,6 +154,80 @@ namespace osc
     };
 
     //==============================================================================
+    //                      IMPLICIT SURFACE
+    //==============================================================================
+
+    class ImplicitSurface : public virtual Surface
+    {
+    public:
+
+        // TODO Use symmetric matrix class.
+        using Hessian = Mat3x3;
+
+        virtual ~ImplicitSurface() = default;
+
+    protected:
+
+        ImplicitSurface()                                      = default;
+        ImplicitSurface(const ImplicitSurface&)                = default;
+        ImplicitSurface(ImplicitSurface&&) noexcept            = default;
+        ImplicitSurface& operator=(const ImplicitSurface&)     = default;
+        ImplicitSurface& operator=(ImplicitSurface&&) noexcept = default;
+
+    public:
+
+        // TODO put local in front of everything?
+
+        double calcSurfaceConstraint(Vector3 position) const;
+        Vector3 calcSurfaceConstraintGradient(Vector3 position) const;
+        Hessian calcSurfaceConstraintHessian(Vector3 position) const;
+
+    private:
+
+        // Implicit surface constraint.
+        virtual double calcSurfaceConstraintImpl(Vector3 position) const = 0;
+        virtual Vector3 calcSurfaceConstraintGradientImpl(
+            Vector3 position) const = 0;
+        virtual Hessian calcSurfaceConstraintHessianImpl(
+            Vector3 position) const = 0;
+
+        Geodesic calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length) const override;
+
+        // TODO would become obsolete with variable step integration.
+        size_t _integratorSteps = 100;
+    };
+
+    //==============================================================================
+    //                      IMPLICIT SPHERE SURFACE
+    //==============================================================================
+
+    // Concrete component.
+    class ImplicitSphereSurface : public ImplicitSurface
+    {
+    public:
+
+        explicit ImplicitSphereSurface(double radius) : _radius(radius)
+        {}
+
+        double getRadius() const {return _radius;}
+        void setRadius(double radius) {_radius = radius;}
+
+    private:
+
+        // Implicit surface constraint.
+        double calcSurfaceConstraintImpl(Vector3 position) const override;
+        Vector3 calcSurfaceConstraintGradientImpl(
+            Vector3 position) const override;
+        Hessian calcSurfaceConstraintHessianImpl(
+            Vector3 position) const override;
+
+        double _radius = 1.;
+    };
+
+    //==============================================================================
     //                      ANALYTIC SPHERE SURFACE
     //==============================================================================
 
@@ -165,6 +239,9 @@ namespace osc
         explicit AnalyticSphereSurface(double radius) : _radius(radius)
         {}
 
+        double getRadius() const {return _radius;}
+        void setRadius(double radius) {_radius = radius;}
+
     private:
 
         Geodesic calcLocalGeodesicImpl(
@@ -172,7 +249,7 @@ namespace osc
             Vector3 initVelocity,
             double length) const override;
 
-        double _radius;
+        double _radius = 1.;
     };
 
     //==============================================================================
@@ -187,6 +264,9 @@ namespace osc
         explicit AnalyticCylinderSurface(double radius) : _radius(radius)
         {}
 
+        double getRadius() const {return _radius;}
+        void setRadius(double radius) {_radius = radius;}
+
     private:
 
         Geodesic calcLocalGeodesicImpl(
@@ -194,7 +274,7 @@ namespace osc
             Vector3 initVelocity,
             double length) const override;
 
-        double _radius;
+        double _radius = 1.;
     };
 
     //==============================================================================
