@@ -770,7 +770,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     K_P.w = {
         -f_P.b,
         f_P.t,
-        f_P.n,
+        -f_P.n,
         Vector3{0., 0., 0.}
     };
 
@@ -908,12 +908,12 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     }
 
     auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
-        return Vector3{f.t.dot(x), -f.n.dot(x), f.b.dot(x)};
+        return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
     };
 
     for (size_t i = 0; i < 4; ++i) {
         K_P.w.at(i) = ApplyAsTransform(K_P.frame, K_P.w.at(i));
-        K_Q.w.at(i) = ApplyAsTransform(K_P.frame, K_Q.w.at(i));
+        K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
     }
 
     std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
