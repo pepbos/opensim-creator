@@ -550,7 +550,7 @@ size_t calcProjectedToSurface(
 {
     /* std::cout << "START calcProjectedToSurface\n"; */
     size_t steps = calcPointProjectedToSurface(s, q.position, eps, maxIter);
-    std::cout << "    point projected in " << steps << " steps.";
+    /* std::cout << "    point projected in " << steps << " steps."; */
 
     Vector3 n = calcSurfaceNormal(s, q);
     q.velocity = q.velocity - n.dot(q.velocity) * n;
