@@ -365,13 +365,8 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
         throw std::runtime_error("Error: initial position at origin.");
     }
 
-    // Project onto surface.
-    initVelocity = initVelocity
-                   - initPosition * initPosition.dot(initVelocity)
-                         / initPosition.dot(initPosition);
-
     // Initial darboux frame.
-    DarbouxFrame f_P(initVelocity, initPosition);
+    DarbouxFrame f_P = calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
 
     // Initial trihedron: K_P
     Geodesic::BoundaryState K_P;
