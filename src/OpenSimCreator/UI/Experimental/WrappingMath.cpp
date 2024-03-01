@@ -651,7 +651,7 @@ calcLocalImplicitGeodesic(
         log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
     }
 
-    AssertEq(length, l, "Total length does not match integrated length");
+    AssertEq(length, l, "Total length does not match integrated length", 1e-6);
 
     return {xStart, xEnd};
 }
