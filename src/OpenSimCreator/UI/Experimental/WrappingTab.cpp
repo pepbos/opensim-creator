@@ -138,6 +138,7 @@ public:
         m_Material.setTransparent(true);
 
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
+        m_Camera.setPosition({0., 0., 5.});
     }
 
 private:
