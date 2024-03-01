@@ -90,7 +90,8 @@ namespace
             os << "    expected = " << norm << std::endl;
             os << "    err = " << lhs.norm() - norm << std::endl;
             std::string msg = os.str();
-            OSC_ASSERT(cond && msg.c_str());
+            throw std::runtime_error(msg.c_str());
+            /* OSC_ASSERT(cond && msg.c_str()); */
         }
     }
 
@@ -109,6 +110,7 @@ namespace
             os << "    err = " << lhs - rhs << std::endl;
             /* throw std::runtime_error(msg); */
             std::string msg = os.str();
+            throw std::runtime_error(msg.c_str());
             OSC_ASSERT(cond && msg.c_str());
         }
     }
@@ -128,6 +130,7 @@ namespace
             os << "    err = " << Print3{lhs - rhs} << std::endl;
             /* throw std::runtime_error(msg); */
             std::string msg = os.str();
+            throw std::runtime_error(msg.c_str());
             OSC_ASSERT(cond && msg.c_str());
         }
     }
