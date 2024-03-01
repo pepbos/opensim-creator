@@ -409,6 +409,14 @@ const Transf& Surface::getOffsetFrame() const
     return _transform;
 }
 
+Geodesic Surface::calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) const
+{
+    GetSurfaceFn getSurface = [&](size_t idx)->const Surface*{
+        return idx == 0 ? this : nullptr;
+    };
+    return calcNewWrappingPath(pointBefore, pointAfter, getSurface).segments.front();
+}
+
 //==============================================================================
 //                      CURVATURES
 //==============================================================================
@@ -494,6 +502,10 @@ double calcGaussianCurvature(
     Vector3 g        = s.calcSurfaceConstraintGradient(p);
     double gDotg  = g.dot(g);
     Mat3x3 adj    = calcAdjoint(s.calcSurfaceConstraintHessian(p));
+
+    if(gDotg * gDotg < 1e-13) {
+        throw std::runtime_error("Gaussian curvature inaccurate: are we normal to surface?");
+    }
 
     return (g.dot(adj * g)) / (gDotg * gDotg);
 }

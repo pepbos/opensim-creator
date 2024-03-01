@@ -119,6 +119,8 @@ namespace osc
             Vector3 initVelocity,
             double length) const;
 
+        Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) const;
+
         using GetSurfaceFn = std::function<const Surface*(size_t)>;
 
         static WrappingPath calcNewWrappingPath(

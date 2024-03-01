@@ -92,6 +92,12 @@ namespace
 
 class osc::WrappingTab::Impl final : public StandardTabImpl
 {
+
+    const Surface* getWrapSurfaceHelper(size_t i)
+    {
+        return i != 0 ? nullptr : &m_ImplicitSphereSurface;
+    }
+
 public:
 
     Impl() : StandardTabImpl{c_TabStringID}
@@ -106,17 +112,21 @@ public:
             m_AnalyticSphereSurface.setRadius(0.5);
 
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
-                Vector3{3., 1., 0.}
+                Vector3{0., 0., 0.}
             });
-            m_ImplicitSphereSurface.setRadius(0.25);
+            m_ImplicitSphereSurface.setRadius(1.);
+        }
+
+        // Choose wrapping terminal points.
+        {
+            m_StartPoint                     = {-3., 0.1, 0.};
+            m_EndPoint.radius                = 1.5;
         }
 
         // Initialize the wrapping path.
         {
-            m_StartPoint                     = {-3., 0.1, 0.};
-            m_EndPoint.radius                = 1.5;
             Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
-                return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
+                return getWrapSurfaceHelper(i);
             };
             m_WrappingPath = Surface::calcNewWrappingPath(
                 m_StartPoint,
@@ -163,14 +173,12 @@ private:
     {
         // Analytic geodesic computation.
         Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
-            return i != 0 ? nullptr : &m_SceneSphereSurface.surface;
+            return getWrapSurfaceHelper(i);
         };
         m_WrappingPath = Surface::calcNewWrappingPath(
             m_StartPoint,
             ComputePoint(m_EndPoint),
-            GetSurface,
-            1e-3,
-            25);
+            GetSurface);
         /* m_WrappingPath.endPoint = ComputePoint(m_EndPoint); */
         /* Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface); */
     }
@@ -194,15 +202,6 @@ private:
 
         // render sphere
         {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .position = m_SceneSphereSurface.getPosition(),
-                },
-                m_Material,
-                m_Camera,
-                m_GreyColorMaterialProps);
-
             Graphics::DrawMesh(
                 m_SphereMesh,
                 {
@@ -237,7 +236,7 @@ private:
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
                     m_Camera,
-                    red ? m_RedColorMaterialProps : m_BlueColorMaterialProps);
+                    red ? m_RedColorMaterialProps : m_BlackColorMaterialProps);
             };
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
@@ -301,9 +300,6 @@ private:
         GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.5f});
 
     // scene state
-    SceneSphereSurface m_SceneSphereSurface =
-        SceneSphereSurface(Vec3{0., 0., 0.}, 1.);
-
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
     ImplicitSphereSurface m_ImplicitSphereSurface = ImplicitSphereSurface(1.);
 
