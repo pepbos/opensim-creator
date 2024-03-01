@@ -631,15 +631,11 @@ calcLocalImplicitGeodesic(
 
     double l  = 0.;
     double dl = length / static_cast<double>(steps);
-    std::cout << "ImplicitSurface::calcLocalGeodesic" << std::endl;
+    /* std::cout << "ImplicitSurface::calcLocalGeodesic" << std::endl; */
     ImplicitGeodesicState xEnd(xStart);
-    std::cout << "    xStart = " << xEnd << std::endl;
+    /* std::cout << "    xStart = " << xEnd << std::endl; */
 
     log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
-
-    if (length <= 0) {
-        return {xStart, xEnd};
-    }
 
     // For unit testing.
     for (size_t k = 0; k < steps; ++k) {
