@@ -72,17 +72,19 @@ namespace
         return p;
     }
 
-    struct PathTerminalPoint {
+    struct PathTerminalPoint
+    {
         float radius = 1.;
-        float phi = 0.;
-        float theta = 0.;
+        float phi    = 0.;
+        float theta  = 0.;
     };
 
-    Vector3 ComputePoint(const PathTerminalPoint& pt) {
+    Vector3 ComputePoint(const PathTerminalPoint& pt)
+    {
         return {
-                pt.radius * cos(pt.phi), // z
-                pt.radius * sin(pt.phi) * sin(pt.theta), // y
-                -pt.radius * sin(pt.phi) * cos(pt.theta), // x
+            pt.radius * cos(pt.phi),                  // z
+            pt.radius * sin(pt.phi) * sin(pt.theta),  // y
+            -pt.radius * sin(pt.phi) * cos(pt.theta), // x
         };
     }
 
