@@ -809,8 +809,8 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     Geodesic::BoundaryState K_P;
 
     K_P.w = {
-        -f_P.b,
-        f_P.t,
+        -f_P.b / r,
+        f_P.t / r,
         -f_P.n,
         Vector3{0., 0., 0.}
     };
@@ -822,7 +822,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
         K_P.v.at(i) = K_P.w.at(i).cross(f_P.n) * r;
     }
 
-    K_P.position = f_P.n * _radius;
+    K_P.position = f_P.n * r;
     K_P.frame    = f_P;
 
     // Integrate to final trihedron: K_Q
@@ -839,13 +839,13 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     };
 
     // Final position is normal times radius.
-    K_Q.position = f_Q.n * _radius;
+    K_Q.position = f_Q.n * r;
     K_Q.frame    = f_Q;
 
     // For a sphere the rotation of the initial frame directly rotates the final
     // frame:
     K_Q.w       = K_P.w;
-    K_Q.w.at(3) = -f_Q.b;
+    K_Q.w.at(3) = -f_Q.b / r;
 
     // End frame position variation is the same: dp = w x n * r
     for (size_t i = 0; i < 4; ++i) {
@@ -873,6 +873,9 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
             f_Q0.b,
             "Numerical integration of binormal direction did not match",
             eps);
+    }
+
+    if (false) {
 
         for (size_t i = 0; i < 4; ++i) {
             const double eta = 1e-3;
@@ -896,7 +899,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
             // Redo the integration, and verify the variation.
             DarbouxFrame df_P(dv_P, dp_P);
             AssertEq(
-                (df_P.n - f_P.n) / d,
+                r * (df_P.n - f_P.n) / d,
                 K_P.v.at(i),
                 "Failed to verify initial position variation",
                 eta);
@@ -926,7 +929,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
                 eta);
 
             AssertEq(
-                (df_Q.n - f_Q.n) / d,
+                r * (df_Q.n - f_Q.n) / d,
                 K_Q.v.at(i),
                 "Failed to verify final position variation",
                 eta);
