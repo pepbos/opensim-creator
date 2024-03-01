@@ -366,7 +366,7 @@ void calcBoundaryStateInGlobal(
     const Transf& transform,
     Geodesic::BoundaryState& x)
 {
-    x.position = calcPointInLocal(transform, x.position);
+    x.position = calcPointInGround(transform, x.position);
     calcDarbouxFrameInGlobal(transform, x.frame);
     for (Vector3& vi : x.v) {
         vi = calcVectorInGround(transform, vi);
@@ -398,7 +398,7 @@ Geodesic Surface::calcGeodesic(
     double length) const
 {
     Vector3 p0        = calcPointInLocal(_transform, initPosition);
-    Vector3 v0        = calcPointInLocal(_transform, initVelocity);
+    Vector3 v0        = calcVectorInLocal(_transform, initVelocity);
     Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length);
     calcGeodesicInGlobal(_transform, geodesic);
     return geodesic;
