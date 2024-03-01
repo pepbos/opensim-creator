@@ -251,16 +251,16 @@ ImplicitGeodesicState operator+(
     return y;
 }
 
-std::ostream& operator<<(std::ostream& os, const ImplicitGeodesicState& x)
-{
-    return os << "ImplicitGeodesicState{"
-              << "p: " << Print3{x.position} << ", "
-              << "v: " << Print3{x.velocity} << ", "
-              << "a: " << x.a << ", "
-              << "aDot: " << x.a << ", "
-              << "r: " << x.r << ", "
-              << "rDot: " << x.rDot << "}";
-}
+/* std::ostream& operator<<(std::ostream& os, const ImplicitGeodesicState& x) */
+/* { */
+/*     return os << "ImplicitGeodesicState{" */
+/*               << "p: " << Print3{x.position} << ", " */
+/*               << "v: " << Print3{x.velocity} << ", " */
+/*               << "a: " << x.a << ", " */
+/*               << "aDot: " << x.a << ", " */
+/*               << "r: " << x.r << ", " */
+/*               << "rDot: " << x.rDot << "}"; */
+/* } */
 }
 
 //==============================================================================
