@@ -1028,8 +1028,6 @@ void applyNaturalGeodesicVariation(
     Geodesic::BoundaryState& geodesicStart,
     const GeodesicCorrection& correction)
 {
-    Vector3& p = geodesicStart.position;
-
     // Darboux frame:
     const Vector3& t = geodesicStart.frame.t;
     /* const Vector3& n = geodesicStart.frame.n; */
