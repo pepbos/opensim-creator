@@ -1,7 +1,9 @@
 #include "WrappingMath.h"
 
 #include "oscar/Utils/Assertions.h"
+#include <Eigen/src/Core/util/Constants.h>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 using namespace osc;
@@ -75,25 +77,25 @@ namespace
 namespace
 {
 
-    /* void AssertEq( */
-    /*     const Vector3& lhs, */
-    /*     double norm, */
-    /*     const std::string& msg, */
-    /*     double eps = 1e-13) */
-    /* { */
-    /*     const bool cond = std::abs(lhs.norm() - norm) > eps; */
-    /*     if (cond) { */
-    /*         std::ostringstream os; */
-    /*         os << "FAILED ASSERT: " << msg << std::endl; */
-    /*         os << "    lhs.norm() = " << Print3{lhs} */
-    /*            << ".norm() = " << lhs.norm() << std::endl; */
-    /*         os << "    expected = " << norm << std::endl; */
-    /*         os << "    err = " << lhs.norm() - norm << std::endl; */
-    /*         std::string msg = os.str(); */
-    /*         throw std::runtime_error(msg.c_str()); */
-    /*         /1* OSC_ASSERT(cond && msg.c_str()); *1/ */
-    /*     } */
-    /* } */
+    void AssertEq(
+        const Vector3& lhs,
+        double norm,
+        const std::string& msg,
+        double eps = 1e-13)
+    {
+        const bool cond = std::abs(lhs.norm() - norm) > eps;
+        if (cond) {
+            std::ostringstream os;
+            os << "FAILED ASSERT: " << msg << std::endl;
+            os << "    lhs.norm() = " << Print3{lhs}
+               << ".norm() = " << lhs.norm() << std::endl;
+            os << "    expected = " << norm << std::endl;
+            os << "    err = " << lhs.norm() - norm << std::endl;
+            std::string msg = os.str();
+            throw std::runtime_error(msg.c_str());
+            /* OSC_ASSERT(cond && msg.c_str()); */
+        }
+    }
 
     void AssertEq(
         double lhs,
@@ -134,6 +136,41 @@ namespace
             OSC_ASSERT(cond && msg.c_str());
         }
     }
+
+    /* bool AssertEq( */
+    /*     double lhs, */
+    /*     double rhs, */
+    /*     const std::string& msg, */
+    /*     std::ostream& os, */
+    /*     double eps = 1e-13) */
+    /* { */
+    /*     const bool failed = std::abs(lhs - rhs) > eps; */
+    /*     if (failed) { */
+    /*         os << "FAILED ASSERT: " << msg << std::endl; */
+    /*         os << "    lhs = " << lhs << std::endl; */
+    /*         os << "    rhs = " << rhs << std::endl; */
+    /*         os << "    err = " << lhs - rhs << std::endl; */
+    /*     } */
+    /*     return !failed; */
+    /* } */
+
+    bool AssertEq(
+        const Vector3& lhs,
+        const Vector3& rhs,
+        const std::string& msg,
+        std::ostream& os,
+        double eps = 1e-13)
+    {
+        const bool failed = (lhs - rhs).norm() > eps;
+        if (failed) {
+            os << "FAILED ASSERT: " << msg << std::endl;
+            os << "    lhs = " << Print3{lhs} << std::endl;
+            os << "    rhs = " << Print3{rhs} << std::endl;
+            os << "    err = " << Print3{lhs - rhs} << std::endl;
+        }
+        return !failed;
+    }
+
 } // namespace
 
 //==============================================================================
@@ -553,6 +590,10 @@ size_t calcProjectedToSurface(
     /* std::cout << "    point projected in " << steps << " steps."; */
 
     Vector3 n = calcSurfaceNormal(s, q);
+    if (!(n.cross(q.velocity).norm() > 1e-13)) {
+        throw std::runtime_error("Velocity and normal are perpendicular!");
+    }
+
     q.velocity = q.velocity - n.dot(q.velocity) * n;
     q.velocity = q.velocity / q.velocity.norm();
 
@@ -1164,6 +1205,19 @@ Vector3 calcBinormalDerivative(const DarbouxFrame& frame, const Vector3& rate)
     return bDot;
 }
 
+Vector3 calcTangentDerivative(const DarbouxFrame& frame, const Vector3& rate)
+{
+    Vector3 tDot = - rate[1] * frame.b + rate[2] * frame.n;
+
+    if (RUNTIME_UNIT_TESTS) {
+        const Vector3 w =
+            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
+        AssertEq(tDot, w.cross(frame.t), "tDot = w.cross(t)");
+    }
+
+    return tDot;
+}
+
 double calcPathErrorJacobian(
     const Geodesic::BoundaryState& s0,
     const Vector3& position,
@@ -1428,7 +1482,7 @@ void applyNaturalGeodesicVariation(
     /* const Vector3& n = geodesicStart.frame.n; */
     const Vector3& b = geodesicStart.frame.b;
 
-    const double maxStep = 1e-1;
+    const double maxStep = Eigen::Infinity;
     Vector3 dp = calcClamped(correction.at(1), maxStep) * b + calcClamped(correction.at(0), maxStep) * t;
 
     // TODO use start frame to rotate both vectors properly.
@@ -1531,4 +1585,149 @@ size_t Surface::calcUpdatedWrappingPath(
     }
     throw std::runtime_error(
         "failed to find wrapping path: exceeded max number of iterations");
+}
+
+//==============================================================================
+//                      SOLVING THE WRAPPING PROBLEM
+//==============================================================================
+
+namespace osc
+{
+    std::vector<Vector3> Surface::makeSelfTestPoints() const
+    {
+        return {
+            {1., 0., 0.},
+            {0., 1., 0.},
+            {0., 0., 1.},
+            {-1., 0., 0.},
+            {0., -1., 0.},
+            {0., 0., -1.},
+        };
+    }
+
+    std::vector<Vector3> Surface::makeSelfTestVelocities() const
+    {
+        return {
+            {1., 0., 0.},
+            {0., 1., 0.},
+            {0., 0., 1.},
+            {-1., 0., 0.},
+            {0., -1., 0.},
+            {0., 0., -1.},
+        };
+    }
+
+    std::vector<double> Surface::makeSelfTestLengths() const
+    {
+        const double r = selfTestEquivalentRadius();
+        std::vector<double> lengths;
+        lengths.push_back(0.);
+        for (size_t i = 1; i < 6; ++i){
+            lengths.push_back(static_cast<double>(i) * r);
+        }
+        return lengths;
+    }
+
+    void Surface::doSelfTests() const
+    {
+        for (Vector3 r_P : makeSelfTestPoints())
+        {
+        for (Vector3 v_P : makeSelfTestVelocities())
+        {
+        for (double l : makeSelfTestLengths())
+        {
+            auto transform  = getOffsetFrame();
+            doSelfTest(
+                     calcPointInGround(transform, r_P),
+                    calcVectorInGround(transform, v_P), l);
+        }
+        }
+        }
+    }
+
+    // Test variation effects on start and end frames.
+    void Surface::doSelfTest(
+            Vector3 r_P,
+            Vector3 v_P,
+            double l,
+            double delta,
+            double eps
+            ) const
+    {
+        if (r_P.cross(v_P).norm() < 1e-13) {
+            // Skip tests with parallel position and velocity: will very likely fail.
+            return;
+        }
+
+        // Shoot a zero length geodesic.
+        const Geodesic gZero = calcGeodesic(r_P, v_P, l);
+
+        // To check the local behavior of the geodesic variation, we apply a
+        // small variation to the start point, and see the effect on the
+        // geodesic.
+
+        // For debugging.
+        std::string msg;
+
+        bool allTestsPassed = true;
+        std::ostringstream errs;
+        for (size_t i = 0; i < 4; ++i) {
+            GeodesicCorrection c {0., 0., 0., 0.};
+            c.at(i) = delta;
+
+            Geodesic gOne;
+            {
+                Geodesic::BoundaryState dK_P = gZero.start;
+                applyNaturalGeodesicVariation(dK_P, c);
+
+                // Shoot a new geodesic with the applied variation.
+                double dl = i == 3 ? c.at(i) + l : l; // TODO encode this in the struct.
+                gOne = calcGeodesic(dK_P.position, dK_P.frame.t, dl);
+            }
+
+            std::ostringstream os;
+            os << "testing variation = ";
+            os << "{" << c.at(0) << "," << c.at(1) << "," << c.at(2) << "," << c.at(3) << "}";
+            os << " with l = " << l;
+
+            {
+                const Geodesic::BoundaryState K0 = gZero.start;
+                const Geodesic::BoundaryState K1 = gOne.start;
+
+                const Vector3 dp = K0.v.at(i);
+
+                const Vector3 dt = calcTangentDerivative(K0.frame, K0.w.at(i));
+                const Vector3 dn = calcNormalDerivative(K0.frame, K0.w.at(i));
+                const Vector3 db = calcBinormalDerivative(K0.frame, K0.w.at(i));
+
+                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, "Failed start position variation " + os.str(), errs, eps);
+
+                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, "Failed start tangent variation  " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, "Failed start normal variation   " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, "Failed start binormal variation " + os.str(), errs, eps);
+            }
+
+            {
+                const Geodesic::BoundaryState K0 = gZero.end;
+                const Geodesic::BoundaryState K1 = gOne.end;
+
+                const Vector3 dp = K0.v.at(i);
+
+                const Vector3 dt = calcTangentDerivative(K0.frame, K0.w.at(i));
+                const Vector3 dn = calcNormalDerivative(K0.frame, K0.w.at(i));
+                const Vector3 db = calcBinormalDerivative(K0.frame, K0.w.at(i));
+
+                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, "Failed end position variation" + os.str(), errs, eps);
+
+                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, "Failed end tangent variation " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, "Failed end normal variation  " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, "Failed end binormal variation" + os.str(), errs, eps);
+            }
+        }
+        if (!allTestsPassed) {
+            throw std::runtime_error(errs.str());
+        }
+
+    }
+
 }

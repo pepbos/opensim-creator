@@ -151,8 +151,26 @@ namespace osc
             Vector3 initVelocity,
             double length) const = 0;
 
+        virtual std::vector<Vector3> makeSelfTestPoints() const;
+        virtual std::vector<Vector3> makeSelfTestVelocities() const;
+        virtual std::vector<double> makeSelfTestLengths() const;
+        virtual double selfTestEquivalentRadius() const = 0;
+
         // This would be a socket to an offset frame for example.
         Transf _transform;
+
+        void doSelfTest(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            double delta = 1e-4,
+            double eps = 1e-3
+            ) const;
+
+    public:
+
+        // Move out of class.
+        void doSelfTests() const;
     };
 
     //==============================================================================
@@ -226,6 +244,8 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
+        double selfTestEquivalentRadius() const override {return _radius;}
+
         double _radius = 1.;
     };
 
@@ -251,6 +271,8 @@ namespace osc
             Vector3 initVelocity,
             double length) const override;
 
+        double selfTestEquivalentRadius() const override {return _radius;}
+
         double _radius = 1.;
     };
 
@@ -275,6 +297,9 @@ namespace osc
             Vector3 initPosition,
             Vector3 initVelocity,
             double length) const override;
+
+
+        double selfTestEquivalentRadius() const override {return _radius;}
 
         double _radius = 1.;
     };

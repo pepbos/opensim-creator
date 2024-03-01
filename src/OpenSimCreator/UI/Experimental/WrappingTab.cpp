@@ -106,15 +106,23 @@ public:
         {
             // Set surface position.
             m_AnalyticSphereSurface.setOffsetFrame(Transf{
-                Vector3{3., 0.1, 0.}
+                Vector3{0., 0., 0.}
             });
             // Set radius.
-            m_AnalyticSphereSurface.setRadius(0.5);
+            m_AnalyticSphereSurface.setRadius(1.);
 
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
                 Vector3{0., 0., 0.}
             });
             m_ImplicitSphereSurface.setRadius(1.);
+        }
+
+        // Make sure to do all surface self tests (terrible place for it, but whatever.
+        {
+            std::cout << "ImplicitSphereSurface self test" << std::endl;
+            m_ImplicitSphereSurface.doSelfTests();
+            std::cout << "AnalyticSphereSurface self test" << std::endl;
+            m_AnalyticSphereSurface.doSelfTests();
         }
 
         // Choose wrapping terminal points.
