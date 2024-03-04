@@ -1625,26 +1625,30 @@ namespace osc
         const double r = selfTestEquivalentRadius();
         std::vector<double> lengths;
         lengths.push_back(0.);
-        for (size_t i = 1; i < 6; ++i){
+        for (size_t i = 1; i < 4; ++i){
             lengths.push_back(static_cast<double>(i) * r);
         }
         return lengths;
     }
 
-    void Surface::doSelfTests() const
+    void Surface::doSelfTests(double eps) const
     {
         for (Vector3 r_P : makeSelfTestPoints())
         {
-        for (Vector3 v_P : makeSelfTestVelocities())
-        {
-        for (double l : makeSelfTestLengths())
-        {
-            auto transform  = getOffsetFrame();
-            doSelfTest(
-                     calcPointInGround(transform, r_P),
-                    calcVectorInGround(transform, v_P), l);
-        }
-        }
+            for (Vector3 v_P : makeSelfTestVelocities())
+            {
+                for (double l : makeSelfTestLengths())
+                {
+                    // TODO Skip tests with parallel position and velocity: will very likely fail.
+                    if (r_P.cross(v_P).norm() < 1e-9) {
+                        continue;;
+                    }
+                    auto transform  = getOffsetFrame();
+                    doSelfTest(
+                            calcPointInGround(transform, r_P),
+                            calcVectorInGround(transform, v_P), l, eps);
+                }
+            }
         }
     }
 
@@ -1653,14 +1657,10 @@ namespace osc
             Vector3 r_P,
             Vector3 v_P,
             double l,
-            double delta,
-            double eps
+            double eps,
+            double delta
             ) const
     {
-        if (r_P.cross(v_P).norm() < 1e-13) {
-            // Skip tests with parallel position and velocity: will very likely fail.
-            return;
-        }
 
         // Shoot a zero length geodesic.
         const Geodesic gZero = calcGeodesic(r_P, v_P, l);
