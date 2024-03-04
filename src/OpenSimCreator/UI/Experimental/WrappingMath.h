@@ -119,7 +119,8 @@ namespace osc
             Vector3 initVelocity,
             double length) const;
 
-        Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) const;
+        Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter)
+            const;
 
         using GetSurfaceFn = std::function<const Surface*(size_t)>;
 
@@ -278,8 +279,14 @@ namespace osc
         explicit ImplicitSphereSurface(double radius) : _radius(radius)
         {}
 
-        double getRadius() const {return _radius;}
-        void setRadius(double radius) {_radius = radius;}
+        double getRadius() const
+        {
+            return _radius;
+        }
+        void setRadius(double radius)
+        {
+            _radius = radius;
+        }
 
     private:
 
@@ -307,8 +314,14 @@ namespace osc
         explicit AnalyticSphereSurface(double radius) : _radius(radius)
         {}
 
-        double getRadius() const {return _radius;}
-        void setRadius(double radius) {_radius = radius;}
+        double getRadius() const
+        {
+            return _radius;
+        }
+        void setRadius(double radius)
+        {
+            _radius = radius;
+        }
 
     private:
 
@@ -334,8 +347,14 @@ namespace osc
         explicit AnalyticCylinderSurface(double radius) : _radius(radius)
         {}
 
-        double getRadius() const {return _radius;}
-        void setRadius(double radius) {_radius = radius;}
+        double getRadius() const
+        {
+            return _radius;
+        }
+        void setRadius(double radius)
+        {
+            _radius = radius;
+        }
 
     private:
 
