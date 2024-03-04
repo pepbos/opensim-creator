@@ -1013,6 +1013,31 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
 }
 
 //==============================================================================
+//                      IMPLICIT CYLINDER SURFACE
+//==============================================================================
+
+double ImplicitCylinderSurface::calcSurfaceConstraintImpl(Vector3 p) const
+{
+    return p.x() * p.x() + p.y() * p.y() - _radius * _radius;
+}
+
+Vector3 ImplicitCylinderSurface::calcSurfaceConstraintGradientImpl(Vector3 p) const
+{
+    return {2. * p.x(), 2. * p.y(), 0.};
+}
+
+Mat3x3 ImplicitCylinderSurface::calcSurfaceConstraintHessianImpl(Vector3) const
+{
+    Mat3x3 hessian;
+    hessian.fill(0.);
+
+    hessian(0,0) /= 2.;
+    hessian(1,1) /= 2.;
+
+    return hessian;
+}
+
+//==============================================================================
 //                      ANALYTIC CYLINDER SURFACE
 //==============================================================================
 

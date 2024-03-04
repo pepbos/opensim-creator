@@ -330,7 +330,51 @@ namespace osc
             Vector3 initVelocity,
             double length) const override;
 
-        double selfTestEquivalentRadius() const override {return _radius;}
+        double selfTestEquivalentRadius() const override
+        {
+            return _radius;
+        }
+
+        double _radius = 1.;
+    };
+
+    //==============================================================================
+    //                      IMPLICIT CYLINDER SURFACE
+    //==============================================================================
+
+    // Concrete component.
+    class ImplicitCylinderSurface : public ImplicitSurface
+    {
+    public:
+
+        ImplicitCylinderSurface() = default;
+
+        explicit ImplicitCylinderSurface(double radius) : _radius(radius)
+        {}
+
+        double getRadius() const
+        {
+            return _radius;
+        }
+
+        void setRadius(double radius)
+        {
+            _radius = radius;
+        }
+
+    private:
+
+        // Implicit surface constraint.
+        double calcSurfaceConstraintImpl(Vector3 position) const override;
+        Vector3 calcSurfaceConstraintGradientImpl(
+            Vector3 position) const override;
+        Hessian calcSurfaceConstraintHessianImpl(
+            Vector3 position) const override;
+
+        double selfTestEquivalentRadius() const override
+        {
+            return _radius;
+        }
 
         double _radius = 1.;
     };

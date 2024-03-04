@@ -203,6 +203,8 @@ add_library(OpenSimCreator STATIC
     Platform/RecentFiles.cpp
     Platform/RecentFiles.h
 
+    UI/Experimental/GeodesicTab.cpp
+    UI/Experimental/GeodesicTab.h
     UI/Experimental/MeshHittestTab.cpp
     UI/Experimental/MeshHittestTab.h
     UI/Experimental/RendererGeometryShaderTab.cpp

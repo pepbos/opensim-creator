@@ -1,6 +1,7 @@
-#include "WrappingTab.h"
+#include "GeodesicTab.h"
 
 #include "WrappingMath.h"
+#include <Eigen/src/Geometry/AngleAxis.h>
 #include <SDL_events.h>
 #include <array>
 #include <cstdint>
@@ -24,46 +25,7 @@ namespace
         };
     }
 
-    constexpr CStringView c_TabStringID = "OpenSim/Experimental/Wrapping";
-
-    struct SceneSphereSurface final
-    {
-
-        explicit SceneSphereSurface(Vec3 pos_, double r_) :
-            surface{AnalyticSphereSurface(r_)}, pos{pos_}, r{r_ * 1.0}
-        {
-            surface.setOffsetFrame(Transf{
-                {
-                 pos.x,
-                 pos.y,
-                 pos.z,
-                 }
-            });
-        }
-
-        Vec3 getPosition() const
-        {
-            return Vec3{
-                pos.x,
-                pos.y,
-                pos.z,
-            };
-        }
-
-        AnalyticSphereSurface surface;
-        Vec3 pos;
-        double r;
-    };
-
-    struct SceneSphere final
-    {
-
-        explicit SceneSphere(Vec3 pos_) : pos{pos_}
-        {}
-
-        Vec3 pos;
-        bool isHovered = false;
-    };
+    constexpr CStringView c_TabStringID = "OpenSim/Experimental/Geodesic";
 
     MaterialPropertyBlock GeneratePropertyBlock(Color const& color)
     {
@@ -72,36 +34,32 @@ namespace
         return p;
     }
 
-    struct PathTerminalPoint
+    struct StartPoint
     {
-        float radius = 1.;
-        float phi    = 0.;
-        float theta  = 0.;
+        double radius = 1.;
+        float length = 1.;
+        std::array<float, 3> angle = {0., 0., 0.};
     };
 
-    Vector3 ComputePoint(const PathTerminalPoint& pt)
+    Vector3 ComputePoint(const StartPoint& pt)
     {
-        return {
-            pt.radius * cos(pt.phi),                  // z
-            pt.radius * sin(pt.phi) * sin(pt.theta),  // y
-            -pt.radius * sin(pt.phi) * cos(pt.theta), // x
-        };
+        Rotation qx = Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{1., 0., 0.}));
+        Rotation qy = Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.}));
+        return qx * qy * Vector3{0., 0., -pt.radius};
+    }
+
+    Vector3 ComputeVelocity(const StartPoint& pt)
+    {
+        Rotation qx = Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{1., 0., 0.}));
+        Rotation qy = Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.}));
+        Rotation qz = Rotation(Eigen::AngleAxisd(pt.angle.at(2), Vector3{0., 0., 1.}));
+        return qx * qy * qz * Vector3{1., 0., 0.};
     }
 
 } // namespace
 
-class osc::WrappingTab::Impl final : public StandardTabImpl
+class osc::GeodesicTab::Impl final : public StandardTabImpl
 {
-
-    const Surface* getWrapSurfaceHelper(size_t i)
-    {
-        switch (i) {
-            /* case 0: return &m_ImplicitSphereSurface; */
-            case 0: return &m_ImplicitEllipsoidSurface;
-            /* case 2: return &m_AnalyticSphereSurface; */
-            default: return nullptr;
-        }
-    }
 
 public:
 
@@ -109,30 +67,31 @@ public:
     {
         // Set some surface params.
         {
-            // Set surface position.
+            // Analytic sphere.
             m_AnalyticSphereSurface.setOffsetFrame(Transf{
-                Vector3{3., 0., 0.1}
+                Vector3{2., 0., 0.}
             });
-            // Set radius.
-            m_AnalyticSphereSurface.setRadius(0.5);
+            m_AnalyticSphereSurface.setRadius(0.75);
 
+            // Implicit sphere.
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
-                Vector3{-3., 0.1, 0.1}
+                Vector3{2., 0., 0.}
             });
             m_ImplicitSphereSurface.setRadius(0.75);
 
             m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
-                Vector3{0.2, 0.1, 0.1}
+                Vector3{0., 0., 0.}
             });
-            m_ImplicitEllipsoidSurface.setRadii(1., 1., 3.);
+            m_ImplicitEllipsoidSurface.setRadii(2., 0.5, 0.25);
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
-                Vector3{3., 3., 3.}
+                Vector3{0., 2., 0.}
             });
             m_ImplicitCylinderSurface.setRadius(0.75);
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
+        if (false)
         {
             m_ImplicitSphereSurface.doSelfTests();
             std::cout << "ImplicitSphereSurface self test OK\n";
@@ -140,23 +99,18 @@ public:
             std::cout << "AnalyticSphereSurface self test OK\n";
             m_ImplicitEllipsoidSurface.doSelfTests(1e-2);
             std::cout << "ImplicitEllipsoidSurface self test OK\n";
+            m_ImplicitCylinderSurface.doSelfTests();
+            std::cout << "ImplicitSphereSurface self test OK\n";
         }
 
-        // Choose wrapping terminal points.
+        // Choose geodesic start point.
         {
-            m_StartPoint                     = {-5., 0.1, 0.};
-            m_EndPoint.radius                = 5.;
+            m_StartPoint.radius                = 3.;
         }
 
         // Initialize the wrapping path.
         {
-            Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
-                return getWrapSurfaceHelper(i);
-            };
-            m_WrappingPath = Surface::calcNewWrappingPath(
-                m_StartPoint,
-                ComputePoint(m_EndPoint),
-                GetSurface);
+            /* m_Geodesics; */
         }
 
         // Configure sphere material.
@@ -198,15 +152,14 @@ private:
     void implOnTick() final
     {
         // Analytic geodesic computation.
-        Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
-            return getWrapSurfaceHelper(i);
-        };
-        m_WrappingPath = Surface::calcNewWrappingPath(
-            m_StartPoint,
-            ComputePoint(m_EndPoint),
-            GetSurface);
-        /* m_WrappingPath.endPoint = ComputePoint(m_EndPoint); */
-        /* Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface); */
+        Vector3 p0 = ComputePoint(m_StartPoint);
+        Vector3 v0 = ComputeVelocity(m_StartPoint);
+        double l = m_StartPoint.length;
+
+        m_Geodesics.at(0) = m_ImplicitSphereSurface.calcGeodesic(p0, v0, l);
+        m_Geodesics.at(1) = m_AnalyticSphereSurface.calcGeodesic(p0, v0, l);
+        m_Geodesics.at(2) = m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l);
+        m_Geodesics.at(3) = m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l * m_ImplicitCylinderSurface.getRadius() * 2.);
     }
 
     void implOnDraw() final
@@ -222,8 +175,10 @@ private:
         }
 
         if (ImGui::Begin("viewer")) {
-            ImGui::SliderAngle("phi", &m_EndPoint.phi);
-            ImGui::SliderAngle("theta", &m_EndPoint.theta);
+            ImGui::SliderAngle("phi", &m_StartPoint.angle.at(0));
+            ImGui::SliderAngle("theta", &m_StartPoint.angle.at(1));
+            ImGui::SliderAngle("psi", &m_StartPoint.angle.at(2));
+            ImGui::SliderAngle("length", &m_StartPoint.length);
         }
 
         // render sphere && ellipsoid
@@ -265,11 +220,18 @@ private:
 
         // Draw cylinder
         {
+            Rotation q = Rotation(Eigen::AngleAxisd(M_PI/2., Vector3{1., 0., 0.}));
+            Quat qf = Quat{
+                static_cast<float>(q.w()),
+                static_cast<float>(q.x()),
+                static_cast<float>(q.y()),
+                static_cast<float>(q.z()),};
             Graphics::DrawMesh(
                 m_CylinderMesh,
                 {
                     .scale    = Vec3{static_cast<float>(m_ImplicitCylinderSurface.getRadius())},
-                    .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position),
+                    .rotation = qf,
+                    .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position) - Vec3{0., 0.,0.},
                 },
                 m_Material,
                 m_Camera,
@@ -277,8 +239,8 @@ private:
         }
 
         // render curve
+        for (const Geodesic& g: m_Geodesics)
         {
-            Vector3 prev              = m_StartPoint;
             auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, bool red = true) {
                 Graphics::DrawMesh(
                     m_LineMesh,
@@ -287,25 +249,20 @@ private:
                     m_Camera,
                     red ? m_RedColorMaterialProps : m_BlackColorMaterialProps);
             };
-            for (const Geodesic& geodesic : m_WrappingPath.segments) {
+            Vector3 prev              = g.start.position;
+            DrawCurveSegmentMesh(ToVec3(ComputePoint(m_StartPoint)), ToVec3(prev), false);
 
-                // Iterate over the logged points in the Geodesic.
-                for (const std::pair<Vector3, DarbouxFrame>& knot :
-                     geodesic.curveKnots) {
-                    const Vector3 next = knot.first;
-                    DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
-                    prev = next;
-                }
+            // Draw no
+            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(prev + g.curveKnots.front().second.t), false);
+            // Iterate over the logged points in the Geodesic.
+            for (const std::pair<Vector3, DarbouxFrame>& knot :
+                    g.curveKnots) {
+                const Vector3 next = knot.first;
+                DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+                prev = next;
             }
-            const Vector3 next = m_WrappingPath.endPoint;
+            const Vector3 next = g.end.position;
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
-
-            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, false);
-
-            DrawCurveSegmentMesh(
-                {0., 0., 0.},
-                ToVec3(ComputePoint(m_EndPoint)),
-                false);
         }
 
         Rect const viewport = GetMainViewportWorkspaceScreenRect();
@@ -316,14 +273,9 @@ private:
     }
 
     // Wrapping stuff.
-    Vector3 m_StartPoint{
-        NAN,
-        NAN,
-        NAN,
-    };
-    PathTerminalPoint m_EndPoint = {};
+    StartPoint m_StartPoint = {};
 
-    WrappingPath m_WrappingPath = WrappingPath();
+    std::vector<Geodesic> m_Geodesics = {{}, {}, {}, {}};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -336,7 +288,7 @@ private:
 
     Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
     Mesh m_CylinderMesh = GenerateCylinderMesh2(
-            1., 1., 1., 45, 45, false, Radians{0.}, Radians{2. * M_PI});
+            1., 1., 10., 45, 45, false, Radians{0.}, Radians{2. * M_PI});
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
 
     MaterialPropertyBlock m_BlackColorMaterialProps =
@@ -363,50 +315,50 @@ private:
 
 // public API
 
-CStringView osc::WrappingTab::id()
+CStringView osc::GeodesicTab::id()
 {
     return c_TabStringID;
 }
 
-osc::WrappingTab::WrappingTab(ParentPtr<ITabHost> const&) :
+osc::GeodesicTab::GeodesicTab(ParentPtr<ITabHost> const&) :
     m_Impl{std::make_unique<Impl>()}
 {}
 
-osc::WrappingTab::WrappingTab(WrappingTab&&) noexcept                 = default;
-osc::WrappingTab& osc::WrappingTab::operator=(WrappingTab&&) noexcept = default;
-osc::WrappingTab::~WrappingTab() noexcept                             = default;
+osc::GeodesicTab::GeodesicTab(GeodesicTab&&) noexcept                 = default;
+osc::GeodesicTab& osc::GeodesicTab::operator=(GeodesicTab&&) noexcept = default;
+osc::GeodesicTab::~GeodesicTab() noexcept                             = default;
 
-UID osc::WrappingTab::implGetID() const
+UID osc::GeodesicTab::implGetID() const
 {
     return m_Impl->getID();
 }
 
-CStringView osc::WrappingTab::implGetName() const
+CStringView osc::GeodesicTab::implGetName() const
 {
     return m_Impl->getName();
 }
 
-void osc::WrappingTab::implOnMount()
+void osc::GeodesicTab::implOnMount()
 {
     m_Impl->onMount();
 }
 
-void osc::WrappingTab::implOnUnmount()
+void osc::GeodesicTab::implOnUnmount()
 {
     m_Impl->onUnmount();
 }
 
-bool osc::WrappingTab::implOnEvent(SDL_Event const& e)
+bool osc::GeodesicTab::implOnEvent(SDL_Event const& e)
 {
     return m_Impl->onEvent(e);
 }
 
-void osc::WrappingTab::implOnTick()
+void osc::GeodesicTab::implOnTick()
 {
     m_Impl->onTick();
 }
 
-void osc::WrappingTab::implOnDraw()
+void osc::GeodesicTab::implOnDraw()
 {
     m_Impl->onDraw();
 }
