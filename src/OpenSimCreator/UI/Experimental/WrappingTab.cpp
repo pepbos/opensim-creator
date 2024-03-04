@@ -95,7 +95,12 @@ class osc::WrappingTab::Impl final : public StandardTabImpl
 
     const Surface* getWrapSurfaceHelper(size_t i)
     {
-        return i != 0 ? nullptr : &m_ImplicitSphereSurface;
+        switch (i) {
+            /* case 0: return &m_ImplicitSphereSurface; */
+            case 0: return &m_ImplicitEllipsoidSurface;
+            /* case 2: return &m_AnalyticSphereSurface; */
+            default: return nullptr;
+        }
     }
 
 public:
@@ -106,15 +111,20 @@ public:
         {
             // Set surface position.
             m_AnalyticSphereSurface.setOffsetFrame(Transf{
-                Vector3{1., 0., 0.}
+                Vector3{3., 0., 0.1}
             });
             // Set radius.
             m_AnalyticSphereSurface.setRadius(0.5);
 
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
-                Vector3{0., 0., 0.}
+                Vector3{-3., 0.1, 0.1}
             });
-            m_ImplicitSphereSurface.setRadius(1.);
+            m_ImplicitSphereSurface.setRadius(0.75);
+
+            m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
+                Vector3{0.2, 0.1, 0.1}
+            });
+            m_ImplicitEllipsoidSurface.setRadii(1., 1., 3.);
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
@@ -123,12 +133,14 @@ public:
             std::cout << "ImplicitSphereSurface self test OK\n";
             m_AnalyticSphereSurface.doSelfTests();
             std::cout << "AnalyticSphereSurface self test OK\n";
+            m_ImplicitEllipsoidSurface.doSelfTests(1e-2);
+            std::cout << "ImplicitEllipsoidSurface self test OK\n";
         }
 
         // Choose wrapping terminal points.
         {
-            m_StartPoint                     = {-3., 0.1, 0.};
-            m_EndPoint.radius                = 1.5;
+            m_StartPoint                     = {-5., 0.1, 0.};
+            m_EndPoint.radius                = 5.;
         }
 
         // Initialize the wrapping path.
@@ -209,7 +221,7 @@ private:
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
         }
 
-        // render sphere
+        // render sphere && ellipsoid
         {
             Graphics::DrawMesh(
                 m_SphereMesh,
@@ -230,6 +242,16 @@ private:
                         m_ImplicitSphereSurface.getRadius())},
                     .position = ToVec3(
                         m_ImplicitSphereSurface.getOffsetFrame().position),
+                },
+                m_Material,
+                m_Camera,
+                m_GreenColorMaterialProps);
+
+            Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                    .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii()),
+                    .position = ToVec3(m_ImplicitEllipsoidSurface.getOffsetFrame().position),
                 },
                 m_Material,
                 m_Camera,
@@ -311,6 +333,8 @@ private:
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
     ImplicitSphereSurface m_ImplicitSphereSurface = ImplicitSphereSurface(1.);
+
+    ImplicitEllipsoidSurface m_ImplicitEllipsoidSurface;
 
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};

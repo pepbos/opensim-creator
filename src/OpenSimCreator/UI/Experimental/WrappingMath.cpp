@@ -736,6 +736,44 @@ Geodesic ImplicitSurface::calcLocalGeodesicImpl(
 }
 
 //==============================================================================
+//                      IMPLICIT ELLIPSOID SURFACE
+//==============================================================================
+
+double ImplicitEllipsoidSurface::calcSurfaceConstraintImpl(Vector3 p) const
+{
+    p.x() /= _xRadius;
+    p.y() /= _yRadius;
+    p.z() /= _zRadius;
+    return p.dot(p) - 1.;
+}
+
+Vector3 ImplicitEllipsoidSurface::calcSurfaceConstraintGradientImpl(Vector3 p) const
+{
+    p.x() /= _xRadius * _xRadius;
+    p.y() /= _yRadius * _yRadius;
+    p.z() /= _zRadius * _zRadius;
+    return 2. * p;
+}
+
+Mat3x3 ImplicitEllipsoidSurface::calcSurfaceConstraintHessianImpl(Vector3) const
+{
+    static constexpr size_t n = 3;
+
+    Mat3x3 hessian;
+    for (size_t r = 0; r < n; ++r) {
+        for (size_t c = 0; c < n; ++c) {
+            hessian(r, c) = r == c ? 2. : 0.;
+        }
+    }
+
+    hessian(0,0) /= _xRadius * _xRadius;
+    hessian(1,1) /= _yRadius * _yRadius;
+    hessian(2,2) /= _zRadius * _zRadius;
+
+    return hessian;
+}
+
+//==============================================================================
 //                      IMPLICIT SPHERE SURFACE
 //==============================================================================
 

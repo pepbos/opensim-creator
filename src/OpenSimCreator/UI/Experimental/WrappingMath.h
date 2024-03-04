@@ -221,6 +221,52 @@ namespace osc
     };
 
     //==============================================================================
+    //                      IMPLICIT ELLIPSOID SURFACE
+    //==============================================================================
+
+    // Concrete component.
+    class ImplicitEllipsoidSurface : public ImplicitSurface
+    {
+    public:
+
+        ImplicitEllipsoidSurface() = default;
+
+        explicit ImplicitEllipsoidSurface(double xRadius, double yRadius, double zRadius) :
+            _xRadius(xRadius),
+            _yRadius(yRadius),
+            _zRadius(zRadius)
+        {}
+
+        Vector3 getRadii() const
+        {
+            return {_xRadius, _yRadius, _zRadius};
+        }
+
+        void setRadii(double xRadius, double yRadius, double zRadius)
+        {
+            _xRadius = xRadius;
+            _yRadius = yRadius;
+            _zRadius = zRadius;
+        }
+
+    private:
+
+        // Implicit surface constraint.
+        double calcSurfaceConstraintImpl(Vector3 position) const override;
+        Vector3 calcSurfaceConstraintGradientImpl(
+            Vector3 position) const override;
+        Hessian calcSurfaceConstraintHessianImpl(
+            Vector3 position) const override;
+
+        double selfTestEquivalentRadius() const override {return
+            std::min(_xRadius,  std::min(_yRadius, _zRadius));}
+
+        double _xRadius = 1.;
+        double _yRadius = 1.;
+        double _zRadius = 1.;
+    };
+
+    //==============================================================================
     //                      IMPLICIT SPHERE SURFACE
     //==============================================================================
 
