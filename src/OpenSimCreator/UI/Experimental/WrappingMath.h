@@ -164,14 +164,14 @@ namespace osc
             Vector3 initPosition,
             Vector3 initVelocity,
             double length,
-            double delta = 1e-4,
-            double eps = 1e-3
+            double eps = 1e-3,
+            double delta = 1e-4
             ) const;
 
     public:
 
         // Move out of class.
-        void doSelfTests() const;
+        void doSelfTests(double eps = 1e-3) const;
     };
 
     //==============================================================================
