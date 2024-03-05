@@ -1101,10 +1101,10 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
 
     // Rotation angle variation to initial direction variation.
     const double dAlpha_dTheta =
-        (l / r) * z.cross(f_P.n).dot(f_P.n.cross(f_P.t));
+        -(l / r) * z.cross(f_P.n).dot(f_P.n.cross(f_P.t));
 
     // Distance along axis variation to initial direction variation.
-    const double dh_dTheta = l * z.dot(f_P.n.cross(f_P.t));
+    const double dh_dTheta = -l * z.dot(f_P.n.cross(f_P.t));
 
     // Rotation angle variation to length variation.
     const double dAlpha_dl = (1. / r) * z.cross(f_P.n).dot(f_P.t);
@@ -1118,17 +1118,17 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     // Start position variation.
     const Vector3 zeros{0., 0., 0.};
     K_P.v = {
-        f_P.t, // z.cross(f_P.n),
-        f_P.b, // z,
+        f_P.t,
+        f_P.b,
         zeros,
         zeros,
     };
 
     // Start frame variation.
     K_P.w = {
-        z * r * alpha, // z
-        z * h, // zeros
-        f_P.n, // zeros,
+        z * f_P.t.dot(z.cross(f_P.n)),
+        z * f_P.t.dot(z),
+        -f_P.n,
         zeros,
     };
 
@@ -1152,18 +1152,22 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
 
     // Final position variation.
     K_Q.v = {
-        z.cross(p_Q),
-        z,
+        f_Q.t,
+        f_Q.b,
         z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta,
         z.cross(p_Q) * dAlpha_dl + z * dh_dl,
     };
 
     K_Q.w = {
-        z,
-        zeros,
-        dAlpha_dTheta * z + f_Q.n,
-        dAlpha_dl * z + f_Q.n,
+        z * f_Q.t.dot(z.cross(f_Q.n)),
+        z * f_Q.t.dot(z),
+        dAlpha_dTheta * z - f_Q.n,
+        dAlpha_dl * z,
     };
+
+    // Set start frame fields.
+    K_Q.frame    = f_Q;
+    K_Q.position = p_Q;
 
     auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
         return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
