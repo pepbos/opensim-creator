@@ -1266,7 +1266,7 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
     /* std::cout << "pathError =\n" << pathError << std::endl; */
 }
 
-void PathContinuityError::calcPathCorrection()
+bool PathContinuityError::calcPathCorrection()
 {
     clampPathError(_pathError, _maxAngleDegrees);
 
@@ -1278,11 +1278,7 @@ void PathContinuityError::calcPathCorrection()
     _solverError = _pathErrorJacobian.transpose()
                    * (_pathErrorJacobian * _pathCorrections + _pathError);
     /* std::cout << "solverError =\n" << _solverError << std::endl; */
-    if (_solverError.norm() > _eps) {
-        std::cout << "solver error = " << _solverError.norm() << std::endl;
-        throw std::runtime_error("failed to compute corrections: failed to "
-                                 "invert path error jacobian");
-    }
+    return _solverError.norm() < _eps;
 }
 
 const GeodesicCorrection* PathContinuityError::begin() const
@@ -1664,13 +1660,15 @@ size_t Surface::calcUpdatedWrappingPath(
             nSurfaces - 1);
 
         // Process the path errors.
-        path.smoothness.calcPathCorrection();
+        // TODO handle failing to invert jacobian.
+        if (!path.smoothness.calcPathCorrection()){
+            std::cout << "Failed to invert matrix\n";
+        }
         /* std::cout << "    ===== STEP ==== = " <<
          * path.smoothness.calcMaxPathError() << "\n"; */
 
         if (path.smoothness.calcMaxPathError() < eps) {
-            /* std::cout << "   Wrapping path solved in " << loopIter <<
-             * "steps\n"; */
+            /* std::cout << "   Wrapping path solved in " << loopIter << "steps\n"; */
             return loopIter;
         }
 
@@ -1678,7 +1676,7 @@ size_t Surface::calcUpdatedWrappingPath(
         const auto* corrIt  = path.smoothness.begin();
         const auto* corrEnd = path.smoothness.end();
         if (corrEnd - corrIt != nSurfaces) {
-            std::runtime_error("Number of geodesic-corrections not equal ot "
+            std::runtime_error("Number of geodesic-corrections not equal to "
                                "number of geodesics");
         }
 
@@ -1690,7 +1688,10 @@ size_t Surface::calcUpdatedWrappingPath(
                 correction);
 
             // TODO last field of correction must be lengthening.
-            path.segments.at(i).length += correction.at(3);
+            const double li = path.segments.at(i).length += correction.at(3);
+            if(li < 0.) {
+                std::cout << "negative path length: " << li << "\n";
+            }
             /* std::cout << "    state after correction: " <<
              * path.segments.at(i).start << "\n"; */
         }
@@ -1705,6 +1706,10 @@ size_t Surface::calcUpdatedWrappingPath(
                 path.segments.at(i).length);
         }
     }
+
+    // TODO handle failing to converge.
+    std::cout << "Exceeded max iterations\n";
+    return maxIter;
     throw std::runtime_error(
         "failed to find wrapping path: exceeded max number of iterations");
 }

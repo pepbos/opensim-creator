@@ -458,7 +458,7 @@ namespace osc
 
         // Compute the geodesic corrections from the path error and path error
         // jacobian.
-        void calcPathCorrection();
+        bool calcPathCorrection();
 
         // Resize internal matrices to match the problem size (number of
         // surfaces).
