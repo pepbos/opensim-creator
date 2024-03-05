@@ -528,7 +528,7 @@ double calcGeodesicTorsion(
     const Vector3 g   = s.calcSurfaceConstraintGradient(p);
     const Vector3 h_v = s.calcSurfaceConstraintHessian(p) * v;
     const Vector3 gxv = g.cross(v);
-    return h_v.dot(gxv) / g.dot(g);
+    return -h_v.dot(gxv) / g.dot(g);
 }
 
 // TODO use normalized vector.
