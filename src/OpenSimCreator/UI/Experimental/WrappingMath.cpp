@@ -1091,7 +1091,7 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         "(alpha * r)^2 + h^2 = l^2");
 
     AssertEq(
-            (f_P.t.cross(z)).norm() * l,
+            (f_P.t.cross(z)*l).norm(),
             std::abs(alpha * r),
         "||t X z || * l = |alpha * r|");
     AssertEq(
@@ -1126,8 +1126,8 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
 
     // Start frame variation.
     K_P.w = {
-        z * f_P.t.dot(z.cross(f_P.n)),
-        z * f_P.t.dot(z),
+        z * f_P.t.dot(z.cross(f_P.n))/r,
+        z * f_P.t.dot(z)/r,
         -f_P.n,
         zeros,
     };
@@ -1159,8 +1159,8 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     };
 
     K_Q.w = {
-        z * f_Q.t.dot(z.cross(f_Q.n)),
-        z * f_Q.t.dot(z),
+        z * f_Q.t.dot(z.cross(f_Q.n)) / r,
+        z * f_Q.t.dot(z) / r,
         dAlpha_dTheta * z - f_Q.n,
         dAlpha_dl * z,
     };

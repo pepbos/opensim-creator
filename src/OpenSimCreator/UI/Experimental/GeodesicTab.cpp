@@ -90,9 +90,9 @@ public:
             m_ImplicitCylinderSurface.setRadius(0.75);
 
             m_AnalyticCylinderSurface.setOffsetFrame(Transf{
-                Vector3{0., 0., 0.}
+                Vector3{0., 2., 0.}
             });
-            m_AnalyticCylinderSurface.setRadius(1.);
+            m_AnalyticCylinderSurface.setRadius(0.75);
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
