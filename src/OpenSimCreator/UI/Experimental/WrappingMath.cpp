@@ -1046,8 +1046,8 @@ Mat3x3 ImplicitCylinderSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     Mat3x3 hessian;
     hessian.fill(0.);
 
-    hessian(0,0) /= 2.;
-    hessian(1,1) /= 2.;
+    hessian(0,0) = 2.;
+    hessian(1,1) = 2.;
 
     return hessian;
 }
