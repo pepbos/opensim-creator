@@ -83,17 +83,18 @@ namespace
         const std::string& msg,
         double eps = 1e-13)
     {
-        const bool cond = std::abs(lhs.norm() - norm) > eps;
-        if (cond) {
+        const bool isOk = std::abs(lhs.norm() - norm) < eps;
+        if (!isOk) {
             std::ostringstream os;
             os << "FAILED ASSERT: " << msg << std::endl;
             os << "    lhs.norm() = " << Print3{lhs}
                << ".norm() = " << lhs.norm() << std::endl;
             os << "    expected = " << norm << std::endl;
             os << "    err = " << lhs.norm() - norm << std::endl;
+            os << "    bnd = " << eps << std::endl;
             std::string msg = os.str();
             throw std::runtime_error(msg.c_str());
-            /* OSC_ASSERT(cond && msg.c_str()); */
+            /* OSC_ASSERT(isOk && msg.c_str()); */
         }
     }
 
@@ -103,17 +104,18 @@ namespace
         const std::string& msg,
         double eps = 1e-13)
     {
-        const bool cond = std::abs(lhs - rhs) > eps;
-        if (cond) {
+        const bool isOk = std::abs(lhs - rhs) < eps;
+        if (!isOk) {
             std::ostringstream os;
             os << "FAILED ASSERT: " << msg << std::endl;
             os << "    lhs = " << lhs << std::endl;
             os << "    rhs = " << rhs << std::endl;
             os << "    err = " << lhs - rhs << std::endl;
+            os << "    bnd = " << eps << std::endl;
             /* throw std::runtime_error(msg); */
             std::string msg = os.str();
             throw std::runtime_error(msg.c_str());
-            OSC_ASSERT(cond && msg.c_str());
+            OSC_ASSERT(isOk && msg.c_str());
         }
     }
 
@@ -123,17 +125,18 @@ namespace
         const std::string& msg,
         double eps = 1e-13)
     {
-        const bool cond = (lhs - rhs).norm() > eps;
-        if (cond) {
+        const bool isOk = (lhs - rhs).norm() < eps;
+        if (!isOk) {
             std::ostringstream os;
             os << "FAILED ASSERT: " << msg << std::endl;
             os << "    lhs = " << Print3{lhs} << std::endl;
             os << "    rhs = " << Print3{rhs} << std::endl;
             os << "    err = " << Print3{lhs - rhs} << std::endl;
+            os << "    bnd = " << eps << std::endl;
             /* throw std::runtime_error(msg); */
             std::string msg = os.str();
             throw std::runtime_error(msg.c_str());
-            OSC_ASSERT(cond && msg.c_str());
+            OSC_ASSERT(isOk && msg.c_str());
         }
     }
 
@@ -161,14 +164,26 @@ namespace
         std::ostream& os,
         double eps = 1e-13)
     {
-        const bool failed = (lhs - rhs).norm() > eps;
-        if (failed) {
+        const bool isOk = (lhs - rhs).norm() < eps;
+        if (!isOk) {
             os << "FAILED ASSERT: " << msg << std::endl;
             os << "    lhs = " << Print3{lhs} << std::endl;
             os << "    rhs = " << Print3{rhs} << std::endl;
             os << "    err = " << Print3{lhs - rhs} << std::endl;
+            os << "    bnd = " << eps << std::endl;
         }
-        return !failed;
+        return isOk;
+    }
+
+    bool AssertRelEq(
+            const Vector3& lhs,
+            const Vector3& rhs,
+            const std::string& msg,
+            std::ostream& os,
+            double eps = 1e-13)
+    {
+        const double bound = std::max(std::max( lhs.norm(), rhs.norm()), 1.) * eps;
+        return AssertEq(lhs, rhs, msg, os, bound);
     }
 
 } // namespace
