@@ -161,17 +161,19 @@ namespace osc
         Transf _transform;
 
         void doSelfTest(
+            const std::string name,
             Vector3 initPosition,
             Vector3 initVelocity,
             double length,
-            double eps = 1e-3,
-            double delta = 1e-4
-            ) const;
+            double eps   = 1e-3,
+            double delta = 1e-4) const;
 
     public:
 
         // Move out of class.
-        void doSelfTests(double eps = 1e-3) const;
+        void doSelfTests(
+            const std::string name,
+                double eps = 1e-3) const;
     };
 
     //==============================================================================

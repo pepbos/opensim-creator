@@ -1708,7 +1708,11 @@ namespace osc
         for (size_t i = 0; i < values.size(); ++i) {
             for (size_t j = 0; j < values.size(); ++j) {
                 for (size_t k = 0; k < values.size(); ++k) {
-                    points.push_back(Vector3{values.at(i), values.at(j), values.at(k)});
+                    points.push_back(Vector3{values.at(i), values.at(j), values.at(k)} +
+                            Vector3{
+                            -1./11.,
+                            1./12.,
+                            1./13.,});
                 }
             }
         }
@@ -1724,7 +1728,11 @@ namespace osc
         for (size_t i = 0; i < values.size(); ++i) {
             for (size_t j = 0; j < values.size(); ++j) {
                 for (size_t k = 0; k < values.size(); ++k) {
-                    velocities.push_back(Vector3{values.at(i), values.at(j), values.at(k)});
+                    velocities.push_back(Vector3{values.at(i), values.at(j), values.at(k)} +
+                            Vector3{
+                            1./14.,
+                            1./15.,
+                            1./16.,});
                 }
             }
         }
@@ -1742,7 +1750,9 @@ namespace osc
         return lengths;
     }
 
-    void Surface::doSelfTests(double eps) const
+    void Surface::doSelfTests(
+            const std::string name,
+            double eps) const
     {
         for (Vector3 r_P : makeSelfTestPoints())
         {
@@ -1756,6 +1766,7 @@ namespace osc
                     }
                     auto transform  = getOffsetFrame();
                     doSelfTest(
+                            name,
                             calcPointInGround(transform, r_P),
                             calcVectorInGround(transform, v_P), l, eps);
                 }
@@ -1765,6 +1776,7 @@ namespace osc
 
     // Test variation effects on start and end frames.
     void Surface::doSelfTest(
+            const std::string name,
             Vector3 r_P,
             Vector3 v_P,
             double l,
@@ -1814,11 +1826,11 @@ namespace osc
                 const Vector3 dn = calcNormalDerivative(K0.frame, K0.w.at(i));
                 const Vector3 db = calcBinormalDerivative(K0.frame, K0.w.at(i));
 
-                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, "Failed start position variation " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, name + ": Failed start position variation " + os.str(), errs, eps);
 
-                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, "Failed start tangent variation  " + os.str(), errs, eps);
-                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, "Failed start normal variation   " + os.str(), errs, eps);
-                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, "Failed start binormal variation " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, name + ": Failed start tangent variation  " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, name + ": Failed start normal variation   " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, name + ": Failed start binormal variation " + os.str(), errs, eps);
             }
 
             {
@@ -1831,11 +1843,11 @@ namespace osc
                 const Vector3 dn = calcNormalDerivative(K0.frame, K0.w.at(i));
                 const Vector3 db = calcBinormalDerivative(K0.frame, K0.w.at(i));
 
-                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, "Failed end position variation" + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.position - K0.position) / delta, dp, name + ": Failed end position variation" + os.str(), errs, eps);
 
-                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, "Failed end tangent variation " + os.str(), errs, eps);
-                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, "Failed end normal variation  " + os.str(), errs, eps);
-                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, "Failed end binormal variation" + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.t - K0.frame.t) / delta, dt, name + ": Failed end tangent variation " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.n - K0.frame.n) / delta, dn, name + ": Failed end normal variation  " + os.str(), errs, eps);
+                allTestsPassed &= AssertEq((K1.frame.b - K0.frame.b) / delta, db, name + ": Failed end binormal variation" + os.str(), errs, eps);
             }
         }
         if (!allTestsPassed) {
