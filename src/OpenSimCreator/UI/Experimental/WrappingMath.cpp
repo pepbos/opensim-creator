@@ -1684,26 +1684,32 @@ namespace osc
 {
     std::vector<Vector3> Surface::makeSelfTestPoints() const
     {
-        return {
-            {1., 0., 0.},
-            {0., 1., 0.},
-            {0., 0., 1.},
-            {-1., 0., 0.},
-            {0., -1., 0.},
-            {0., 0., -1.},
-        };
+        std::vector<Vector3> points;
+        std::array<double, 5> values = {-3., 3., 1., -1., 0.};
+        for (size_t i = 0; i < values.size(); ++i) {
+            for (size_t j = 0; j < values.size(); ++j) {
+                for (size_t k = 0; k < values.size(); ++k) {
+                    points.push_back(Vector3{values.at(i), values.at(j), values.at(k)});
+                }
+            }
+        }
+        // Remove the one filled with zeros.
+        points.pop_back();
+        return points;
     }
 
     std::vector<Vector3> Surface::makeSelfTestVelocities() const
     {
-        return {
-            {1., 0., 0.},
-            {0., 1., 0.},
-            {0., 0., 1.},
-            {-1., 0., 0.},
-            {0., -1., 0.},
-            {0., 0., -1.},
-        };
+        std::vector<Vector3> velocities;
+        std::array<double, 3> values = {1., -1., 0.};
+        for (size_t i = 0; i < values.size(); ++i) {
+            for (size_t j = 0; j < values.size(); ++j) {
+                for (size_t k = 0; k < values.size(); ++k) {
+                    velocities.push_back(Vector3{values.at(i), values.at(j), values.at(k)});
+                }
+            }
+        }
+        return velocities;
     }
 
     std::vector<double> Surface::makeSelfTestLengths() const
