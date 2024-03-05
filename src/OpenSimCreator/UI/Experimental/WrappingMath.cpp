@@ -694,13 +694,15 @@ calcLocalImplicitGeodesic(
     log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
 
     // For unit testing.
-    for (size_t k = 0; k < steps; ++k) {
-        RungeKutta4(s, xEnd, l, dl);
+    if (length != 0.) {
+        for (size_t k = 0; k < steps; ++k) {
+            RungeKutta4(s, xEnd, l, dl);
 
-        calcProjectedToSurface(s, xEnd);
+            calcProjectedToSurface(s, xEnd);
 
-        // TODO don't log all points.
-        log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+            // TODO don't log all points.
+            log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+        }
     }
 
     AssertEq(length, l, "Total length does not match integrated length", 1e-6);
