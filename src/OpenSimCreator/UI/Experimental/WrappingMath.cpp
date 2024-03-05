@@ -1054,6 +1054,8 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     const double l = length;
 
     // Cylinder axis assumed to be aligned with z-axis.
+    const Vector3 x{1., 0., 0.};
+    const Vector3 y{0., 1., 0.};
     const Vector3 z{0., 0., 1.};
 
     // Initial darboux frame.
@@ -1069,6 +1071,18 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
 
     // Distance along cylinder axis between start and end frame.
     const double h = l * z.dot(f_P.t);
+
+    AssertEq(alpha * alpha * r * r + h * h, l * l,
+        "(alpha * r)^2 + h^2 = l^2");
+
+    AssertEq(
+            (f_P.t.cross(z)).norm() * l,
+            std::abs(alpha * r),
+        "||t X z || * l = |alpha * r|");
+    AssertEq(
+            f_P.t.dot(z) * l,
+            h,
+        "t.T z * l = h");
 
     // Rotation angle variation to initial direction variation.
     const double dAlpha_dTheta =
@@ -1089,17 +1103,17 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     // Start position variation.
     const Vector3 zeros{0., 0., 0.};
     K_P.v = {
-        z.cross(f_P.n) * r,
-        z,
+        f_P.t, // z.cross(f_P.n),
+        f_P.b, // z,
         zeros,
         zeros,
     };
 
     // Start frame variation.
     K_P.w = {
-        z,
-        zeros,
-        zeros,
+        z * r * alpha, // z
+        z * h, // zeros
+        f_P.n, // zeros,
         zeros,
     };
 
@@ -1135,6 +1149,15 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         dAlpha_dTheta * z + f_Q.n,
         dAlpha_dl * z + f_Q.n,
     };
+
+    auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
+        return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
+    };
+
+    for (size_t i = 0; i < 4; ++i) {
+        K_P.w.at(i) = ApplyAsTransform(K_P.frame, K_P.w.at(i));
+        K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
+    }
 
     std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
     size_t nSamples = 10;

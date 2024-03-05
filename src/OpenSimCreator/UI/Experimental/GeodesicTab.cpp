@@ -88,6 +88,11 @@ public:
                 Vector3{0., 2., 0.}
             });
             m_ImplicitCylinderSurface.setRadius(0.75);
+
+            m_AnalyticCylinderSurface.setOffsetFrame(Transf{
+                Vector3{0., 0., 0.}
+            });
+            m_AnalyticCylinderSurface.setRadius(1.);
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
@@ -160,6 +165,7 @@ private:
         m_Geodesics.at(1) = m_AnalyticSphereSurface.calcGeodesic(p0, v0, l);
         m_Geodesics.at(2) = m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l);
         m_Geodesics.at(3) = m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l * m_ImplicitCylinderSurface.getRadius() * 2.);
+        m_Geodesics.at(4) = m_AnalyticCylinderSurface.calcGeodesic(p0, v0, l * m_AnalyticCylinderSurface.getRadius() * 2.);
     }
 
     void implOnDraw() final
@@ -275,7 +281,7 @@ private:
     // Wrapping stuff.
     StartPoint m_StartPoint = {};
 
-    std::vector<Geodesic> m_Geodesics = {{}, {}, {}, {}};
+    std::vector<Geodesic> m_Geodesics = {{}, {}, {}, {}, {}};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -308,6 +314,7 @@ private:
 
     ImplicitEllipsoidSurface m_ImplicitEllipsoidSurface;
     ImplicitCylinderSurface m_ImplicitCylinderSurface;
+    AnalyticCylinderSurface m_AnalyticCylinderSurface = AnalyticCylinderSurface(1.);
 
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
