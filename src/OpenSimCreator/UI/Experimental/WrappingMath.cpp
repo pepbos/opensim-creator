@@ -175,16 +175,16 @@ namespace
         return isOk;
     }
 
-    bool AssertRelEq(
-            const Vector3& lhs,
-            const Vector3& rhs,
-            const std::string& msg,
-            std::ostream& os,
-            double eps = 1e-13)
-    {
-        const double bound = std::max(std::max( lhs.norm(), rhs.norm()), 1.) * eps;
-        return AssertEq(lhs, rhs, msg, os, bound);
-    }
+    /* bool AssertRelEq( */
+    /*         const Vector3& lhs, */
+    /*         const Vector3& rhs, */
+    /*         const std::string& msg, */
+    /*         std::ostream& os, */
+    /*         double eps = 1e-13) */
+    /* { */
+    /*     const double bound = std::max(std::max( lhs.norm(), rhs.norm()), 1.) * eps; */
+    /*     return AssertEq(lhs, rhs, msg, os, bound); */
+    /* } */
 
 } // namespace
 
@@ -467,6 +467,16 @@ Geodesic Surface::calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) cons
         return idx == 0 ? this : nullptr;
     };
     return calcNewWrappingPath(pointBefore, pointAfter, getSurface).segments.front();
+}
+
+void Surface::setLocalPathStartGuess(Vector3 pathStartGuess)
+{
+    _pathLocalStartGuess = std::move(pathStartGuess);
+}
+
+Vector3 Surface::getPathStartGuess() const
+{
+    return calcPointInGround(_transform, _pathLocalStartGuess);
 }
 
 //==============================================================================
@@ -1533,12 +1543,14 @@ std::vector<Geodesic> calcInitWrappingPathGuess(
         Vector3 originSurface = getSurface(i)->getOffsetFrame().position;
         const Vector3 pointBefore =
             i == 0 ? pathStart : geodesics.back().end.position;
-        const Vector3& pointAfter = pathEnd;
+        Vector3 initPositon = getSurface(i)->getPathStartGuess();
 
-        Vector3 initPositon = calcPointClosestToPointOnEdge(
-            pointBefore,
-            pointAfter,
-            originSurface);
+        // TODO this was the prev initializer.
+        /* const Vector3& pointAfter = pathEnd; */
+        /* Vector3 initPositon = calcPointClosestToPointOnEdge( */
+        /*     pointBefore, */
+        /*     pointAfter, */
+        /*     originSurface); */
         Vector3 initVelocity = (pathEnd - pathStart);
 
         // Shoot a zero-length geodesic as initial guess.

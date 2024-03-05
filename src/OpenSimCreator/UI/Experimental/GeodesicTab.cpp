@@ -82,7 +82,7 @@ public:
             m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
                 Vector3{0., 0., 0.}
             });
-            m_ImplicitEllipsoidSurface.setRadii(2., 0.5, 0.25);
+            m_ImplicitEllipsoidSurface.setRadii(1., 1., 0.1);
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
                 Vector3{0., 2., 0.}
@@ -237,7 +237,7 @@ private:
                 {
                     .scale    = Vec3{static_cast<float>(m_ImplicitCylinderSurface.getRadius())},
                     .rotation = qf,
-                    .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position) - Vec3{0., 0.,0.},
+                    .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position),
                 },
                 m_Material,
                 m_Camera,
@@ -302,7 +302,7 @@ private:
     MaterialPropertyBlock m_BlueColorMaterialProps =
         GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.5f});
     MaterialPropertyBlock m_GreenColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.5f, 0.0f, 0.5f});
+        GeneratePropertyBlock({0.0f, 0.2f, 0.0f, 0.2f});
     MaterialPropertyBlock m_RedColorMaterialProps =
         GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_GreyColorMaterialProps =

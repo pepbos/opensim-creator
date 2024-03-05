@@ -96,9 +96,9 @@ class osc::WrappingTab::Impl final : public StandardTabImpl
     const Surface* getWrapSurfaceHelper(size_t i)
     {
         switch (i) {
-            /* case 0: return &m_ImplicitSphereSurface; */
+            /* case 0: return &m_AnalyticSphereSurface; */
             case 0: return &m_ImplicitEllipsoidSurface;
-            /* case 2: return &m_AnalyticSphereSurface; */
+            case 1: return &m_ImplicitCylinderSurface;
             default: return nullptr;
         }
     }
@@ -109,43 +109,37 @@ public:
     {
         // Set some surface params.
         {
-            // Set surface position.
-            m_AnalyticSphereSurface.setOffsetFrame(Transf{
-                Vector3{3., 0., 0.1}
-            });
-            // Set radius.
-            m_AnalyticSphereSurface.setRadius(0.5);
-
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
-                Vector3{-3., 0.1, 0.1}
+                Vector3{-7., 0.1, 0.1}
             });
             m_ImplicitSphereSurface.setRadius(0.75);
 
             m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
-                Vector3{0.2, 0.1, 0.1}
+                Vector3{-5., 0.1, 0.1}
             });
-            m_ImplicitEllipsoidSurface.setRadii(1., 1., 3.);
+            m_ImplicitEllipsoidSurface.setRadii(1., 1., 4.);
+            m_ImplicitEllipsoidSurface.setLocalPathStartGuess({-1., 1., 1});
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
-                Vector3{3., 3., 3.}
+                Vector3{-3., 0., 0.1}
             });
             m_ImplicitCylinderSurface.setRadius(0.75);
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
-        {
-            m_ImplicitSphereSurface.doSelfTests();
-            std::cout << "ImplicitSphereSurface self test OK\n";
-            m_AnalyticSphereSurface.doSelfTests();
-            std::cout << "AnalyticSphereSurface self test OK\n";
-            m_ImplicitEllipsoidSurface.doSelfTests(1e-2);
-            std::cout << "ImplicitEllipsoidSurface self test OK\n";
-        }
+        /* { */
+            /* m_ImplicitCylinderSurface.doSelfTests("ImplicitCylinderSurface"); */
+            /* m_AnalyticCylinderSurface.doSelfTests("AnalyticCylinderSurface"); */
+            /* m_ImplicitEllipsoidSurface.doSelfTests( "ImplicitEllipsoidSurface", 1e-3); */
+            /* m_ImplicitSphereSurface.doSelfTests("ImplicitSphereSurface"); */
+            /* m_AnalyticSphereSurface.doSelfTests("AnalyticSphereSurface"); */
+            /* m_ImplicitSphereSurface.doSelfTests(); */
+        /* } */
 
         // Choose wrapping terminal points.
         {
-            m_StartPoint                     = {-5., 0.1, 0.};
-            m_EndPoint.radius                = 5.;
+            m_StartPoint                     = {-4., -3, 0.};
+            m_EndPoint.radius                = 2.;
         }
 
         // Initialize the wrapping path.
@@ -201,12 +195,12 @@ private:
         Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
             return getWrapSurfaceHelper(i);
         };
-        m_WrappingPath = Surface::calcNewWrappingPath(
-            m_StartPoint,
-            ComputePoint(m_EndPoint),
-            GetSurface);
-        /* m_WrappingPath.endPoint = ComputePoint(m_EndPoint); */
-        /* Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface); */
+        /* m_WrappingPath = Surface::calcNewWrappingPath( */
+        /*     m_StartPoint, */
+        /*     ComputePoint(m_EndPoint), */
+        /*     GetSurface); */
+        m_WrappingPath.endPoint = ComputePoint(m_EndPoint);
+        Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
     }
 
     void implOnDraw() final
@@ -228,17 +222,17 @@ private:
 
         // render sphere && ellipsoid
         {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .scale    = Vec3{static_cast<float>(
-                        m_AnalyticSphereSurface.getRadius())},
-                    .position = ToVec3(
-                        m_AnalyticSphereSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_BlueColorMaterialProps);
+            /* Graphics::DrawMesh( */
+            /*     m_SphereMesh, */
+            /*     { */
+            /*         .scale    = Vec3{static_cast<float>( */
+            /*             m_AnalyticSphereSurface.getRadius())}, */
+            /*         .position = ToVec3( */
+            /*             m_AnalyticSphereSurface.getOffsetFrame().position), */
+            /*     }, */
+            /*     m_Material, */
+            /*     m_Camera, */
+            /*     m_BlueColorMaterialProps); */
 
             Graphics::DrawMesh(
                 m_SphereMesh,
@@ -265,10 +259,21 @@ private:
 
         // Draw cylinder
         {
+            Rotation q = Rotation(Eigen::AngleAxisd(M_PI/2., Vector3{1., 0., 0.}));
+            Quat qf = Quat{
+                static_cast<float>(q.w()),
+                static_cast<float>(q.x()),
+                static_cast<float>(q.y()),
+                static_cast<float>(q.z()),};
             Graphics::DrawMesh(
                 m_CylinderMesh,
                 {
-                    .scale    = Vec3{static_cast<float>(m_ImplicitCylinderSurface.getRadius())},
+                    .scale    = Vec3{
+                    static_cast<float>(m_ImplicitCylinderSurface.getRadius()),
+                    5.,
+                    static_cast<float>(m_ImplicitCylinderSurface.getRadius()),
+                    },
+                    .rotation = qf,
                     .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position),
                 },
                 m_Material,
@@ -342,13 +347,13 @@ private:
     MaterialPropertyBlock m_BlackColorMaterialProps =
         GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_BlueColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.5f});
+        GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.2f});
     MaterialPropertyBlock m_GreenColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.5f, 0.0f, 0.5f});
+        GeneratePropertyBlock({0.0f, 0.5f, 0.0f, 0.2f});
     MaterialPropertyBlock m_RedColorMaterialProps =
         GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_GreyColorMaterialProps =
-        GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.5f});
+        GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.2f});
 
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);

@@ -145,6 +145,10 @@ namespace osc
 
         const Transf& getOffsetFrame() const;
 
+        Vector3 getPathStartGuess() const;
+
+        void setLocalPathStartGuess(Vector3 pathStartGuess);
+
     private:
 
         virtual Geodesic calcLocalGeodesicImpl(
@@ -159,6 +163,10 @@ namespace osc
 
         // This would be a socket to an offset frame for example.
         Transf _transform;
+
+        // TODO this should not be surface dependent.
+        // TODO weird guess (keep until fixed)
+        Vector3 _pathLocalStartGuess = {1., 1., 1.};
 
         void doSelfTest(
             const std::string name,
