@@ -622,6 +622,9 @@ size_t calcProjectedToSurface(
     q.velocity = q.velocity - n.dot(q.velocity) * n;
     q.velocity = q.velocity / q.velocity.norm();
 
+    // TODO remove, and catch nan
+    AssertEq(q.velocity, 1.,"Failed to project velocity to unit norm");
+    AssertEq(q.velocity.dot(n), 0.,"Failed to project velocity to surface");
     return steps;
 }
 
