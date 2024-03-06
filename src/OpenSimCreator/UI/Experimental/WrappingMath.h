@@ -435,6 +435,13 @@ namespace osc
     //      WRAPPING PATH
     //==============================================================================
 
+    struct CorrectionBounds
+    {
+        double maxAngleDegrees = 20.;
+        double maxLengthening = 1e-2;
+        double maxRepositioning = 1e-2;
+    };
+
     // Captures the smoothness of the wrapping path.
     class PathContinuityError final
     {
@@ -472,7 +479,8 @@ namespace osc
         // surfaces).
         void resize(size_t nSurfaces);
 
-        double _maxAngleDegrees = 5.;
+        CorrectionBounds maxStep;
+
         double _eps             = 1e-10;
         Eigen::VectorXd _solverError; // For debugging.
         Eigen::VectorXd _pathCorrections;

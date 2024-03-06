@@ -117,7 +117,7 @@ public:
             m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
                 Vector3{-5., 0.1, 0.1}
             });
-            m_ImplicitEllipsoidSurface.setRadii(1., 1., 4.);
+            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.);
             m_ImplicitEllipsoidSurface.setLocalPathStartGuess({-1., 1., 1});
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
@@ -138,7 +138,7 @@ public:
 
         // Choose wrapping terminal points.
         {
-            m_StartPoint                     = {-4., -3, 0.};
+            m_StartPoint                     = {-7., -3, 0.};
             m_EndPoint.radius                = 2.;
         }
 

@@ -1210,6 +1210,26 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
 //                      PATH CONTINUITY ERROR
 //==============================================================================
 
+GeodesicCorrection calcClamped(
+        const CorrectionBounds& bnds,
+        const GeodesicCorrection& correction)
+{
+    auto Clamp = []( double bnd, double x) {
+        if (std::abs(x) > std::abs(bnd)) {
+            return x / std::abs(x) * std::abs(bnd);
+        }
+        return x;
+    };
+    const double maxAngle = bnds.maxAngleDegrees / 180. * M_PI;
+
+    return {
+        Clamp(bnds.maxRepositioning, correction.at(0)),
+            Clamp(bnds.maxRepositioning, correction.at(1)),
+            Clamp(maxAngle, correction.at(2)),
+            Clamp(bnds.maxLengthening, correction.at(3)),
+    };
+}
+
 void PathContinuityError::resize(size_t nSurfaces)
 {
     const size_t dim = nSurfaces * 4;
@@ -1268,7 +1288,8 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
 
 bool PathContinuityError::calcPathCorrection()
 {
-    clampPathError(_pathError, _maxAngleDegrees);
+    // TODO Clamp the path error?
+    /* clampPathError(_pathError, _maxAngleDegrees); */
 
     // Compute singular value decomposition. TODO or other decomposition?
     _svd.compute(_pathErrorJacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
@@ -1583,14 +1604,6 @@ WrappingPath Surface::calcNewWrappingPath(
     return path;
 }
 
-
-double calcClamped(double x, double bnd) {
-    if (std::abs(x) > std::abs(bnd)) {
-        return x / std::abs(x) * std::abs(bnd);
-    }
-    return x;
-}
-
 void applyNaturalGeodesicVariation(
     Geodesic::BoundaryState& geodesicStart,
     const GeodesicCorrection& correction)
@@ -1600,16 +1613,14 @@ void applyNaturalGeodesicVariation(
     /* const Vector3& n = geodesicStart.frame.n; */
     const Vector3& b = geodesicStart.frame.b;
 
-    const double maxStep = Eigen::Infinity;
-    Vector3 dp = calcClamped(correction.at(1), maxStep) * b + calcClamped(correction.at(0), maxStep) * t;
+    Vector3 dp = correction.at(1) * b + correction.at(0) * t;
 
     // TODO use start frame to rotate both vectors properly.
     // TODO overload vor ANALYTIC?
     geodesicStart.position += dp;
 
-    Vector3 velocity = cos(calcClamped(correction.at(2), maxStep)) * t + sin(calcClamped(correction.at(2), maxStep)) * b;
+    Vector3 velocity = cos(correction.at(2)) * t + sin(correction.at(2)) * b;
     geodesicStart.frame.t = velocity;
-    /* throw std::runtime_error("failed to compute corrections: failed to "); */
 }
 
 size_t Surface::calcUpdatedWrappingPath(
@@ -1682,7 +1693,8 @@ size_t Surface::calcUpdatedWrappingPath(
 
         // Apply corrections.
         for (ptrdiff_t i = 0; i < nSurfaces; ++i) {
-            const GeodesicCorrection& correction = *(corrIt + i);
+            const GeodesicCorrection correction = calcClamped(
+                    path.smoothness.maxStep, *(corrIt + i));
             applyNaturalGeodesicVariation(
                 path.segments.at(i).start,
                 correction);
@@ -1692,14 +1704,10 @@ size_t Surface::calcUpdatedWrappingPath(
             if(li < 0.) {
                 std::cout << "negative path length: " << li << "\n";
             }
-            /* std::cout << "    state after correction: " <<
-             * path.segments.at(i).start << "\n"; */
         }
 
         // Shoot a the new geodesics.
         for (ptrdiff_t i = 0; i < nSurfaces; ++i) {
-            /* std::cout << "    shoot a new geodesic over " << i << "th
-             * surface\n"; */
             path.segments.at(i) = GetSurface(i)->calcGeodesic(
                 path.segments.at(i).start.position,
                 path.segments.at(i).start.frame.t,
