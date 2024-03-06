@@ -242,10 +242,11 @@ namespace osc
 
         ImplicitEllipsoidSurface() = default;
 
-        explicit ImplicitEllipsoidSurface(double xRadius, double yRadius, double zRadius) :
-            _xRadius(xRadius),
-            _yRadius(yRadius),
-            _zRadius(zRadius)
+        explicit ImplicitEllipsoidSurface(
+            double xRadius,
+            double yRadius,
+            double zRadius) :
+            _xRadius(xRadius), _yRadius(yRadius), _zRadius(zRadius)
         {}
 
         Vector3 getRadii() const
@@ -269,8 +270,10 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
-        double selfTestEquivalentRadius() const override {return
-            std::min(_xRadius,  std::min(_yRadius, _zRadius));}
+        double selfTestEquivalentRadius() const override
+        {
+            return std::max(_xRadius, std::max(_yRadius, _zRadius));
+        }
 
         double _xRadius = 1.;
         double _yRadius = 1.;
@@ -307,7 +310,10 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
-        double selfTestEquivalentRadius() const override {return _radius;}
+        double selfTestEquivalentRadius() const override
+        {
+            return _radius;
+        }
 
         double _radius = 1.;
     };
@@ -417,8 +423,10 @@ namespace osc
             Vector3 initVelocity,
             double length) const override;
 
-
-        double selfTestEquivalentRadius() const override {return _radius;}
+        double selfTestEquivalentRadius() const override
+        {
+            return _radius;
+        }
 
         double _radius = 1.;
     };
