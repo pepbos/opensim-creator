@@ -196,6 +196,13 @@ private:
             return getWrapSurfaceHelper(i);
         };
 
+        // Switch to a singular scene.
+        if (m_Singular) {
+            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.);
+        } else {
+            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 4.);
+        }
+
         // Create path anew, or start from previous.
         if (!m_FreezePath) {
             if (m_CachePath) {
@@ -227,6 +234,7 @@ private:
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
             ImGui::Checkbox("Cache path", &m_CachePath);
             ImGui::Checkbox("Freeze", &m_FreezePath);
+            ImGui::Checkbox("Singular", &m_Singular);
         }
 
         // render sphere && ellipsoid
@@ -373,6 +381,7 @@ private:
 
     bool m_CachePath = true;
     bool m_FreezePath = false;
+    bool m_Singular = false;
 
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
