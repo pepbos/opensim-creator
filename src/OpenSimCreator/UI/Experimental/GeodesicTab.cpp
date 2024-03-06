@@ -96,16 +96,14 @@ public:
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
-        if (false)
+        /* if (false) */
         {
-            m_ImplicitSphereSurface.doSelfTests();
-            std::cout << "ImplicitSphereSurface self test OK\n";
-            m_AnalyticSphereSurface.doSelfTests();
-            std::cout << "AnalyticSphereSurface self test OK\n";
-            m_ImplicitEllipsoidSurface.doSelfTests(1e-2);
-            std::cout << "ImplicitEllipsoidSurface self test OK\n";
-            m_ImplicitCylinderSurface.doSelfTests();
-            std::cout << "ImplicitSphereSurface self test OK\n";
+            m_AnalyticCylinderSurface.doSelfTests("AnalyticCylinderSurface", 1e-3);
+            /* m_ImplicitCylinderSurface.doSelfTests("ImplicitCylinderSurface"); */
+            /* m_ImplicitSphereSurface.doSelfTests("ImplicitSphereSurface"); */
+            /* m_AnalyticSphereSurface.doSelfTests("AnalyticSphereSurface"); */
+            /* m_ImplicitEllipsoidSurface.doSelfTests("ImplicitEllipsoidSurface", 1e-3); */
+            /* throw std::runtime_error("stop"); */
         }
 
         // Choose geodesic start point.
