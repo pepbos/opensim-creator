@@ -82,7 +82,7 @@ public:
             m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
                 Vector3{0., 0., 0.}
             });
-            m_ImplicitEllipsoidSurface.setRadii(1., 1., 0.1);
+            m_ImplicitEllipsoidSurface.setRadii(0.75, 1., 3.);
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
                 Vector3{0., 2., 0.}
@@ -161,7 +161,7 @@ private:
 
         m_Geodesics.at(0) = m_ImplicitSphereSurface.calcGeodesic(p0, v0, l);
         m_Geodesics.at(1) = m_AnalyticSphereSurface.calcGeodesic(p0, v0, l);
-        m_Geodesics.at(2) = m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l);
+        m_Geodesics.at(2) = m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l*10.);
         m_Geodesics.at(3) = m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l * m_ImplicitCylinderSurface.getRadius() * 2.);
         m_Geodesics.at(4) = m_AnalyticCylinderSurface.calcGeodesic(p0, v0, l * m_AnalyticCylinderSurface.getRadius() * 2.);
     }
