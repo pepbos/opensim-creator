@@ -195,12 +195,19 @@ private:
         Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
             return getWrapSurfaceHelper(i);
         };
-        /* m_WrappingPath = Surface::calcNewWrappingPath( */
-        /*     m_StartPoint, */
-        /*     ComputePoint(m_EndPoint), */
-        /*     GetSurface); */
-        m_WrappingPath.endPoint = ComputePoint(m_EndPoint);
-        Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
+
+        // Create path anew, or start from previous.
+        if (!m_FreezePath) {
+            if (m_CachePath) {
+                m_WrappingPath.endPoint = ComputePoint(m_EndPoint);
+                Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
+            } else {
+                m_WrappingPath = Surface::calcNewWrappingPath(
+                        m_StartPoint,
+                        ComputePoint(m_EndPoint),
+                        GetSurface);
+            }
+        }
     }
 
     void implOnDraw() final
@@ -218,6 +225,8 @@ private:
         if (ImGui::Begin("viewer")) {
             ImGui::SliderAngle("phi", &m_EndPoint.phi);
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
+            ImGui::Checkbox("Cache path", &m_CachePath);
+            ImGui::Checkbox("Freeze", &m_FreezePath);
         }
 
         // render sphere && ellipsoid
@@ -361,6 +370,9 @@ private:
 
     ImplicitEllipsoidSurface m_ImplicitEllipsoidSurface;
     ImplicitCylinderSurface m_ImplicitCylinderSurface;
+
+    bool m_CachePath = true;
+    bool m_FreezePath = false;
 
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
