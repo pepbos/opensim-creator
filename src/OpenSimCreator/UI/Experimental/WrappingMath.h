@@ -91,6 +91,8 @@ namespace osc
         std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
     };
 
+    std::ostream& operator<<(std::ostream& os, const Geodesic& x);
+
     //==============================================================================
     //                      SURFACE
     //==============================================================================

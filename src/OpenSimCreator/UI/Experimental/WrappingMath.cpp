@@ -31,43 +31,50 @@ namespace
         }
         return os << "]";
     }
+}
 
-    /* std::ostream& operator<<(std::ostream& os, const DarbouxFrame& frame) */
-    /* { */
-    /*     return os << "DarbouxFrame{" */
-    /*               << "t:" << Print3{frame.t} << ", " */
-    /*               << "n:" << Print3{frame.n} << ", " */
-    /*               << "b:" << Print3{frame.b} << "}"; */
-    /* } */
+namespace osc
+{
 
-    /* std::ostream& operator<<(std::ostream& os, const Geodesic::BoundaryState&
-     * x) */
-    /* { */
-    /*     os << "GeodesicState{" */
-    /*           "frame:" */
-    /*        << x.frame << "position: " << Print3{x.position}; */
-    /*     std::string delim = ", v: {"; */
-    /*     for (const Vector3& vi : x.v) { */
-    /*         os << delim << Print3{vi}; */
-    /*         delim = ", "; */
-    /*     } */
-    /*     delim = "}, w: {"; */
-    /*     for (const Vector3& wi : x.w) { */
-    /*         os << delim << Print3{wi}; */
-    /*         delim = ", "; */
-    /*     } */
-    /*     return os << "}"; */
-    /* } */
+    std::ostream& operator<<(std::ostream& os, const DarbouxFrame& frame)
+    {
+        return os << "DarbouxFrame{"
+                  << "t:" << Print3{frame.t} << ", "
+                  << "n:" << Print3{frame.n} << ", "
+                  << "b:" << Print3{frame.b} << "}";
+    }
 
-    /* std::ostream& operator<<(std::ostream& os, const Geodesic& x) */
-    /* { */
-    /*     os << "Geodesic{"; */
-    /*     os << "start: " << x.start << ", "; */
-    /*     os << "end: " << x.start << ", "; */
-    /*     os << "length: " << x.start << ", "; */
-    /*     os << "curveKnots.size(): " << x.curveKnots.size(); */
-    /*     return os << "}"; */
-    /* } */
+    std::ostream& operator<<(std::ostream& os, const Geodesic::BoundaryState& x)
+    {
+        // TODO remove indentation from printing.
+
+        os << "t: " << Print3{x.frame.t} << ", ";
+        os << "n: " << Print3{x.frame.n} << ", ";
+        os << "b: " << Print3{x.frame.b} << ", ";
+        os << "r: " << Print3{x.position} << "\n";
+
+        std::string delim = "         v: {";
+        for (const Vector3& vi : x.v) {
+            os << delim << Print3{vi};
+            delim = ", ";
+        }
+        delim = "}, \n         w: {";
+        for (const Vector3& wi : x.w) {
+            os << delim << Print3{wi};
+            delim = ", ";
+        }
+        return os << "}";
+    }
+
+    std::ostream& operator<<(std::ostream& os, const Geodesic& x)
+    {
+        os << "Geodesic{\n";
+        os << "    K_P: " << x.start << ",\n";
+        os << "    K_Q: " << x.end << ",\n";
+        os << "    l: " << x.length << ",\n";
+        os << "    nKnts: " << x.curveKnots.size();
+        return os << "}";
+    }
 
 } // namespace
 
