@@ -107,6 +107,7 @@ public:
 
     Impl() : StandardTabImpl{c_TabStringID}
     {
+        /* WrappingTester(); */
         // Set some surface params.
         {
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
@@ -229,12 +230,22 @@ private:
             App::upd().setShowCursor(true);
         }
 
+        bool freezeClicked = m_FreezePath;
         if (ImGui::Begin("viewer")) {
             ImGui::SliderAngle("phi", &m_EndPoint.phi);
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
             ImGui::Checkbox("Cache path", &m_CachePath);
             ImGui::Checkbox("Freeze", &m_FreezePath);
             ImGui::Checkbox("Singular", &m_Singular);
+        }
+        freezeClicked = m_FreezePath != freezeClicked;
+        if (freezeClicked) {
+
+            std::cout << "Freeze! : error = \n";
+            std::cout << m_WrappingPath.smoothness.updPathError() << "\n";
+            std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
+            std::cout << m_WrappingPath.smoothness._mat << "\n";
+            std::cout << m_WrappingPath.smoothness._vec << "\n";
         }
 
         // render sphere && ellipsoid
