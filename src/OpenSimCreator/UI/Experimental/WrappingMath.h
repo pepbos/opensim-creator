@@ -439,9 +439,9 @@ namespace osc
 
     struct CorrectionBounds
     {
-        double maxAngleDegrees = 20.;
-        double maxLengthening = 1e-2;
-        double maxRepositioning = 1e-2;
+        double maxAngleDegrees = 300.;
+        double maxLengthening = 1e1;
+        double maxRepositioning = 1e1;
     };
 
     // Captures the smoothness of the wrapping path.
@@ -479,7 +479,7 @@ namespace osc
 
         // Resize internal matrices to match the problem size (number of
         // surfaces).
-        void resize(size_t nSurfaces);
+        void resize(size_t rows, size_t cols);
 
         CorrectionBounds maxStep;
 
@@ -488,6 +488,11 @@ namespace osc
         Eigen::VectorXd _pathCorrections;
         Eigen::VectorXd _pathError;
         Eigen::MatrixXd _pathErrorJacobian;
+
+        Eigen::MatrixXd _mat;
+        Eigen::VectorXd _vec;
+        double _weight = 1e-1;
+
         Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
         size_t _nSurfaces = 0;
 

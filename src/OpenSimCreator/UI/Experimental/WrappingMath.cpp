@@ -1240,12 +1240,14 @@ GeodesicCorrection calcClamped(
     };
 }
 
-void PathContinuityError::resize(size_t nSurfaces)
+void PathContinuityError::resize(size_t rows, size_t cols)
 {
-    const size_t dim = nSurfaces * 4;
-    _pathError.resize(dim);
-    _pathCorrections.resize(dim);
-    _pathErrorJacobian.resize(dim, dim);
+    _pathError.resize(rows);
+    _pathCorrections.resize(cols);
+    _pathErrorJacobian.resize(rows, cols);
+
+    _mat(cols, cols);
+    _vec(cols);
 
     // Reset values.
     _pathCorrections.fill(NAN);
@@ -1300,14 +1302,24 @@ bool PathContinuityError::calcPathCorrection()
 {
     // TODO Clamp the path error?
     /* clampPathError(_pathError, _maxAngleDegrees); */
+    /* std::cout << "_pathError =\n" << _pathError << std::endl; */
+    /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
+    _weight = calcMaxPathError() + 1e-6;
+
+    size_t n = _pathCorrections.rows();
+    _mat.setIdentity(n, n);
+    _mat *= _weight;
+    _mat += _pathErrorJacobian.transpose() * _pathErrorJacobian;
+
+    _vec = _pathErrorJacobian.transpose() * _pathError;
 
     // Compute singular value decomposition. TODO or other decomposition?
-    _svd.compute(_pathErrorJacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
-    _pathCorrections = -_svd.solve(_pathError);
+    _svd.compute(_mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    _pathCorrections = -_svd.solve(_vec);
     /* std::cout << "solverCorr =\n" << _pathCorrections << std::endl; */
 
     _solverError = _pathErrorJacobian.transpose()
-                   * (_pathErrorJacobian * _pathCorrections + _pathError);
+                   * (_mat * _pathCorrections + _vec);
     /* std::cout << "solverError =\n" << _solverError << std::endl; */
     return _solverError.norm() < _eps;
 }
@@ -1603,12 +1615,11 @@ WrappingPath Surface::calcNewWrappingPath(
     size_t nSurfaces = 0;
     for (; GetSurface(nSurfaces); ++nSurfaces) {
     }
-    /* std::cout << "nSurfaces="<<nSurfaces << std::endl; */
 
     WrappingPath path(pathStart, pathEnd);
-    path.smoothness.resize(nSurfaces);
     path.segments = calcInitWrappingPathGuess(pathStart, pathEnd, GetSurface);
 
+    path.smoothness.resize(nSurfaces*4, nSurfaces*4);
     Surface::calcUpdatedWrappingPath(path, GetSurface, eps, maxIter);
 
     return path;
