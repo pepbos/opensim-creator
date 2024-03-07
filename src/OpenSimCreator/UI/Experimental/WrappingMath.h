@@ -533,4 +533,6 @@ namespace osc
         PathContinuityError smoothness;
     };
 
+    void WrappingTester();
+
 } // namespace osc

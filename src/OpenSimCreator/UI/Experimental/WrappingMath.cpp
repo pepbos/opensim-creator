@@ -1928,4 +1928,93 @@ namespace osc
 
     }
 
+    void doPathErrorTest() {
+        const Vector3 x{1., 0., 0.};
+        const Vector3 y{0., 1., 0.};
+        const Vector3 z{0., 0., 1.};
+
+        std::vector<Geodesic> segments;
+
+        {
+            Geodesic g0;
+            g0.start.frame = calcDarbouxFromTangentGuessAndNormal(x, y);
+            g0.start.position = x;
+
+            g0.end.frame = g0.start.frame;
+            g0.end.position = x;
+
+            segments.push_back(g0);
+            segments.push_back(g0);
+            segments.push_back(g0);
+
+            double k = 0.;
+            auto MakeIncrVec = [&]() -> Vector3 {
+                Vector3 y;
+                y[0] = ++k;
+                y[1] = ++k;
+                y[2] = ++k;
+                return y;
+            };
+
+            double d = 2.;
+            for(Geodesic& s : segments) {
+                for(size_t i = 0; i < 4; ++i) {
+                    s.start.v.at(i) =MakeIncrVec();
+                    s.start.w.at(i) =MakeIncrVec();
+                    s.end.v.at(i)   =MakeIncrVec();
+                    s.end.w.at(i)   =MakeIncrVec();
+                }
+                s.start.position = x*(++d);
+                s.end.position = x*(++d);
+            }
+        }
+
+        PathContinuityError smoothness;
+        smoothness.resize(segments.size() * 4, segments.size() * 4);
+
+        Vector3 pathStart = x;
+        Vector3 pathEnd = x*10;
+
+        /* segments.at(2).end.v.at(2) = x*0.; */
+        /* segments.at(2).end.w.at(2) = x*0.; */
+
+        /* segments.at(2).start.position += z; */
+        /* segments.at(0).end.position += z; */
+
+        /* segments.at(0).start.frame.t += z; */
+
+        /* segments.at(1).start.position += y; */
+        /* segments.at(1).end.position += y; */
+
+        /* segments.at(2).start.position += z; */
+        /* segments.at(2).end.position += z; */
+
+        calcPathErrorJacobian(
+                pathStart,
+                pathEnd,
+                segments,
+                smoothness.updPathError(),
+                smoothness.updPathErrorJacobian());
+
+        std::cout << "start: " << Print3{pathStart} << ", ";
+        std::cout << "end: " << Print3{pathEnd} <<"\n";
+        for (const Geodesic& s: segments) {
+            std::cout << "  segment =\n" << s <<"\n";
+        }
+
+        std::cout << "PATH ERROR TEST" << std::endl;
+        std::cout << "    Path error:" << std::endl;
+        std::cout << smoothness.updPathError() << std::endl;
+        std::cout << "    Path error jacobian:" << std::endl;
+        std::cout << smoothness.updPathErrorJacobian() << std::endl;
+
+        throw std::runtime_error("stop");
+    }
+
+    void WrappingTester() {
+
+        doPathErrorTest();
+
+    }
+
 }
