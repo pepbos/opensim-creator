@@ -1720,11 +1720,11 @@ size_t Surface::calcUpdatedWrappingPath(
         if (!path.smoothness.calcPathCorrection()){
             std::cout << "Failed to invert matrix\n";
         }
-        /* std::cout << "    ===== STEP ==== = " <<
-         * path.smoothness.calcMaxPathError() << "\n"; */
+        std::cout << "    ===== STEP ==== = " << path.smoothness.calcMaxPathError() << "\n";
+        std::cout << "    ===== CORR ==== = " << path.smoothness.calcMaxCorrectionStep() << "\n";
 
         if (path.smoothness.calcMaxPathError() < eps) {
-            /* std::cout << "   Wrapping path solved in " << loopIter << "steps\n"; */
+            std::cout << "   Wrapping path solved in " << loopIter << "steps\n";
             return loopIter;
         }
 
@@ -1928,92 +1928,49 @@ namespace osc
 
     }
 
-    void doPathErrorTest() {
-        const Vector3 x{1., 0., 0.};
-        const Vector3 y{0., 1., 0.};
-        const Vector3 z{0., 0., 1.};
+    void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface) {
 
-        std::vector<Geodesic> segments;
+        WrappingPath pathZero = path;
+        const double d = -1e-4;
 
-        {
-            Geodesic g0;
-            g0.start.frame = calcDarbouxFromTangentGuessAndNormal(x, y);
-            g0.start.position = x;
+        const size_t n = path.segments.size();
+        for (size_t i = 0; i < n; ++i) {
+            for (size_t j = 0; j < 4; ++j) {
+                WrappingPath pathOne = path;
 
-            g0.end.frame = g0.start.frame;
-            g0.end.position = x;
+                const Surface* surface = GetSurface(i);
 
-            segments.push_back(g0);
-            segments.push_back(g0);
-            segments.push_back(g0);
+                GeodesicCorrection correction {0., 0., 0., 0.};
+                correction.at(j) = d;
 
-            double k = 0.;
-            auto MakeIncrVec = [&]() -> Vector3 {
-                Vector3 y;
-                y[0] = ++k;
-                y[1] = ++k;
-                y[2] = ++k;
-                return y;
-            };
+                Eigen::VectorXd correctionVector(n * 4);
+                correctionVector.fill(0.);
+                correctionVector[i * 4 + j] = d;
 
-            double d = 2.;
-            for(Geodesic& s : segments) {
-                for(size_t i = 0; i < 4; ++i) {
-                    s.start.v.at(i) =MakeIncrVec();
-                    s.start.w.at(i) =MakeIncrVec();
-                    s.end.v.at(i)   =MakeIncrVec();
-                    s.end.w.at(i)   =MakeIncrVec();
+                Geodesic::BoundaryState start = path.segments.at(i).start;
+                applyNaturalGeodesicVariation(start, correction);
+
+                const double length = path.segments.at(i).length + correction.at(3);
+                pathOne.segments.at(i) = surface->calcGeodesic(start.position, start.frame.t, length);
+
+                calcPathErrorJacobian(pathOne.startPoint, pathOne.endPoint, pathOne.segments, pathOne.smoothness.updPathError(), pathOne.smoothness.updPathErrorJacobian());
+
+                Eigen::VectorXd dErrExpected = pathZero.smoothness._pathErrorJacobian * correctionVector;
+
+                Eigen::VectorXd dErr = pathOne.smoothness._pathError - pathZero.smoothness._pathError;
+
+                std::cout << "dErrExpected = " << dErrExpected.transpose() / d << "\n";
+                std::cout << "dErr         = " << dErr.transpose() / d << "\n";
+                std::cout << "correctionr  = " << correctionVector.transpose() / d << "\n";
+                std::cout << "\n";
+
+                for (int k = 0; k < dErr.rows(); ++k) {
+                    if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) {
+                        throw std::runtime_error("failed wrapping tester");
+                    }
                 }
-                s.start.position = x*(++d);
-                s.end.position = x*(++d);
             }
         }
-
-        PathContinuityError smoothness;
-        smoothness.resize(segments.size() * 4, segments.size() * 4);
-
-        Vector3 pathStart = x;
-        Vector3 pathEnd = x*10;
-
-        /* segments.at(2).end.v.at(2) = x*0.; */
-        /* segments.at(2).end.w.at(2) = x*0.; */
-
-        /* segments.at(2).start.position += z; */
-        /* segments.at(0).end.position += z; */
-
-        /* segments.at(0).start.frame.t += z; */
-
-        /* segments.at(1).start.position += y; */
-        /* segments.at(1).end.position += y; */
-
-        /* segments.at(2).start.position += z; */
-        /* segments.at(2).end.position += z; */
-
-        calcPathErrorJacobian(
-                pathStart,
-                pathEnd,
-                segments,
-                smoothness.updPathError(),
-                smoothness.updPathErrorJacobian());
-
-        std::cout << "start: " << Print3{pathStart} << ", ";
-        std::cout << "end: " << Print3{pathEnd} <<"\n";
-        for (const Geodesic& s: segments) {
-            std::cout << "  segment =\n" << s <<"\n";
-        }
-
-        std::cout << "PATH ERROR TEST" << std::endl;
-        std::cout << "    Path error:" << std::endl;
-        std::cout << smoothness.updPathError() << std::endl;
-        std::cout << "    Path error jacobian:" << std::endl;
-        std::cout << smoothness.updPathErrorJacobian() << std::endl;
-
-        throw std::runtime_error("stop");
-    }
-
-    void WrappingTester() {
-
-        doPathErrorTest();
 
     }
 

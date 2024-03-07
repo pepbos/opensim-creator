@@ -107,7 +107,6 @@ public:
 
     Impl() : StandardTabImpl{c_TabStringID}
     {
-        /* WrappingTester(); */
         // Set some surface params.
         {
             m_ImplicitSphereSurface.setOffsetFrame(Transf{
@@ -242,10 +241,21 @@ private:
         if (freezeClicked) {
 
             std::cout << "Freeze! : error = \n";
+            std::cout << " path error:\n";
             std::cout << m_WrappingPath.smoothness.updPathError() << "\n";
+            std::cout << " path jacobian:\n";
             std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
+            std::cout << " path matrxx:\n";
             std::cout << m_WrappingPath.smoothness._mat << "\n";
+            std::cout << " path vec:\n";
             std::cout << m_WrappingPath.smoothness._vec << "\n";
+            std::cout << " path singularValues:\n";
+            std::cout << m_WrappingPath.smoothness._singularValues << "\n";
+
+            Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+                return getWrapSurfaceHelper(i);
+            };
+            WrappingTester(m_WrappingPath, GetSurface);
         }
 
         // render sphere && ellipsoid

@@ -531,8 +531,15 @@ namespace osc
         };
         std::vector<Geodesic> segments;
         PathContinuityError smoothness;
+
+        enum SegmentStatus
+        {
+            FailedToInvertJacobian,
+            ExceededMaxIterations,
+            NegativeLength,
+        };
     };
 
-    void WrappingTester();
+    void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface);
 
 } // namespace osc
