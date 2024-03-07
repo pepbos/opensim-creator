@@ -131,7 +131,7 @@ namespace osc
             Vector3 pathEnd,
             GetSurfaceFn& GetSurface,
             double eps     = 1e-3,
-            size_t maxIter = 50);
+            size_t maxIter = 0);
 
         static size_t calcUpdatedWrappingPath(
             WrappingPath& path,

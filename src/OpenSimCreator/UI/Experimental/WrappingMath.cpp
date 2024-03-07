@@ -1629,8 +1629,54 @@ void applyNaturalGeodesicVariation(
     // TODO overload vor ANALYTIC?
     geodesicStart.position += dp;
 
-    Vector3 velocity = cos(correction.at(2)) * t + sin(correction.at(2)) * b;
-    geodesicStart.frame.t = velocity;
+    /* Vector3 velocity = cos(correction.at(2)) * t + sin(correction.at(2)) * b; */
+    /* geodesicStart.frame.t = velocity; */
+
+    Vector3 dt {0., 0., 0.};
+    for (size_t i = 0; i < 4; ++i) {
+        const Vector3& w = geodesicStart.w.at(i);
+        const double c = correction.at(i);
+
+        dt += calcTangentDerivative(geodesicStart.frame, w * c);
+    }
+    geodesicStart.frame.t += dt;
+}
+
+void calcPathErrorJacobian(
+        const Vector3& pathStart,
+        const Vector3& pathEnd,
+        const std::vector<Geodesic>& segments,
+        Eigen::VectorXd& pathError,
+        Eigen::MatrixXd& pathErrorJacobian)
+{
+        // Setup path error for first segment.
+        calcPathErrorJacobian(
+            pathStart,
+            segments.front().start,
+            pathError,
+            pathErrorJacobian);
+
+        // Setup path error between segments.
+        for (size_t idx = 0; idx + 1 < segments.size(); ++idx) {
+            /* std::cout << "START WrapSolver::intermediate segment" <<
+             * std::endl; */
+            Geodesic::BoundaryState start = segments.at(idx).end;
+            Geodesic::BoundaryState end   = segments.at(idx + 1).start;
+            calcPathErrorJacobian(
+                start,
+                end,
+            pathError,
+            pathErrorJacobian,
+                idx);
+        }
+
+        // Setup path error for last segment.
+        calcPathErrorJacobian(
+            segments.back().end,
+            pathEnd,
+            pathError,
+            pathErrorJacobian,
+            segments.size() - 1);
 }
 
 size_t Surface::calcUpdatedWrappingPath(
@@ -1651,34 +1697,12 @@ size_t Surface::calcUpdatedWrappingPath(
 
     /* std::cout << "START WrapSolver::calcPath\n"; */
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
-        // Setup path error for first segment.
         calcPathErrorJacobian(
             path.startPoint,
-            path.segments.front().start,
+            path.endPoint,
+            path.segments,
             path.smoothness.updPathError(),
             path.smoothness.updPathErrorJacobian());
-
-        // Setup path error between segments.
-        for (ptrdiff_t idx = 0; idx + 1 < nSurfaces; ++idx) {
-            /* std::cout << "START WrapSolver::intermediate segment" <<
-             * std::endl; */
-            Geodesic::BoundaryState start = path.segments.at(idx).end;
-            Geodesic::BoundaryState end   = path.segments.at(idx + 1).start;
-            calcPathErrorJacobian(
-                start,
-                end,
-                path.smoothness.updPathError(),
-                path.smoothness.updPathErrorJacobian(),
-                idx++);
-        }
-
-        // Setup path error for last segment.
-        calcPathErrorJacobian(
-            path.segments.back().end,
-            path.endPoint,
-            path.smoothness.updPathError(),
-            path.smoothness.updPathErrorJacobian(),
-            nSurfaces - 1);
 
         // Process the path errors.
         // TODO handle failing to invert jacobian.
