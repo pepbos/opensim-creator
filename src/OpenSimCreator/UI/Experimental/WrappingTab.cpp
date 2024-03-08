@@ -154,7 +154,7 @@ public:
         }
 
         // Configure sphere material.
-        m_Material.setTransparent(true);
+        m_TransparantMaterial.setTransparent(true);
 
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
         m_Camera.setPosition({0., 0., 5.});
@@ -268,7 +268,7 @@ private:
             /*         .position = ToVec3( */
             /*             m_AnalyticSphereSurface.getOffsetFrame().position), */
             /*     }, */
-            /*     m_Material, */
+            /*     m_TransparantMaterial, */
             /*     m_Camera, */
             /*     m_BlueColorMaterialProps); */
 
@@ -280,7 +280,7 @@ private:
                     .position = ToVec3(
                         m_ImplicitSphereSurface.getOffsetFrame().position),
                 },
-                m_Material,
+                m_TransparantMaterial,
                 m_Camera,
                 m_GreenColorMaterialProps);
 
@@ -290,9 +290,21 @@ private:
                     .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii()),
                     .position = ToVec3(m_ImplicitEllipsoidSurface.getOffsetFrame().position),
                 },
-                m_Material,
+                m_TransparantMaterial,
                 m_Camera,
                 m_GreenColorMaterialProps);
+
+            for (const Geodesic& g: m_WrappingPath.segments) {
+            Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                    .scale    = {0.01, 0.01, 0.01},
+                    .position = ToVec3(g.start.position),
+                },
+                m_Material,
+                m_Camera,
+                m_RedColorMaterialProps);
+            }
         }
 
         // Draw cylinder
@@ -314,7 +326,7 @@ private:
                     .rotation = qf,
                     .position = ToVec3(m_ImplicitCylinderSurface.getOffsetFrame().position),
                 },
-                m_Material,
+                m_TransparantMaterial,
                 m_Camera,
                 m_GreenColorMaterialProps);
         }
@@ -370,6 +382,12 @@ private:
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
+    Material m_TransparantMaterial{
+        Shader{
+               m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
+               m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
+               }
+    };
     Material m_Material{
         Shader{
                m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),

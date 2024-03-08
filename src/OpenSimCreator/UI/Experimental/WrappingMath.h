@@ -50,6 +50,13 @@ namespace osc
     // This is the result from shooting over a surface.
     struct Geodesic
     {
+        struct InitialConditions
+        {
+            Vector3 position {NAN, NAN, NAN};
+            Vector3 velocity {NAN, NAN, NAN};
+            double length = NAN;
+        };
+
         struct BoundaryState
         {
             DarbouxFrame frame;
@@ -89,6 +96,8 @@ namespace osc
 
         // Points and frames along the geodesic (TODO keep in local frame).
         std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
+
+        bool liftOff = false;
     };
 
     std::ostream& operator<<(std::ostream& os, const Geodesic& x);
@@ -121,6 +130,11 @@ namespace osc
             Vector3 initVelocity,
             double length) const;
 
+        Geodesic calcGeodesic( const Geodesic::InitialConditions guess) const
+        {
+            return calcGeodesic(guess.position, guess.velocity, guess.length);
+        }
+
         Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter)
             const;
 
@@ -131,7 +145,7 @@ namespace osc
             Vector3 pathEnd,
             GetSurfaceFn& GetSurface,
             double eps     = 1e-3,
-            size_t maxIter = 0);
+            size_t maxIter = 1);
 
         static size_t calcUpdatedWrappingPath(
             WrappingPath& path,
@@ -481,6 +495,10 @@ namespace osc
         // surfaces).
         void resize(size_t rows, size_t cols);
 
+        static const size_t NUMBER_OF_CONSTRAINTS=4;
+
+        void resize(size_t nSurfaces);
+
         CorrectionBounds maxStep;
 
         double _eps             = 1e-10;
@@ -491,7 +509,7 @@ namespace osc
 
         Eigen::MatrixXd _mat;
         Eigen::VectorXd _vec;
-        double _weight = 1e-1;
+        double _weight = 0.5;
 
         Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
         size_t _nSurfaces = 0;
