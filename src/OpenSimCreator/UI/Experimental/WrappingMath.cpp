@@ -555,6 +555,20 @@ Geodesic Surface::calcGeodesic(
     Vector3 next = calcPointInLocal(_transform, std::move(pointAfter));
     Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
 
+    // Detect start or end points breaking the surface.
+    {
+        if (!isAboveSurface(prev, Surface::MIN_DIST_FROM_SURF)) {
+            std::cout << "isAboveSurface: " << false << std::endl;
+            setStatusFlag(geodesic.status, Geodesic::Status::StartPointInsideSurface, true);
+        }
+    }
+    {
+        if (!isAboveSurface(next, Surface::MIN_DIST_FROM_SURF)) {
+            std::cout << "isAboveSurface: " << false << std::endl;
+            setStatusFlag(geodesic.status, Geodesic::Status::EndPointInsideSurface, true);
+        }
+    }
+
     calcGeodesicInGlobal(_transform, geodesic);
 
     return geodesic;
@@ -702,7 +716,6 @@ size_t calcPointProjectedToSurface(
     double eps = 1e-13,
     size_t maxIter = 10)
 {
-    Vector3 p0 = position;
     Vector3 pk = position;
     for (size_t iteration = 0; iteration < maxIter; ++iteration) {
         const double c = s.calcSurfaceConstraint(pk);
@@ -1008,6 +1021,14 @@ Mat3x3 ImplicitEllipsoidSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     return hessian;
 }
 
+bool ImplicitEllipsoidSurface::isAboveSurface(Vector3 point, double bound) const
+{
+    point.x() /= (_xRadius + bound);
+    point.y() /= (_yRadius + bound);
+    point.z() /= (_zRadius + bound);
+    return point.dot(point) - 1. > 0.;
+}
+
 //==============================================================================
 //                      IMPLICIT SPHERE SURFACE
 //==============================================================================
@@ -1031,6 +1052,11 @@ Mat3x3 ImplicitSphereSurface::calcSurfaceConstraintHessianImpl(Vector3) const
         }
     }
     return hessian;
+}
+
+bool ImplicitSphereSurface::isAboveSurface(Vector3 point, double bound) const
+{
+    return point.dot(point) - (_radius + bound) * (_radius + bound) > 0.;
 }
 
 //==============================================================================
@@ -1249,6 +1275,11 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     return {K_P, K_Q, length, std::move(curveKnots)};
 }
 
+bool AnalyticSphereSurface::isAboveSurface(Vector3 point, double bound) const
+{
+    return point.dot(point) - (_radius + bound) * (_radius + bound) > 0.;
+}
+
 //==============================================================================
 //                      IMPLICIT CYLINDER SURFACE
 //==============================================================================
@@ -1272,6 +1303,15 @@ Mat3x3 ImplicitCylinderSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     hessian(1,1) = 2.;
 
     return hessian;
+}
+
+bool ImplicitCylinderSurface::isAboveSurface(Vector3 point, double bound) const
+{
+    const double radialDistance = point.x() * point.x() + point.y() * point.y();
+    const double radialBound = (_radius + bound) * (_radius + bound);
+    std::cout << "radialDistance = " << radialDistance << "\n";
+    std::cout << "radialBound = " << radialBound << "\n";
+    return radialDistance > radialBound;
 }
 
 //==============================================================================
@@ -1416,6 +1456,12 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     }
 
     return {K_P, K_Q, length, std::move(curveKnots)};
+}
+
+bool AnalyticCylinderSurface::isAboveSurface(Vector3 point, double bound) const
+{
+    return point.x() * point.x() + point.y() * point.y() - (_radius + bound) *
+        (_radius + bound) > 0.;
 }
 
 //==============================================================================

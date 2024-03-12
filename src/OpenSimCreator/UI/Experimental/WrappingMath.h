@@ -156,6 +156,7 @@ namespace osc
         Surface& operator=(const Surface&)     = default;
 
     public:
+        static constexpr double MIN_DIST_FROM_SURF = 1e-3; // TODO this must be a setting.
 
         Geodesic calcGeodesic(
             Vector3 initPosition,
@@ -212,6 +213,8 @@ namespace osc
             double length,
             Vector3 pointBefore,
             Vector3 pointAfter) const = 0;
+
+        virtual bool isAboveSurface(Vector3 point, double bound) const = 0;
 
         // TODO Move this to an actual testing framework.
         virtual std::vector<Vector3> makeSelfTestPoints() const;
@@ -330,6 +333,8 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
+        virtual bool isAboveSurface(Vector3 point, double bound) const override;
+
         double selfTestEquivalentRadius() const override
         {
             return std::max(_xRadius, std::max(_yRadius, _zRadius));
@@ -370,6 +375,8 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
+        virtual bool isAboveSurface(Vector3 point, double bound) const override;
+
         double selfTestEquivalentRadius() const override
         {
             return _radius;
@@ -407,6 +414,8 @@ namespace osc
             double length,
             Vector3 pointBefore,
             Vector3 pointAfter) const override;
+
+        virtual bool isAboveSurface(Vector3 point, double bound) const override;
 
         double selfTestEquivalentRadius() const override
         {
@@ -449,6 +458,8 @@ namespace osc
         Hessian calcSurfaceConstraintHessianImpl(
             Vector3 position) const override;
 
+        virtual bool isAboveSurface(Vector3 point, double bound) const override;
+
         double selfTestEquivalentRadius() const override
         {
             return _radius;
@@ -486,6 +497,8 @@ namespace osc
             double length,
             Vector3 pointBefore,
             Vector3 pointAfter) const override;
+
+        virtual bool isAboveSurface(Vector3 point, double bound) const override;
 
         double selfTestEquivalentRadius() const override
         {

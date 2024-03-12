@@ -270,9 +270,15 @@ private:
             std::cout << " path vec:\n";
             std::cout << m_WrappingPath.smoothness._vec << "\n";
 
-            Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
-                return getWrapSurfaceHelper(i);
-            };
+            std::cout << "    " << m_WrappingPath.status << "\n";
+            for (const Geodesic& s: m_WrappingPath.segments) {
+                std::cout << "    " << s << "\n";
+            }
+
+            m_ErrorDetected = false;
+            /* Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* { */
+            /*     return getWrapSurfaceHelper(i); */
+            /* }; */
             /* WrappingTester(m_WrappingPath, GetSurface); */
         }
 
