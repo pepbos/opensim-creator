@@ -139,7 +139,7 @@ public:
         // Choose wrapping terminal points.
         {
             m_StartPoint                     = {-7., -3, 0.};
-            m_EndPoint.radius                = 2.;
+            m_EndPoint.radius                = 2.5;
         }
 
         // Initialize the wrapping path.
@@ -215,6 +215,26 @@ private:
                         GetSurface);
             }
         }
+
+        bool error = m_WrappingPath.status > 0;
+        for (const Geodesic& s: m_WrappingPath.segments) {
+            error |= (s.status & Geodesic::Status::InitialTangentParallelToNormal) > 0;
+            error |= (s.status & Geodesic::Status::StartPointInsideSurface) > 0;
+            error |= (s.status & Geodesic::Status::EndPointInsideSurface) > 0;
+            /* error |= (s.status & Geodesic::Status::NegativeLength) > 0; */
+            /* error |= (s.status & Geodesic::Status::LiftOff) > 0; */
+            error |= (s.status & Geodesic::Status::TouchDownFailed) > 0;
+            /* error |= (s.status & Geodesic::Status::IntegratorFailed) > 0; */
+        }
+        if (error && !m_ErrorDetected) {
+            std::cout << "Freeze path! error detected!\n";
+            std::cout << "    " << m_WrappingPath.status << "\n";
+            for (const Geodesic& s: m_WrappingPath.segments) {
+                std::cout << "    " << s << "\n";
+            }
+            m_FreezePath = true;
+            m_ErrorDetected = true;
+        }
     }
 
     void implOnDraw() final
@@ -245,17 +265,15 @@ private:
             std::cout << m_WrappingPath.smoothness.updPathError() << "\n";
             std::cout << " path jacobian:\n";
             std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
-            std::cout << " path matrxx:\n";
+            std::cout << " path matrix:\n";
             std::cout << m_WrappingPath.smoothness._mat << "\n";
             std::cout << " path vec:\n";
             std::cout << m_WrappingPath.smoothness._vec << "\n";
-            std::cout << " path singularValues:\n";
-            std::cout << m_WrappingPath.smoothness._singularValues << "\n";
 
             Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return getWrapSurfaceHelper(i);
             };
-            WrappingTester(m_WrappingPath, GetSurface);
+            /* WrappingTester(m_WrappingPath, GetSurface); */
         }
 
         // render sphere && ellipsoid
@@ -421,6 +439,7 @@ private:
     bool m_CachePath = true;
     bool m_FreezePath = false;
     bool m_Singular = false;
+    bool m_ErrorDetected = false;
 
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};

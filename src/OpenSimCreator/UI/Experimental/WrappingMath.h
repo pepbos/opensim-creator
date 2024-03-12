@@ -5,13 +5,16 @@
 #include <Eigen/src/Geometry/Quaternion.h>
 #include <iostream>
 #include <vector>
+#include <iterator>
+#include <cstddef>
 
 namespace osc
 {
 
     // The actual step of each natural geodesic variation:
     // {tangentiol, binormal, directional, lengthening}
-    using GeodesicCorrection = std::array<double, 4>;
+    static constexpr size_t GEODESIC_DIM = 4;
+    using GeodesicCorrection = std::array<double, GEODESIC_DIM>;
 
     using Rotation = Eigen::Quaternion<double>;
     using Mat3x3   = Eigen::Matrix<double, 3, 3>;
@@ -50,6 +53,18 @@ namespace osc
     // This is the result from shooting over a surface.
     struct Geodesic
     {
+        enum Status
+        {
+            Ok                             = 0,
+            InitialTangentParallelToNormal = 1,  // TODO
+            StartPointInsideSurface        = 2,  // TODO
+            EndPointInsideSurface          = 4,  // TODO
+            NegativeLength                 = 8,
+            LiftOff                        = 16,  // TODO
+            TouchDownFailed                = 32, // TODO
+            /* IntegratorFailed               = 64, // TODO */
+        };
+
         struct InitialConditions
         {
             Vector3 position {NAN, NAN, NAN};
@@ -97,10 +112,27 @@ namespace osc
         // Points and frames along the geodesic (TODO keep in local frame).
         std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
 
-        bool liftOff = false;
+        Status status = Status::Ok;
     };
 
     std::ostream& operator<<(std::ostream& os, const Geodesic& x);
+
+    std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s);
+
+    inline Geodesic::Status operator|(Geodesic::Status lhs, Geodesic::Status rhs)
+    {
+        return static_cast<Geodesic::Status>(static_cast<int>(lhs) | static_cast<int>(rhs));
+    }
+
+    inline Geodesic::Status operator&(Geodesic::Status lhs, Geodesic::Status rhs)
+    {
+        return static_cast<Geodesic::Status>(static_cast<int>(lhs) & static_cast<int>(rhs));
+    }
+
+    inline Geodesic::Status operator~(Geodesic::Status s)
+    {
+        return static_cast<Geodesic::Status>(~static_cast<int>(s));
+    }
 
     //==============================================================================
     //                      SURFACE
@@ -130,6 +162,13 @@ namespace osc
             Vector3 initVelocity,
             double length) const;
 
+        Geodesic calcGeodesic(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            Vector3 pointBefore,
+            Vector3 pointAfter) const;
+
         Geodesic calcGeodesic( const Geodesic::InitialConditions guess) const
         {
             return calcGeodesic(guess.position, guess.velocity, guess.length);
@@ -150,7 +189,7 @@ namespace osc
         static size_t calcUpdatedWrappingPath(
             WrappingPath& path,
             GetSurfaceFn& GetSurface,
-            double eps     = 1e-6,
+            double eps     = 1e-8,
             size_t maxIter = 10);
 
         // TODO This is just here for the current test.
@@ -170,8 +209,11 @@ namespace osc
         virtual Geodesic calcLocalGeodesicImpl(
             Vector3 initPosition,
             Vector3 initVelocity,
-            double length) const = 0;
+            double length,
+            Vector3 pointBefore,
+            Vector3 pointAfter) const = 0;
 
+        // TODO Move this to an actual testing framework.
         virtual std::vector<Vector3> makeSelfTestPoints() const;
         virtual std::vector<Vector3> makeSelfTestVelocities() const;
         virtual std::vector<double> makeSelfTestLengths() const;
@@ -241,7 +283,9 @@ namespace osc
         Geodesic calcLocalGeodesicImpl(
             Vector3 initPosition,
             Vector3 initVelocity,
-            double length) const override;
+            double length,
+            Vector3 pointBefore,
+            Vector3 pointAfter) const override;
 
         // TODO would become obsolete with variable step integration.
         size_t _integratorSteps = 1000;
@@ -360,7 +404,9 @@ namespace osc
         Geodesic calcLocalGeodesicImpl(
             Vector3 initPosition,
             Vector3 initVelocity,
-            double length) const override;
+            double length,
+            Vector3 pointBefore,
+            Vector3 pointAfter) const override;
 
         double selfTestEquivalentRadius() const override
         {
@@ -437,7 +483,9 @@ namespace osc
         Geodesic calcLocalGeodesicImpl(
             Vector3 initPosition,
             Vector3 initVelocity,
-            double length) const override;
+            double length,
+            Vector3 pointBefore,
+            Vector3 pointAfter) const override;
 
         double selfTestEquivalentRadius() const override
         {
@@ -454,8 +502,8 @@ namespace osc
     struct CorrectionBounds
     {
         double maxAngleDegrees = 300.;
-        double maxLengthening = 1e1;
-        double maxRepositioning = 1e1;
+        double maxLengthening = 1e2;
+        double maxRepositioning = 1e2;
     };
 
     // Captures the smoothness of the wrapping path.
@@ -509,10 +557,10 @@ namespace osc
 
         Eigen::MatrixXd _mat;
         Eigen::VectorXd _vec;
-        double _weight = 0.5;
 
         Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
         size_t _nSurfaces = 0;
+
 
         friend Surface; // TODO change to whomever is calculating the path.
         friend WrappingPath calcNewWrappingPath(
@@ -550,14 +598,129 @@ namespace osc
         std::vector<Geodesic> segments;
         PathContinuityError smoothness;
 
-        enum SegmentStatus
+        enum Status
         {
-            FailedToInvertJacobian,
-            ExceededMaxIterations,
-            NegativeLength,
-        };
+            Ok                     = 0,
+            FailedToInvertJacobian = 1,
+            ExceededMaxIterations  = 2,
+        } status = Status::Ok;
     };
 
-    void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface);
+struct SegmentIterator final
+{
+    struct Segment
+    {
+        Geodesic* prev    = nullptr;
+        Geodesic* current = nullptr;
+        Geodesic* next    = nullptr;
+    };
+
+    using iterator_category = std::input_iterator_tag;
+    using difference_type   = std::ptrdiff_t;
+    using value_type        = Segment;
+    using pointer           = const value_type*;
+    using reference         = const value_type&;
+
+    SegmentIterator() = default;
+
+    private:
+
+    explicit SegmentIterator(WrappingPath& path) :
+        m_Begin(&*path.segments.begin()),
+        m_End(&*path.segments.end()),
+        m_Prev(m_Begin),
+        m_Next(m_Begin),
+        m_Segment({nullptr, m_Begin, nullptr})
+    {
+        updNext();
+    }
+
+    public:
+
+    static SegmentIterator Begin(WrappingPath& path)
+    {
+        return SegmentIterator(path);
+    }
+
+    static SegmentIterator End(WrappingPath& path)
+    {
+        SegmentIterator end;
+        end.m_Segment = {nullptr, &*path.segments.end(), nullptr};
+        return end;
+    }
+
+    reference operator*() const { return m_Segment; }
+    pointer operator->() { return &m_Segment; }
+
+    private:
+
+    // TODO use algorithm from standard library.
+    void updPrev()
+    {
+        for (; m_Prev != m_Segment.current; ++m_Prev) {
+            // Check if segment is active.
+            if ((m_Prev->status & Geodesic::Status::LiftOff) == 0) {
+                m_Segment.prev = m_Prev;
+            }
+        }
+    }
+
+    // TODO use algorithm from standard library.
+    void updNext()
+    {
+        while (m_End != ++m_Next) {
+            // Check if segment is active.
+            if ((m_Next->status & Geodesic::Status::LiftOff) == 0) {
+                break;
+            }
+        }
+        m_Segment.next = m_End == m_Next ? nullptr : m_Next;
+    }
+
+    public:
+
+    // Prefix increment
+    SegmentIterator& operator++() {
+        ++m_Segment.current;
+        updPrev();
+        updNext();
+        return *this;
+    }
+
+    // Postfix increment
+    SegmentIterator operator++(int) { SegmentIterator tmp = *this; ++(*this); return tmp; }
+
+    friend bool operator== (const SegmentIterator& lhs, const SegmentIterator& rhs) { return lhs.m_Segment.current == rhs.m_Segment.current; };
+    friend bool operator!= (const SegmentIterator& lhs, const SegmentIterator& rhs) { return lhs.m_Segment.current != rhs.m_Segment.current; };
+
+    private:
+
+    Geodesic* m_Begin = nullptr;
+    Geodesic* m_End   = nullptr;
+
+    Geodesic* m_Prev = nullptr;
+    Geodesic* m_Next = nullptr;
+
+    Segment m_Segment;
+};
+
+std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s);
+
+inline WrappingPath::Status operator|(WrappingPath::Status lhs, WrappingPath::Status rhs)
+{
+    return static_cast<WrappingPath::Status>(static_cast<int>(lhs) | static_cast<int>(rhs));
+}
+
+inline WrappingPath::Status operator&(WrappingPath::Status lhs, WrappingPath::Status rhs)
+{
+    return static_cast<WrappingPath::Status>(static_cast<int>(lhs) & static_cast<int>(rhs));
+}
+
+inline WrappingPath::Status operator~(WrappingPath::Status s)
+{
+    return static_cast<WrappingPath::Status>(~static_cast<int>(s));
+}
+
+void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface);
 
 } // namespace osc

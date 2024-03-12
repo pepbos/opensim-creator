@@ -2,8 +2,11 @@
 
 #include "oscar/Utils/Assertions.h"
 #include <Eigen/src/Core/util/Constants.h>
+#include <cstddef>
+#include <functional>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 using namespace osc;
@@ -66,14 +69,70 @@ namespace osc
         return os << "}";
     }
 
+    std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
+    {
+        os << "Status{";
+        std::string delim;
+        if (s == Geodesic::Status::Ok) {
+            return os << "Status{Ok}";
+        }
+        if (s & Geodesic::Status::InitialTangentParallelToNormal) {
+            os << delim << "InitialTangentParallelToNormal";
+            delim = ", ";
+        }
+        if (s & Geodesic::Status::StartPointInsideSurface) {
+            os << delim << "StartPointInsideSurface";
+            delim = ", ";
+        }
+        if (s & Geodesic::Status::EndPointInsideSurface) {
+            os << delim << "EndPointInsideSurface";
+            delim = ", ";
+        }
+        if (s & Geodesic::Status::NegativeLength) {
+            os << delim << "NegativeLength";
+            delim = ", ";
+        }
+        if (s & Geodesic::Status::LiftOff) {
+            os << delim << "LiftOff";
+            delim = ", ";
+        }
+        if (s & Geodesic::Status::TouchDownFailed) {
+            os << delim << "TouchDownFailed";
+            delim = ", ";
+        }
+        /* if (s & Geodesic::Status::IntegratorFailed) { */
+        /*     os << delim << "IntegratorFailed"; */
+        /*     delim = ", "; */
+        /* } */
+        return os << "}";
+    }
+
     std::ostream& operator<<(std::ostream& os, const Geodesic& x)
     {
         os << "Geodesic{\n";
         os << "    K_P: " << x.start << ",\n";
         os << "    K_Q: " << x.end << ",\n";
         os << "    l: " << x.length << ",\n";
-        os << "    liftOff: " << x.liftOff << ",\n";
+        os << "    s: " << x.status << ",\n";
         os << "    nKnts: " << x.curveKnots.size();
+        return os << "}";
+    }
+
+    std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s)
+    {
+        os << "Status{";
+        std::string delim;
+        if (s == WrappingPath::Status::Ok) {
+            return os << "Status{Ok}";
+        }
+        if (s & WrappingPath::Status::FailedToInvertJacobian) {
+            os << delim << "FailedToInvertJacobian";
+            delim = ", ";
+        }
+        if (s & WrappingPath::Status::ExceededMaxIterations) {
+            os << delim << "ExceededMaxIterations";
+            delim = ", ";
+        }
         return os << "}";
     }
 
@@ -195,6 +254,36 @@ namespace
     /* } */
 
 } // namespace
+
+//==============================================================================
+//                      STATUS FLAGS
+//==============================================================================
+
+namespace
+{
+    using GS = Geodesic::Status;
+
+void setStatusFlag(GS& current, GS flag, bool value = true)
+{
+    if (value) {
+        current = current | flag;
+    } else {
+        current = current & ~flag;
+    }
+}
+
+using WS = WrappingPath::Status;
+
+void setStatusFlag(WS& current, WS flag, bool value = true)
+{
+    if (value) {
+        current = current | flag;
+    } else {
+        current = current & ~flag;
+    }
+}
+
+}
 
 //==============================================================================
 //                      RUNGE KUTTA 4
@@ -455,13 +544,33 @@ void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic)
 Geodesic Surface::calcGeodesic(
     Vector3 initPosition,
     Vector3 initVelocity,
+    double length,
+    Vector3 pointBefore,
+    Vector3 pointAfter) const
+{
+    Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
+    Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
+
+    Vector3 prev = calcPointInLocal(_transform, std::move(pointBefore));
+    Vector3 next = calcPointInLocal(_transform, std::move(pointAfter));
+    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
+
+    calcGeodesicInGlobal(_transform, geodesic);
+
+    return geodesic;
+}
+
+Geodesic Surface::calcGeodesic(
+    Vector3 initPosition,
+    Vector3 initVelocity,
     double length) const
 {
-    Vector3 p0        = calcPointInLocal(_transform, initPosition);
-    Vector3 v0        = calcVectorInLocal(_transform, initVelocity);
-    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length);
-    calcGeodesicInGlobal(_transform, geodesic);
-    return geodesic;
+    return calcGeodesic(
+            std::move(initPosition),
+            std::move(initVelocity),
+            length,
+            {NAN, NAN, NAN},
+            {NAN, NAN, NAN});
 }
 
 const Transf& Surface::getOffsetFrame() const
@@ -701,9 +810,10 @@ calcLocalImplicitGeodesic(
     Vector3 velocityInit,
     double length,
     size_t steps,
-    std::vector<std::pair<Vector3, DarbouxFrame>>& log)
+    std::function<void(const ImplicitGeodesicState&)>& Monitor
+    )
 {
-    ImplicitGeodesicState xStart{positionInit, velocityInit};
+    ImplicitGeodesicState xStart{std::move(positionInit), std::move(velocityInit)};
     calcProjectedToSurface(s, xStart);
 
     double l  = 0.;
@@ -712,7 +822,7 @@ calcLocalImplicitGeodesic(
     ImplicitGeodesicState xEnd(xStart);
     /* std::cout << "    xStart = " << xEnd << std::endl; */
 
-    log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+    Monitor(xEnd);
 
     // For unit testing.
     if (length != 0.) {
@@ -721,14 +831,74 @@ calcLocalImplicitGeodesic(
 
             calcProjectedToSurface(s, xEnd);
 
-            // TODO don't log all points.
-            log.push_back({xEnd.position, calcDarbouxFrame(s, xEnd)});
+            Monitor(xEnd);
         }
     }
 
-    AssertEq(length, l, "Total length does not match integrated length", 1e-6);
+    AssertEq(length, l, "Total length does not match integrated length");
 
     return {xStart, xEnd};
+}
+
+// Only touchdown in case of liftoff.
+bool calcTouchdown(
+        const ImplicitSurface& s,
+        ImplicitGeodesicState& q,
+        const Vector3& pointBefore,
+        const Vector3& pointAfter) {
+    // Helper to compute point on line between pointBefore and pointAfter that
+    // is near geodesic start point.
+    auto CalcPointOnLineNearPointOnSurface = [&]() -> Vector3
+    {
+        Vector3 p0 = pointBefore - q.position;
+        Vector3 p1 = pointAfter - q.position;
+
+        const Vector3 e = p1 - p0;
+
+        Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
+
+        const double d0 = p0.dot(p0);
+        const double d1 = p1.dot(p1);
+        const double d  = p.dot(p);
+
+        if (d0 < d) {
+            return pointBefore;
+        }
+        if (d1 < d) {
+            return pointAfter;
+        }
+        return p + q.position;
+    };
+
+    // Minimize distance to line:
+    const size_t maxIter = 20;
+    const double eps = 1e-3;
+
+    for (size_t iter = 0; iter < maxIter; ++iter)
+    {
+        std::cout << "Start finding touchdown iter " << iter << std::endl;
+        // Project onto surface.
+        Vector3 pointOnLine = CalcPointOnLineNearPointOnSurface();
+        std::cout << "pointOnLine = " << Print3{pointOnLine} << std::endl;
+
+        q.position = pointOnLine;
+        iter += calcProjectedToSurface(s, q, eps, maxIter - iter);
+
+        const Vector3 n = calcSurfaceNormal(s, q);
+        Vector3 diff = pointOnLine - q.position;
+        diff = diff - diff.dot(n) * n;
+        std::cout << "diff = " << Print3{diff} << std::endl;
+
+        // TODO use inf norm.
+        const double err = diff.norm();
+        std::cout << "err = " << err << std::endl;
+        if (err < eps) {
+        std::cout << "touchdown complete = " << q.position.transpose() << ",    " << q.velocity.transpose()  << std::endl;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 //==============================================================================
@@ -754,21 +924,48 @@ ImplicitSurface::Hessian ImplicitSurface::calcSurfaceConstraintHessian(
 Geodesic ImplicitSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
-    double length) const
+    double length,
+    Vector3 pointBefore,
+    Vector3 pointAfter) const
 {
     Geodesic geodesic;
+
+    bool negativeLength = length < 0.;
+    length = negativeLength? 0. : length;
+
+    setStatusFlag(geodesic.status, Geodesic::Status::NegativeLength, negativeLength);
+
+    bool liftoff = true;
+
+    std::function<void(const ImplicitGeodesicState&)> Monitor = [&](const ImplicitGeodesicState& qk) {
+        const Vector3 r = qk.position;
+        const DarbouxFrame f = calcDarbouxFrame(*this, qk);
+
+        // Compute liftoff.
+        liftoff &= f.n.dot(pointBefore - r) > 0;
+        liftoff &= f.n.dot(pointAfter - r) > 0;
+
+        geodesic.curveKnots.emplace_back( std::pair<Vector3, DarbouxFrame> {r, f});
+    };
 
     std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
         calcLocalImplicitGeodesic(
             *this,
-            initPosition, initVelocity,
+            std::move(initPosition), std::move(initVelocity),
             length,
-            _integratorSteps,
-            geodesic.curveKnots);
+            _integratorSteps, Monitor);
+
+    setStatusFlag(geodesic.status, Geodesic::Status::LiftOff, liftoff);
+
+    geodesic.length = liftoff ? 0. : length;
+
+    if (liftoff) {
+        setStatusFlag(geodesic.status, Geodesic::Status::TouchDownFailed, !calcTouchdown(*this, out.first, pointBefore, pointAfter));
+        geodesic.curveKnots.clear();
+    }
 
     geodesic.start  = calcGeodesicBoundaryState(*this, out.first, false);
-    geodesic.end  = calcGeodesicBoundaryState(*this, out.second, true);
-    geodesic.length = length;
+    geodesic.end  = liftoff ? geodesic.start : calcGeodesicBoundaryState(*this, out.second, true);
 
     return geodesic;
 }
@@ -864,7 +1061,9 @@ DarbouxFrame testRotationIntegration(DarbouxFrame f_P, double angle)
 Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
-    double length) const
+    double length,
+    Vector3,
+    Vector3) const
 {
     // Make sure we are not changing the variation dimension.
     /* static_assert(Geodesic::BoundaryState.w::size() == 4); */
@@ -1082,7 +1281,9 @@ Mat3x3 ImplicitCylinderSurface::calcSurfaceConstraintHessianImpl(Vector3) const
 Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
-    double length) const
+    double length,
+    Vector3,
+    Vector3) const
 {
     if (initPosition.norm() < 1e-13) {
         throw std::runtime_error("Error: initial position at origin.");
@@ -1249,17 +1450,21 @@ void PathContinuityError::resize(size_t nSurfaces)
 void PathContinuityError::resize(size_t rows, size_t cols)
 {
     _pathError.resize(rows);
+    _solverError.resize(rows);
     _pathCorrections.resize(cols);
     _pathErrorJacobian.resize(rows, cols);
 
-    _mat(cols, cols);
-    _vec(cols);
+    _mat.resize(rows, cols);
+    _vec.resize(cols);
 
     // Reset values.
     _pathCorrections.fill(NAN);
     _pathError.fill(NAN);
     // Fill with zeros because it is sparse.
     _pathErrorJacobian.fill(0.);
+
+    _mat.fill(0.);
+    _vec.fill(NAN);
 }
 
 Eigen::VectorXd& PathContinuityError::updPathError()
@@ -1304,29 +1509,86 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
     /* std::cout << "pathError =\n" << pathError << std::endl; */
 }
 
+ptrdiff_t findPrevSegmentIndex(
+        const std::vector<Geodesic>& segments,
+        ptrdiff_t idx)
+{
+    ptrdiff_t prev = -1;
+    for (ptrdiff_t i = 0; i < idx; ++i) {
+        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+            prev = i;
+        }
+    }
+    return prev;
+}
+
+ptrdiff_t findNextSegmentIndex(
+        const std::vector<Geodesic>& segments,
+        ptrdiff_t idx)
+{
+    for (ptrdiff_t i = idx+1; i < static_cast<ptrdiff_t>(segments.size()); ++i) {
+        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+Vector3 findPrevSegmentEndPoint(
+        const Vector3& pathStart,
+        const std::vector<Geodesic>& segments,
+        ptrdiff_t idx)
+{
+    ptrdiff_t prev = findPrevSegmentIndex(segments, idx);
+    return prev < 0 ? pathStart : segments.at(prev).end.position;
+}
+
+Vector3 findNextSegmentStartPoint(
+        const Vector3& pathEnd,
+        const std::vector<Geodesic>& segments,
+        ptrdiff_t idx)
+{
+    ptrdiff_t next = findNextSegmentIndex(segments, idx);
+    return next < 0 ? pathEnd : segments.at(next).start.position;
+}
+
 bool PathContinuityError::calcPathCorrection()
 {
     // TODO Clamp the path error?
     /* clampPathError(_pathError, _maxAngleDegrees); */
-    /* std::cout << "_pathError =\n" << _pathError << std::endl; */
-    /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
-    _weight = calcMaxPathError() + 1e-6;
+    std::cout << "_pathError =\n" << _pathError << std::endl;
+    std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl;
+
+    const double weight = calcMaxPathError() / 2.;
 
     size_t n = _pathCorrections.rows();
+
+    std::cout << "n =\n" << n << std::endl;
+    std::cout << "_mat.rows() =\n" << _mat.rows() << std::endl;
+    std::cout << "_mat.cols() =\n" << _mat.cols() << std::endl;
+    std::cout << "_vec.rows() =\n" << _vec.rows() << std::endl;
+
     _mat.setIdentity(n, n);
-    _mat *= _weight;
+    _mat *= weight;
     _mat += _pathErrorJacobian.transpose() * _pathErrorJacobian;
 
-    _vec = _pathErrorJacobian.transpose() * _pathError;
+    _vec = _pathErrorJacobian.transpose()  * _pathError;
 
     // Compute singular value decomposition. TODO or other decomposition?
-    _svd.compute(_mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
-    _pathCorrections = -_svd.solve(_vec);
+    constexpr bool useSvd = false;
+    if (useSvd) {
+        _svd.compute(_mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        _pathCorrections = -_svd.solve(_vec);
+    } else {
+        _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec);
+    }
     /* std::cout << "solverCorr =\n" << _pathCorrections << std::endl; */
 
     _solverError = _pathErrorJacobian.transpose()
                    * (_mat * _pathCorrections + _vec);
     /* std::cout << "solverError =\n" << _solverError << std::endl; */
+    std::cout << "_mat =\n" << _mat << std::endl;
+    std::cout << "_vec =\n" << _vec << std::endl;
     return _solverError.norm() < _eps;
 }
 
@@ -1600,7 +1862,7 @@ std::vector<Geodesic> calcInitWrappingPathGuess(
 
         // Shoot a zero-length geodesic as initial guess.
         geodesics.push_back(
-            getSurface(i)->calcGeodesic(initPositon, initVelocity, 0.));
+            getSurface(i)->calcGeodesic(initPositon, initVelocity, 0., pathStart, pathEnd));
 
         if (geodesics.back().length != 0.) {
             throw std::runtime_error("Failed to shoot a zero-length geodesic");
@@ -1631,10 +1893,9 @@ WrappingPath Surface::calcNewWrappingPath(
     return path;
 }
 
-Geodesic applyNaturalGeodesicVariation(
-    const Surface& surface,
+Geodesic::InitialConditions applyNaturalGeodesicVariation2(
     const Geodesic& geodesic,
-    const GeodesicCorrection& correction)
+    const GeodesicCorrection& correction) // TODO remove bool arg
 {
     // Compute new initial conditions for updating the geodesic.
     Geodesic::InitialConditions initialConditions;
@@ -1659,8 +1920,7 @@ Geodesic applyNaturalGeodesicVariation(
         initialConditions.velocity += calcTangentDerivative(f_P, w_P * c);
     }
 
-    // TODO This is not efficient (yet).
-    return surface.calcGeodesic(initialConditions);
+    return initialConditions;
 }
 
 void applyNaturalGeodesicVariation(
@@ -1668,7 +1928,7 @@ void applyNaturalGeodesicVariation(
     const GeodesicCorrection& correction)
 {
     // Darboux frame:
-    const Vector3& t = geodesicStart.frame.t;
+    Vector3 t = geodesicStart.frame.t;
     /* const Vector3& n = geodesicStart.frame.n; */
     const Vector3& b = geodesicStart.frame.b;
 
@@ -1681,265 +1941,185 @@ void applyNaturalGeodesicVariation(
     /* Vector3 velocity = cos(correction.at(2)) * t + sin(correction.at(2)) * b; */
     /* geodesicStart.frame.t = velocity; */
 
-    Vector3 dt {0., 0., 0.};
     for (size_t i = 0; i < 4; ++i) {
         const Vector3& w = geodesicStart.w.at(i);
         const double c = correction.at(i);
 
-        dt += calcTangentDerivative(geodesicStart.frame, w * c);
+        t += calcTangentDerivative(geodesicStart.frame, w * c);
     }
-    geodesicStart.frame.t += dt;
+    geodesicStart.frame.t = t;
 }
 
-void calcPathErrorJacobian(
-        const Vector3& pathStart,
-        const Vector3& pathEnd,
-        const std::vector<Geodesic>& segments,
-        Eigen::VectorXd& pathError,
-        Eigen::MatrixXd& pathErrorJacobian)
+size_t countActive(const std::vector<Geodesic>& segments)
 {
-    if (segments.empty()) {
-        return;
-    }
-
-    // Skip segments that have lifted from their surface.
-    size_t idxActive = 0;
-    auto GetNext = [&](size_t& idx) -> const Geodesic* {
-        const size_t n = segments.size();
-        for (; idx < n; ++idx) {
-            if (!segments.at(idx).liftOff) {
-                return &segments.at(idx);
-            }
+    size_t count = 0;
+    for (const Geodesic& s: segments) {
+        /* std::cout << "status = " << s.status << "\n"; */
+        /* std::cout << "active = " << ((s.status & Geodesic::Status::LiftOff) > 0) << "\n"; */
+        if ((s.status & Geodesic::Status::LiftOff) > 0) {
+            continue;
         }
-        return nullptr;
-    };
-
-    const Geodesic* s0 = GetNext(idxActive);
-
-    if (!s0) {
-        return;
+        ++count;
     }
-
-    std::cout << "Setup path error for first segment." << std::endl;
-    std::cout << "pathError: " << pathError << std::endl;
-    std::cout << "pathErrorJacobian: " << pathErrorJacobian << std::endl;
-    // Setup path error for first segment.
-    calcPathErrorJacobian(
-            pathStart,
-            s0->start,
-            pathError,
-            pathErrorJacobian);
-
-    // Setup path error between segments.
-    size_t idx = 0;
-    const Geodesic* s1 = GetNext(++idxActive);
-    while(s1) {
-    std::cout << "Setup path error for intermediate segment." << std::endl;
-        Geodesic::BoundaryState K_P = s0->end;
-        Geodesic::BoundaryState K_Q = s1->start;
-        calcPathErrorJacobian(
-                K_P,
-                K_Q,
-                pathError,
-                pathErrorJacobian,
-                idx);
-
-        ++idx;
-        s0 = s1;
-        s1 = GetNext(++idxActive);
-    }
-
-    std::cout << "Setup path error for last segment." << std::endl;
-    // Setup path error for last segment.
-    calcPathErrorJacobian(
-            s0->end,
-            pathEnd,
-            pathError,
-            pathErrorJacobian,
-            idx);
+    return count;
 }
 
-void updateTouchDown(
-        const Vector3& pointBefore,
-        const Vector3& pointAfter,
-        const Surface* surface,
-        Geodesic& g) {
+void calcPathErrorElementAndJacobian(
+    const Geodesic::BoundaryState* KQ_prev,
+    const Geodesic::BoundaryState& K,
+    const Geodesic::BoundaryState* KP_next,
+    const Vector3& e, // Line segment direction
+    double l, // line segment length
+    const Vector3& m, // Normal or binormal direction
+    Eigen::VectorXd& pathError,
+    Eigen::MatrixXd& pathErrorJacobian,
+    size_t row,
+    size_t col)
+{
+    static constexpr size_t DIM = GEODESIC_DIM;
 
-    // Only touchdown if we are not already.
-    if (!g.curveKnots.empty()){return;}
+    pathError[row] = e.dot(m);
 
-    // Set geodesic length to zero, since we have detached from the surface.
-    g.length = 0.;
+    const Vector3 de = (m - e * e.dot(m)) / l;
 
-    std::cout << "gBefore = " << g << std::endl;
+    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+        const Vector3& w = K.w.at(i);
+        // TODO store in inertial frame.
+        const Vector3 dm = (w[0] * K.frame.t + w[1] * K.frame.n + w[2] * K.frame.b).cross(m);
 
-    // Helper to compute point on line between pointBefore and pointAfter that
-    // is near geodesic start point.
-    auto CalcPointOnLineNearPointOnSurface = [&]() -> Vector3
-    {
-        Vector3 p0 = pointBefore - g.start.position;
-        Vector3 p1 = pointAfter - g.start.position;
+        pathErrorJacobian(row, col) = de.dot(K.v.at(i)) + e.dot(dm);
 
-        const Vector3 e = p1 - p0;
-
-        Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
-
-        const double d0 = p0.dot(p0);
-        const double d1 = p1.dot(p1);
-        const double d  = p.dot(p);
-
-        if (d0 < d) {
-            return pointBefore;
-        }
-        if (d1 < d) {
-            return pointAfter;
-        }
-        return p + g.start.position;
-    };
-
-    // Minimize distance to line:
-    const size_t maxIter = 100;
-    const double eps = 1e-3;
-
-    using Vector2 = Eigen::Matrix<double, 2, 1>;
-    using Matrix2 = Eigen::Matrix<double, 2, 2>;
-
-    GeodesicCorrection c{0., 0., 0., 0.};
-
-    double err = INFINITY;
-    for (size_t iter = 0; iter < maxIter; ++iter)
-    {
-        std::cout << "Start finding touchdown iter " << iter << std::endl;
-        // Project onto surface.
-        Vector3 pointOnLine = CalcPointOnLineNearPointOnSurface();
-        std::cout << "pointOnLine = " << Print3{pointOnLine} << std::endl;
-
-        const Vector3 diff = g.start.position - pointOnLine;
-        std::cout << "diff = " << Print3{diff} << std::endl;
-
-        // Stop if we are already crossing the line segment.
-        err = std::abs(diff[0]) + std::abs(diff[1]) + std::abs(diff[2]);
-        std::cout << "err = " << err << std::endl;
-        if (err < eps) {
-            break;
+        // Check if other end was connected to a geodesic.
+        if (KQ_prev) {
+            // Jacobian of path error to previous geodesic variation.
+            pathErrorJacobian(row, col - DIM + i) = -de.dot(KQ_prev->v.at(i));
         }
 
-        // Compute gradient to move towards point on line.
-        const Vector3& dp_dT = g.start.v.at(0);
-        const Vector3& dp_dB = g.start.v.at(1);
-
-        // Compute inverse of gradient^T * gradient manually.
-        Matrix2 inv;
-        {
-            const double a = dp_dT.dot(dp_dT);
-            const double b = dp_dT.dot(dp_dB);
-            const double c = b;
-            const double d = dp_dB.dot(dp_dB);
-            const double det = a*d - b*c;
-            inv(0,0) = d / det;
-            inv(0,1) = -b / det;
-            inv(1,0) = -c / det;
-            inv(1,1) = a / det;
+        if (KP_next) {
+            // Jacobian of path error to next geodesic variation.
+            pathErrorJacobian(row, col + DIM + i) = -de.dot(KP_next->v.at(i));
         }
-
-        std::cout << "inv = " << inv << std::endl;
-        const Vector2 step = -inv * Vector2{dp_dT.dot(diff), dp_dB.dot(diff)};
-        std::cout << "step = " << step << std::endl;
-
-        // Compute natural geodesic correction to move point towards point on line.
-        c.at(0) = step[0];
-        c.at(1) = step[1];
-
-        // Stop if there is no way of getting closer.
-        err = std::abs(c.at(0)) + std::abs(c.at(1));
-        std::cout << "err2 = " << err << std::endl;
-        if (err < eps) {
-            std::cout << "found solution! in i = " << iter << std::endl;
-            break;
-        }
-
-        // Update the geodesic using the geodesic correction, moving the start point.
-        g = applyNaturalGeodesicVariation(*surface, g, c);
-
-        // Update tangent direction manually to point from surface towards next point.
-        g.start.frame = calcDarbouxFromTangentGuessAndNormal(pointAfter - g.start.position, g.start.frame.n);
-    }
-
-    if (g.curveKnots.empty()) {
-        g.curveKnots.push_back({g.start.position, g.start.frame});
-    }
-
-    // We should now have a zero length geodesic, with a tangent direction from
-    // pointBefore towards pointAfter, and the point on surface closest to the
-    // line between pointBefore and pointAfter.
-
-    if (err > eps) {
-        std::cout << "gAfter = " << g << std::endl;
-        std::cout << "errFinal = " << err << std::endl;
-        throw std::runtime_error("Failed to find point on surface near passing straight line segment");
-    }
-
-    if (g.length != 0.) {
-        throw std::runtime_error("Error! length should be zero");
-    }
-
-    if (g.curveKnots.empty()) {
-        throw std::runtime_error("Error! curveKnots should be non-empty");
     }
 }
 
-size_t updateLiftOff(
-        const Vector3& pathStart,
-        const Vector3& pathEnd,
-    std::vector<Geodesic>& segments,
-    Surface::GetSurfaceFn& GetSurface
-) {
-    size_t nLiftOff = 0;
-    for (size_t i = 0; i < segments.size(); ++i) {
-        // Find the next point after current segment.
-        Vector3 pointAfter = pathEnd;
-        for (size_t j = i+1; j < segments.size(); ++j) {
-            if (!segments.at(j).liftOff) {
-                pointAfter = segments.at(j).start.position;
+void calcSegmentPathErrorJacobian(
+    const Geodesic::BoundaryState* KQ_prev,
+    const Geodesic::BoundaryState& K,
+    const Geodesic::BoundaryState* KP_next,
+    const Vector3& point,
+    Eigen::VectorXd& pathError,
+    Eigen::MatrixXd& pathErrorJacobian,
+    size_t& row)
+{
+    constexpr size_t DIM = GEODESIC_DIM;
+
+    const double l = (K.position - point).norm();
+    const Vector3 e = (K.position - point) / l;
+
+    const size_t col = (row / GEODESIC_DIM) * GEODESIC_DIM;
+
+    auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m)
+    {
+        /* std::cout << "    (row, col)= (" << row << ", " <<  col << ")\n"; */
+        pathError[row] = e.dot(m);
+
+        const Vector3 de = (m - e * e.dot(m)) / l;
+
+        for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+            const Vector3& w = K.w.at(i);
+            if (row ==0) {
+                /* std::cout << "wi = " << w.transpose() << "\n"; */
+                /* std::cout << "vi = " << K.v.at(i).transpose() << "\n"; */
+            }
+            // TODO store in inertial frame.
+            const Vector3 dm = (w[0] * K.frame.t + w[1] * K.frame.n + w[2] * K.frame.b).cross(m);
+
+            pathErrorJacobian(row, col+i) = de.dot(K.v.at(i)) + e.dot(dm);
+
+            // Check if other end was connected to a geodesic.
+            if (KQ_prev) {
+                // Jacobian of path error to previous geodesic variation.
+                /* std::cout << "triggering prev\n"; */
+                /* std::cout << "prev vi = " << KQ_prev->v.at(i).transpose() << "\n"; */
+                pathErrorJacobian(row, col - DIM + i) = -de.dot(KQ_prev->v.at(i));
+            }
+
+            if (KP_next) {
+                // Jacobian of path error to next geodesic variation.
+                /* std::cout << "triggering next\n"; */
+                pathErrorJacobian(row, col + DIM + i) = -de.dot(KP_next->v.at(i));
             }
         }
+        ++row;
+    /* std::cout << "STOP\n"; */
+    /* std::cout << "    point =" << point.transpose() << "\n"; */
+    /* std::cout << "    dim =" << GEODESIC_DIM << "\n"; */
+    /* std::cout << "    l =" << l << "\n"; */
+    /* std::cout << "    m =" << m.transpose() << "\n"; */
+    /* std::cout << "    K.p =" << K.position.transpose() << "\n"; */
+    /* std::cout << "    pathError=" << pathError.transpose() << "\n"; */
+    /* std::cout << "    pathErrorJcobian=\n" << pathErrorJacobian << "\n"; */
+    };
 
-        // Find the next point before current segment.
-        Vector3 pointBefore = pathStart;
-        for (size_t j = 0; j < i; ++j) {
-            if (!segments.at(j).liftOff) {
-                pointBefore = segments.at(j).end.position;
-            }
-        }
+    UpdatePathErrorElementAndJacobian(K.frame.n);
+    UpdatePathErrorElementAndJacobian(K.frame.b);
+}
 
-        // First check if any geodesic is touching down.
-        Geodesic& g = segments.at(i);
-        updateTouchDown(pointBefore, pointAfter, GetSurface(i), g);
-        /* std::cout << " g = " << g << std::endl; */
+size_t calcPathErrorJacobian(WrappingPath& path)
+{
+    size_t nActiveSegments = countActive(path.segments);
+    std::cout << "nActiveSegments = " << nActiveSegments << "\n";
 
-        // Detect liftoff by checking if points before- and after are always
-        // "above" the surface.
-        g.liftOff = true;
-        for (const std::pair<Vector3, DarbouxFrame>& knot: g.curveKnots) {
-            const Vector3& N = knot.second.n;
-            const Vector3& r = knot.first;
-            g.liftOff &= N.dot(pointBefore - r) > 0.;
-            g.liftOff &= N.dot(pointAfter - r) > 0.;
-            /* std::cout << " Ndot(pointBefore) = " << N.dot(pointBefore - r) << std::endl; */
-            /* std::cout << " g.liftOff = " << g.liftOff << std::endl; */
-        }
+    path.smoothness.resize(nActiveSegments);
+    std::cout << "resize donw " <<  "\n";
 
-        if (!g.liftOff) {
+    // Active segment count.
+    size_t row = 0;
+    /* SegmentIterator end = SegmentIterator::End(path); */
+    /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it) */
+    for (ptrdiff_t idx = 0; idx < static_cast<ptrdiff_t>(path.segments.size()); ++idx)
+    {
+        const Geodesic& s = path.segments.at(idx);
+        if ((s.status & Geodesic::Status::LiftOff) > 0) {
             continue;
         }
 
-        // TODO Remove the stored points?
-        // (Is nice, such that plotting tools can just iterate over the
-        // curveKnots without having to check a flag.)
-        g.curveKnots.clear();
-        ++nLiftOff;
+        {
+            ptrdiff_t prev = findPrevSegmentIndex(path.segments, idx);
+
+            std::cout << "idx = " << idx << "\n";
+            std::cout << "prev = " << prev << "\n";
+            std::cout << "row = " << row << "\n";
+            calcSegmentPathErrorJacobian(
+                    prev < 0 ? nullptr : &path.segments.at(prev).end,
+                    path.segments.at(idx).start,
+                    nullptr,
+                    prev < 0 ? path.startPoint : path.segments.at(prev).end.position,
+                    path.smoothness.updPathError(),
+                    path.smoothness.updPathErrorJacobian(),
+                    row);
+        }
+
+        {
+            ptrdiff_t next = findNextSegmentIndex(path.segments, idx);
+            std::cout << "next = " << next << "\n";
+
+            std::cout << "row = " << row << "\n";
+            /* std::cout << "s = " << it->current->start << "\n"; */
+            calcSegmentPathErrorJacobian(
+                    nullptr,
+                    path.segments.at(idx).end,
+                    next < 0 ? nullptr : &path.segments.at(next).start,
+                    next < 0 ? path.endPoint : path.segments.at(next).start.position,
+                    path.smoothness.updPathError(),
+                    path.smoothness.updPathErrorJacobian(),
+                    row);
+        }
     }
-    return nLiftOff;
+    std::cout << "    pathError=" << path.smoothness.updPathError().transpose() << "\n";
+    std::cout << "    pathErrorJcobian=\n" << path.smoothness.updPathErrorJacobian() << "\n";
+    /* throw std::runtime_error("stop"); */
+    return nActiveSegments;
 }
 
 size_t Surface::calcUpdatedWrappingPath(
@@ -1955,49 +2135,18 @@ size_t Surface::calcUpdatedWrappingPath(
     }
 
     /* std::cout << "START WrapSolver::calcPath\n"; */
-    std::vector<size_t> liftOffList(nSurfaces);
-    std::vector<size_t> touchDownList(nSurfaces);
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
 
-        // Detect touchdown and liftoff.
-        {
-            std::cout << "Update segments liftoff" << std::endl;
-            updateLiftOff(path.startPoint, path.endPoint, path.segments, GetSurface);
-
-            // Store indices of actively wrapping segments.
-            liftOffList.clear();
-            touchDownList.clear();
-            for (size_t i = 0; i < nSurfaces; ++i) {
-                if (path.segments.at(i).liftOff) {
-                    liftOffList.push_back(i);
-                } else {
-                    touchDownList.push_back(i);
-                }
-            }
-        }
-
-        const ptrdiff_t nTouchdown = touchDownList.size();
-        std::cout << "nTouchdown = " << nTouchdown << std::endl;
 
         // Fill the path error jacobian.
-        {
-            path.smoothness.resize(nTouchdown);
-
-            std::cout << "Calc Patherror Jacobian" << std::endl;
-            calcPathErrorJacobian(
-                    path.startPoint,
-                    path.endPoint,
-                    path.segments,
-                    path.smoothness.updPathError(),
-                    path.smoothness.updPathErrorJacobian());
-        }
+        std::cout << "Calc Patherror Jacobian" << std::endl;
+        const ptrdiff_t nTouchdown = calcPathErrorJacobian(path);
 
         // Process the path errors.
         // TODO handle failing to invert jacobian.
-        if (!path.smoothness.calcPathCorrection()){
-            std::cout << "Failed to invert matrix\n";
-        }
-        std::cout << "    ===== STEP ==== = " << path.smoothness.calcMaxPathError() << "\n";
+        std::cout << "Calc path error correction" << std::endl;
+        setStatusFlag(path.status, WrappingPath::Status::FailedToInvertJacobian, !(path.smoothness.calcPathCorrection()));
+        std::cout << "    ===== ERRR ==== = " << path.smoothness.calcMaxPathError() << "\n";
         std::cout << "    ===== CORR ==== = " << path.smoothness.calcMaxCorrectionStep() << "\n";
 
         if (path.smoothness.calcMaxPathError() < eps) {
@@ -2006,35 +2155,60 @@ size_t Surface::calcUpdatedWrappingPath(
         }
 
         // Obtain the computed geodesic corrections from the path errors.
-        const auto* corrIt  = path.smoothness.begin();
-        const auto* corrEnd = path.smoothness.end();
+        const GeodesicCorrection* corrIt  = path.smoothness.begin();
+        const GeodesicCorrection* corrEnd = path.smoothness.end();
         if (corrEnd - corrIt != nTouchdown) {
-            std::runtime_error("Number of geodesic-corrections not equal to "
+            throw std::runtime_error("Number of geodesic-corrections not equal to "
                                "number of geodesics");
         }
 
         // Apply corrections.
-        for (ptrdiff_t i = 0; i < nTouchdown; ++i) {
-            const GeodesicCorrection correction = calcClamped( // TODO remove this?
-                    path.smoothness.maxStep, *(corrIt + i));
-
-            size_t idx = touchDownList.at(i);
-
-            Geodesic& s = path.segments.at(idx);
-
+        for (Geodesic& s : path.segments) {
+            if ((s.status & Geodesic::Status::LiftOff) > 0) {
+                continue;
+            }
+            // TODO remove this?
+            /* const GeodesicCorrection correction = calcClamped(path.smoothness.maxStep, *corrIt); */
+            const GeodesicCorrection correction = *corrIt;
+            
+                std::cout << "\n";
+                std::cout << "\n";
+                /* std::cout << "s.start_before = " << s.start << "\n"; */
+                std::cout << "s.length_before = " << s.length << "\n";
             applyNaturalGeodesicVariation(s.start, correction);
+
+            for (double c: correction) {
+                std::cout << "ci = " << c << "\n";
+            }
+                /* std::cout << "s.start_after = " << s.start << "\n"; */
 
             // TODO last field of correction must be lengthening.
             s.length += correction.at(3);
             if(s.length < 0.) {
-                std::cout << "negative path length: " << s.length << "\n";
+                /* std::cout << "negative path length: " << s.length << "\n"; */
             }
+                std::cout << "s.length_after = " << s.length << "\n";
+                std::cout << "\n";
+                std::cout << "\n";
 
+            ++corrIt;
+        }
+
+        /* size_t idx = 0; */
+        /* SegmentIterator end = SegmentIterator::End(path); */
+        /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it, ++idx) { */
+        for (ptrdiff_t idx = 0; idx < static_cast<ptrdiff_t>(path.segments.size()); ++idx) {
             // Shoot a new geodesic.
-            s = GetSurface(idx)->calcGeodesic(
+            /* Geodesic& s = *it->current; */
+            const Geodesic& s = path.segments.at(idx);
+            /* std::cout << "Shooting s.length = " << s.length << "\n"; */
+            path.segments.at(idx) = GetSurface(idx)->calcGeodesic(
                 s.start.position,
                 s.start.frame.t,
-                s.length);
+                s.length,
+                findPrevSegmentEndPoint(path.startPoint, path.segments, idx),
+                findNextSegmentStartPoint(path.endPoint, path.segments, idx));
+            std::cout << "Returned s.length = " << s.length << "\n";
         }
     }
 
@@ -2207,50 +2381,53 @@ namespace osc
     }
 
     void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface) {
+        GetSurface(0);
+        std::cout << "Disabled WrappinPathTester\n" << path.status << std::endl;
+        throw std::runtime_error("not yet implemented");
 
-        WrappingPath pathZero = path;
-        const double d = -1e-4;
+        /* WrappingPath pathZero = path; */
+        /* const double d = -1e-4; */
 
-        const size_t n = path.segments.size();
-        for (size_t i = 0; i < n; ++i) {
-            for (size_t j = 0; j < 4; ++j) {
-                WrappingPath pathOne = path;
+        /* const size_t n = path.segments.size(); */
+        /* for (size_t i = 0; i < n; ++i) { */
+        /*     for (size_t j = 0; j < 4; ++j) { */
+        /*         WrappingPath pathOne = path; */
 
-                const Surface* surface = GetSurface(i);
+        /*         const Surface* surface = GetSurface(i); */
 
-                GeodesicCorrection correction {0., 0., 0., 0.};
-                correction.at(j) = d;
+        /*         GeodesicCorrection correction {0., 0., 0., 0.}; */
+        /*         correction.at(j) = d; */
 
-                Eigen::VectorXd correctionVector(n * 4);
-                correctionVector.fill(0.);
-                correctionVector[i * 4 + j] = d;
+        /*         Eigen::VectorXd correctionVector(n * 4); */
+        /*         correctionVector.fill(0.); */
+        /*         correctionVector[i * 4 + j] = d; */
 
-                Geodesic::BoundaryState start = path.segments.at(i).start;
-                applyNaturalGeodesicVariation(start, correction);
+        /*         Geodesic::BoundaryState start = path.segments.at(i).start; */
+        /*         applyNaturalGeodesicVariation(start, correction); */
 
-                const double length = path.segments.at(i).length + correction.at(3);
-                pathOne.segments.at(i) = surface->calcGeodesic(start.position, start.frame.t, length);
+        /*         const double length = path.segments.at(i).length + correction.at(3); */
+        /*         pathOne.segments.at(i) = surface->calcGeodesic(start.position, start.frame.t, length); */
 
-                calcPathErrorJacobian(pathOne.startPoint, pathOne.endPoint,
-                        pathOne.segments, pathOne.smoothness.updPathError(),
-                        pathOne.smoothness.updPathErrorJacobian());
+        /*         calcPathErrorJacobian(pathOne.startPoint, pathOne.endPoint, */
+        /*                 pathOne.segments, pathOne.smoothness.updPathError(), */
+        /*                 pathOne.smoothness.updPathErrorJacobian()); */
 
-                Eigen::VectorXd dErrExpected = pathZero.smoothness._pathErrorJacobian * correctionVector;
+        /*         Eigen::VectorXd dErrExpected = pathZero.smoothness._pathErrorJacobian * correctionVector; */
 
-                Eigen::VectorXd dErr = pathOne.smoothness._pathError - pathZero.smoothness._pathError;
+        /*         Eigen::VectorXd dErr = pathOne.smoothness._pathError - pathZero.smoothness._pathError; */
 
-                std::cout << "dErrExpected = " << dErrExpected.transpose() / d << "\n";
-                std::cout << "dErr         = " << dErr.transpose() / d << "\n";
-                std::cout << "correctionr  = " << correctionVector.transpose() / d << "\n";
-                std::cout << "\n";
+        /*         std::cout << "dErrExpected = " << dErrExpected.transpose() / d << "\n"; */
+        /*         std::cout << "dErr         = " << dErr.transpose() / d << "\n"; */
+        /*         std::cout << "correctionr  = " << correctionVector.transpose() / d << "\n"; */
+        /*         std::cout << "\n"; */
 
-                for (int k = 0; k < dErr.rows(); ++k) {
-                    if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) {
-                        throw std::runtime_error("failed wrapping tester");
-                    }
-                }
-            }
-        }
+        /*         for (int k = 0; k < dErr.rows(); ++k) { */
+        /*             if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) { */
+        /*                 throw std::runtime_error("failed wrapping tester"); */
+        /*             } */
+        /*         } */
+        /*     } */
+        /* } */
 
     }
 
