@@ -2374,49 +2374,47 @@ namespace osc
         std::cout << "Disabled WrappinPathTester\n" << path.status << std::endl;
         throw std::runtime_error("not yet implemented");
 
-        /* WrappingPath pathZero = path; */
-        /* const double d = -1e-4; */
+        WrappingPath pathZero = path;
+        const double d = -1e-5;
 
-        /* const size_t n = path.segments.size(); */
-        /* for (size_t i = 0; i < n; ++i) { */
-        /*     for (size_t j = 0; j < 4; ++j) { */
-        /*         WrappingPath pathOne = path; */
+        const size_t n = path.segments.size();
+        for (size_t i = 0; i < n; ++i) {
+            for (size_t j = 0; j < 4; ++j) {
+                WrappingPath pathOne = path;
 
-        /*         const Surface* surface = GetSurface(i); */
+                const Surface* surface = GetSurface(i);
 
-        /*         GeodesicCorrection correction {0., 0., 0., 0.}; */
-        /*         correction.at(j) = d; */
+                GeodesicCorrection correction {0., 0., 0., 0.};
+                correction.at(j) = d;
 
-        /*         Eigen::VectorXd correctionVector(n * 4); */
-        /*         correctionVector.fill(0.); */
-        /*         correctionVector[i * 4 + j] = d; */
+                Eigen::VectorXd correctionVector(n * 4);
+                correctionVector.fill(0.);
+                correctionVector[i * 4 + j] = d;
 
-        /*         Geodesic::BoundaryState start = path.segments.at(i).start; */
-        /*         applyNaturalGeodesicVariation(start, correction); */
+                Geodesic::BoundaryState start = path.segments.at(i).start;
+                applyNaturalGeodesicVariation(start, correction);
 
-        /*         const double length = path.segments.at(i).length + correction.at(3); */
-        /*         pathOne.segments.at(i) = surface->calcGeodesic(start.position, start.frame.t, length); */
+                const double length = path.segments.at(i).length + correction.at(3);
+                pathOne.segments.at(i) = surface->calcGeodesic(start.position, start.frame.t, length);
 
-        /*         calcPathErrorJacobian(pathOne.startPoint, pathOne.endPoint, */
-        /*                 pathOne.segments, pathOne.smoothness.updPathError(), */
-        /*                 pathOne.smoothness.updPathErrorJacobian()); */
+                calcPathErrorJacobian(pathOne);
 
-        /*         Eigen::VectorXd dErrExpected = pathZero.smoothness._pathErrorJacobian * correctionVector; */
+                Eigen::VectorXd dErrExpected = pathZero.smoothness._pathErrorJacobian * correctionVector;
 
-        /*         Eigen::VectorXd dErr = pathOne.smoothness._pathError - pathZero.smoothness._pathError; */
+                Eigen::VectorXd dErr = pathOne.smoothness._pathError - pathZero.smoothness._pathError;
 
-        /*         std::cout << "dErrExpected = " << dErrExpected.transpose() / d << "\n"; */
-        /*         std::cout << "dErr         = " << dErr.transpose() / d << "\n"; */
-        /*         std::cout << "correctionr  = " << correctionVector.transpose() / d << "\n"; */
-        /*         std::cout << "\n"; */
+                std::cout << "dErrExpected = " << dErrExpected.transpose() / d << "\n";
+                std::cout << "dErr         = " << dErr.transpose() / d << "\n";
+                std::cout << "correctionr  = " << correctionVector.transpose() / d << "\n";
+                std::cout << "\n";
 
-        /*         for (int k = 0; k < dErr.rows(); ++k) { */
-        /*             if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) { */
-        /*                 throw std::runtime_error("failed wrapping tester"); */
-        /*             } */
-        /*         } */
-        /*     } */
-        /* } */
+                for (int k = 0; k < dErr.rows(); ++k) {
+                    if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) {
+                        throw std::runtime_error("failed wrapping tester");
+                    }
+                }
+            }
+        }
 
     }
 
