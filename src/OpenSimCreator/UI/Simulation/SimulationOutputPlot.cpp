@@ -15,6 +15,7 @@
 #include <oscar/Platform/Log.h>
 #include <oscar/Platform/os.h>
 #include <oscar/UI/ImGuiHelpers.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/Perf.h>
 
@@ -73,7 +74,7 @@ namespace
         }
 
         fout << "time," << header << '\n';
-        for (size_t i = 0, len = std::min(times.size(), values.size()); i < len; ++i)
+        for (size_t i = 0, len = min(times.size(), values.size()); i < len; ++i)
         {
             fout << times[i] << ',' << values[i] << '\n';
         }
@@ -130,7 +131,7 @@ namespace
     {
         bool isWatching = api.hasUserOutputExtractor(output);
 
-        if (ImGui::MenuItem(ICON_FA_EYE " Watch Output", nullptr, &isWatching))
+        if (ui::MenuItem(ICON_FA_EYE " Watch Output", {}, &isWatching))
         {
             if (isWatching)
             {
@@ -141,7 +142,7 @@ namespace
                 api.removeUserOutputExtractor(output);
             }
         }
-        DrawTooltipIfItemHovered("Watch Output", "Watch the selected output. This makes it appear in the 'Output Watches' window in the editor panel and the 'Output Plots' window during a simulation");
+        ui::DrawTooltipIfItemHovered("Watch Output", "Watch the selected output. This makes it appear in the 'Output Watches' window in the editor panel and the 'Output Plots' window during a simulation");
     }
 
     void DrawGenericNumericOutputContextMenuItems(
@@ -151,12 +152,12 @@ namespace
     {
         OSC_ASSERT(output.getOutputType() == OutputType::Float);
 
-        if (ImGui::MenuItem(ICON_FA_SAVE "Save as CSV"))
+        if (ui::MenuItem(ICON_FA_SAVE "Save as CSV"))
         {
             TryExportNumericOutputToCSV(sim, output);
         }
 
-        if (ImGui::MenuItem(ICON_FA_SAVE "Save as CSV (and open)"))
+        if (ui::MenuItem(ICON_FA_SAVE "Save as CSV (and open)"))
         {
             std::string p = TryExportNumericOutputToCSV(sim, output);
             if (!p.empty())
@@ -244,28 +245,28 @@ public:
 
         if (nReports <= 0)
         {
-            ImGui::Text("no data (yet)");
+            ui::Text("no data (yet)");
         }
         else if (outputType == OutputType::Float)
         {
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
             drawFloatOutputPlot(sim);
         }
         else if (outputType == OutputType::String)
         {
             SimulationReport r = m_API->trySelectReportBasedOnScrubbing().value_or(sim.getSimulationReport(nReports - 1));
-            ImGui::TextUnformatted(m_OutputExtractor.getValueString(*sim.getModel(), r).c_str());
+            ui::TextUnformatted(m_OutputExtractor.getValueString(*sim.getModel(), r));
 
             // draw context menu (if user right clicks)
-            if (ImGui::BeginPopupContextItem("plotcontextmenu"))
+            if (ui::BeginPopupContextItem("plotcontextmenu"))
             {
                 DrawToggleWatchOutputMenuItem(*m_API, m_OutputExtractor);
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
         else
         {
-            ImGui::Text("unknown output type");
+            ui::Text("unknown output type");
         }
     }
 
@@ -274,14 +275,14 @@ private:
     {
         OSC_ASSERT(m_OutputExtractor.getOutputType() == OutputType::Float);
 
-        ImU32 const currentTimeLineColor = ToImU32(Color::yellow().withAlpha(0.6f));
-        ImU32 const hoverTimeLineColor = ToImU32(Color::yellow().withAlpha(0.3f));
+        ImU32 const currentTimeLineColor = ui::ToImU32(Color::yellow().with_alpha(0.6f));
+        ImU32 const hoverTimeLineColor = ui::ToImU32(Color::yellow().with_alpha(0.3f));
 
         // collect data
         ptrdiff_t const nReports = sim.getNumReports();
         if (nReports <= 0)
         {
-            ImGui::Text("no data (yet)");
+            ui::Text("no data (yet)");
             return;
         }
 
@@ -294,16 +295,16 @@ private:
         }
 
         // draw plot
-        float const plotWidth = ImGui::GetContentRegionAvail().x;
+        float const plotWidth = ui::GetContentRegionAvail().x;
         Vec2 plotTopLeft{};
         Vec2 plotBottomRight{};
 
         {
             OSC_PERF("draw output plot");
 
-            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0.0f, 0.0f});
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.0f);
-            ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0,1));
+            ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, {0.0f, 1.0f});
 
             if (ImPlot::BeginPlot("##", ImVec2(plotWidth, m_Height), ImPlotFlags_NoTitle | ImPlotFlags_NoLegend | ImPlotFlags_NoInputs | ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoFrame))
             {
@@ -328,10 +329,10 @@ private:
 
 
         // draw context menu (if user right clicks)
-        if (ImGui::BeginPopupContextItem("plotcontextmenu"))
+        if (ui::BeginPopupContextItem("plotcontextmenu"))
         {
             DrawGenericNumericOutputContextMenuItems(*m_API, sim, m_OutputExtractor);
-            ImGui::EndPopup();
+            ui::EndPopup();
         }
 
         // (the rest): handle scrubber overlay
@@ -346,7 +347,7 @@ private:
 
         float simScrubPct = static_cast<float>(static_cast<double>((simScrubTime - simStartTime)/(simEndTime - simStartTime)));
 
-        ImDrawList* drawlist = ImGui::GetWindowDrawList();
+        ImDrawList* drawlist = ui::GetWindowDrawList();
 
         // draw a vertical Y line showing the current scrub time over the plots
         {
@@ -356,9 +357,9 @@ private:
             drawlist->AddLine(p1, p2, currentTimeLineColor);
         }
 
-        if (ImGui::IsItemHovered())
+        if (ui::IsItemHovered())
         {
-            Vec2 mp = ImGui::GetMousePos();
+            Vec2 mp = ui::GetMousePos();
             Vec2 plotLoc = mp - plotTopLeft;
             float relLoc = plotLoc.x / (plotBottomRight.x - plotTopLeft.x);
             SimulationClock::time_point timeLoc = simStartTime + relLoc*(simEndTime - simStartTime);
@@ -376,13 +377,13 @@ private:
                 if (0 <= step && static_cast<size_t>(step) < buf.size())
                 {
                     float y = buf[static_cast<size_t>(step)];
-                    ImGui::SetTooltip("(%.2fs, %.4f)", static_cast<float>(timeLoc.time_since_epoch().count()), y);
+                    ui::SetTooltip("(%.2fs, %.4f)", static_cast<float>(timeLoc.time_since_epoch().count()), y);
                 }
             }
 
             // if the user presses their left mouse while hovering over the plot,
             // change the current sim scrub time to match their press location
-            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if (ui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 m_API->setSimulationScrubTime(timeLoc);
             }

@@ -1,8 +1,5 @@
 #include "LOGLParallaxMappingTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -135,12 +132,12 @@ private:
             Graphics::DrawMesh(m_CubeMesh, m_LightTransform, m_LightCubeMaterial, m_Camera);
         }
 
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
         m_Camera.renderToScreen();
 
-        ImGui::Begin("controls");
-        ImGui::Checkbox("normal mapping", &m_IsMappingEnabled);
-        ImGui::End();
+        ui::Begin("controls");
+        ui::Checkbox("normal mapping", &m_IsMappingEnabled);
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -148,7 +145,7 @@ private:
     // rendering state
     Material m_ParallaxMappingMaterial = CreateParallaxMappingMaterial(m_Loader);
     Material m_LightCubeMaterial = CreateLightCubeMaterial(m_Loader);
-    Mesh m_CubeMesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{};
     Mesh m_QuadMesh = GenerateQuad();
 
     // scene state

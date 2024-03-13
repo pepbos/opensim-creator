@@ -3,12 +3,14 @@
 #include <OpenSimCreator/Graphics/SimTKMeshLoader.h>
 
 #include <IconsFontAwesome5.h>
+#include <oscar/Graphics/Geometries/AABBGeometry.h>
+#include <oscar/Graphics/Geometries/SphereGeometry.h>
+#include <oscar/Graphics/Materials/MeshBasicMaterial.h>
 #include <oscar/Graphics/Camera.h>
 #include <oscar/Graphics/Color.h>
 #include <oscar/Graphics/Graphics.h>
 #include <oscar/Graphics/Material.h>
 #include <oscar/Graphics/Mesh.h>
-#include <oscar/Graphics/MeshGenerators.h>
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneHelpers.h>
@@ -29,6 +31,7 @@
 #include <oscar/Utils/UID.h>
 
 #include <array>
+#include <cinttypes>
 #include <chrono>
 
 using namespace osc;
@@ -53,14 +56,14 @@ public:
 
     void onTick()
     {
-        UpdatePolarCameraFromImGuiMouseInputs(m_PolarCamera, App::get().dims());
+        ui::UpdatePolarCameraFromImGuiMouseInputs(m_PolarCamera, App::get().dims());
 
         // handle hittest
         auto raycastStart = std::chrono::high_resolution_clock::now();
 
-        Rect r = GetMainViewportWorkspaceScreenRect();
-        Vec2 d = Dimensions(r);
-        m_Ray = m_PolarCamera.unprojectTopLeftPosToWorldRay(Vec2{ImGui::GetMousePos()} - r.p1, d);
+        Rect r = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 d = dimensions(r);
+        m_Ray = m_PolarCamera.unprojectTopLeftPosToWorldRay(Vec2{ui::GetMousePos()} - r.p1, d);
 
         m_IsMousedOver = false;
         if (m_UseBVH)
@@ -68,7 +71,7 @@ public:
             m_MeshBVH.forEachRayAABBCollision(m_Ray, [this](BVHCollision const& aabbColl)
             {
                 Triangle const triangle = m_Mesh.getTriangleAt(aabbColl.id);
-                if (auto triangleColl = GetRayCollisionTriangle(m_Ray, triangle))
+                if (auto triangleColl = find_collision(m_Ray, triangle))
                 {
                     m_IsMousedOver = true;
                     m_Tris = triangle;
@@ -79,7 +82,7 @@ public:
         {
             m_Mesh.forEachIndexedTriangle([this](Triangle triangle)
             {
-                if (auto const hit = GetRayCollisionTriangle(m_Ray, triangle))
+                if (auto const hit = find_collision(m_Ray, triangle))
                 {
                     m_HitPos = hit->position;
                     m_IsMousedOver = true;
@@ -97,22 +100,22 @@ public:
     {
         // setup scene
         {
-            Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
-            Vec2 const viewportRectDims = Dimensions(viewportRect);
+            Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
+            Vec2 const viewportRectDims = dimensions(viewportRect);
             m_Camera.setPixelRect(viewportRect);
 
             // update real scene camera from constrained polar camera
             m_Camera.setPosition(m_PolarCamera.getPos());
             m_Camera.setNearClippingPlane(m_PolarCamera.znear);
             m_Camera.setFarClippingPlane(m_PolarCamera.zfar);
-            m_Camera.setViewMatrixOverride(m_PolarCamera.getViewMtx());
-            m_Camera.setProjectionMatrixOverride(m_PolarCamera.getProjMtx(AspectRatio(viewportRectDims)));
+            m_Camera.setViewMatrixOverride(m_PolarCamera.view_matrix());
+            m_Camera.setProjectionMatrixOverride(m_PolarCamera.projection_matrix(AspectRatio(viewportRectDims)));
         }
 
         // draw mesh
-        m_Material.setColor("uColor", m_IsMousedOver ? Color::green() : Color::red());
+        m_Material.setColor(m_IsMousedOver ? Color::green() : Color::red());
         m_Material.setDepthTested(true);
-        Graphics::DrawMesh(m_Mesh, Identity<Transform>(), m_Material, m_Camera);
+        Graphics::DrawMesh(m_Mesh, identity<Transform>(), m_Material, m_Camera);
 
         // draw hit triangle while mousing over
         if (m_IsMousedOver)
@@ -121,15 +124,15 @@ public:
             m.setVerts(m_Tris);
             m.setIndices({0, 1, 2});
 
-            m_Material.setColor("uColor", Color::black());
+            m_Material.setColor(Color::black());
             m_Material.setDepthTested(false);
-            Graphics::DrawMesh(m, Identity<Transform>(), m_Material, m_Camera);
+            Graphics::DrawMesh(m, identity<Transform>(), m_Material, m_Camera);
         }
 
         if (m_UseBVH)
         {
             // draw BVH AABBs
-            m_Material.setColor("uColor", Color::black());
+            m_Material.setColor(Color::black());
             m_Material.setDepthTested(true);
             DrawBVH(
                 *App::singleton<SceneCache>(),
@@ -147,21 +150,21 @@ public:
         // auxiliary 2D UI
         // printout stats
         {
-            ImGui::Begin("controls");
-            ImGui::Checkbox("BVH", &m_UseBVH);
-            ImGui::Text("%ld microseconds", static_cast<long>(m_RaycastDuration.count()));
+            ui::Begin("controls");
+            ui::Checkbox("BVH", &m_UseBVH);
+            ui::Text("%" PRId64 " microseconds", static_cast<int64_t>(m_RaycastDuration.count()));
             auto r = m_Ray;
-            ImGui::Text("camerapos = (%.2f, %.2f, %.2f)", m_Camera.getPosition().x, m_Camera.getPosition().y, m_Camera.getPosition().z);
-            ImGui::Text("origin = (%.2f, %.2f, %.2f), direction = (%.2f, %.2f, %.2f)", r.origin.x, r.origin.y, r.origin.z, r.direction.x, r.direction.y, r.direction.z);
+            ui::Text("camerapos = (%.2f, %.2f, %.2f)", m_Camera.getPosition().x, m_Camera.getPosition().y, m_Camera.getPosition().z);
+            ui::Text("origin = (%.2f, %.2f, %.2f), direction = (%.2f, %.2f, %.2f)", r.origin.x, r.origin.y, r.origin.z, r.direction.x, r.direction.y, r.direction.z);
             if (m_IsMousedOver)
             {
-                ImGui::Text("hit = (%.2f, %.2f, %.2f)", m_HitPos.x, m_HitPos.y, m_HitPos.z);
-                ImGui::Text("p1 = (%.2f, %.2f, %.2f)", m_Tris[0].x, m_Tris[0].y, m_Tris[0].z);
-                ImGui::Text("p2 = (%.2f, %.2f, %.2f)", m_Tris[1].x, m_Tris[1].y, m_Tris[1].z);
-                ImGui::Text("p3 = (%.2f, %.2f, %.2f)", m_Tris[2].x, m_Tris[2].y, m_Tris[2].z);
+                ui::Text("hit = (%.2f, %.2f, %.2f)", m_HitPos.x, m_HitPos.y, m_HitPos.z);
+                ui::Text("p1 = (%.2f, %.2f, %.2f)", m_Tris[0].x, m_Tris[0].y, m_Tris[0].z);
+                ui::Text("p2 = (%.2f, %.2f, %.2f)", m_Tris[1].x, m_Tris[1].y, m_Tris[1].z);
+                ui::Text("p3 = (%.2f, %.2f, %.2f)", m_Tris[2].x, m_Tris[2].y, m_Tris[2].z);
 
             }
-            ImGui::End();
+            ui::End();
         }
         m_PerfPanel.onDraw();
     }
@@ -172,17 +175,11 @@ private:
 
     // rendering
     Camera m_Camera;
-    Material m_Material
-    {
-        Shader
-        {
-            App::slurp("shaders/SolidColor.vert"),
-            App::slurp("shaders/SolidColor.frag"),
-        },
-    };
+
+    MeshBasicMaterial m_Material;
     Mesh m_Mesh = LoadMeshViaSimTK(App::resourceFilepath("geometry/hat_ribs.vtp"));
-    Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
-    Mesh m_CubeLinesMesh = GenerateCubeLinesMesh();
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 12, 12};
+    Mesh m_CubeLinesMesh = AABBGeometry{};
 
     // other state
     BVH m_MeshBVH = CreateTriangleBVHFromMesh(m_Mesh);

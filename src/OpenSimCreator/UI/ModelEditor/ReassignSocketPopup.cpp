@@ -158,40 +158,40 @@ private:
 
         // draw UI
 
-        ImGui::Text("connect %s (%s) to:", socket->getName().c_str(), socket->getConnecteeTypeName().c_str());
+        ui::Text("connect %s (%s) to:", socket->getName().c_str(), socket->getConnecteeTypeName().c_str());
 
-        ImGui::Dummy({0.0f, 0.1f * ImGui::GetTextLineHeight()});
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 0.25f * ImGui::GetTextLineHeight()});
+        ui::Dummy({0.0f, 0.1f * ui::GetTextLineHeight()});
+        ui::Separator();
+        ui::Dummy({0.0f, 0.25f * ui::GetTextLineHeight()});
 
         DrawSearchBar(m_EditedParams.search);
 
         std::optional<OpenSim::ComponentPath> userSelection;
-        ImGui::BeginChild("##componentlist", ImVec2(512, 256), ImGuiChildFlags_Border, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
+        ui::BeginChild("##componentlist", Vec2{512.0f, 256.0f}, ImGuiChildFlags_Border, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
         int id = 0;  // care: necessary because multiple connectees may have the same name
         for (ConnecteeOption const& option : m_Options)
         {
-            ImGui::PushID(id++);
-            if (ImGui::Selectable(option.name.c_str()))
+            ui::PushID(id++);
+            if (ui::Selectable(option.name))
             {
                 userSelection = option.absPath;
             }
-            DrawTooltipIfItemHovered(option.absPath.toString());
-            ImGui::PopID();
+            ui::DrawTooltipIfItemHovered(option.absPath.toString());
+            ui::PopID();
         }
-        ImGui::EndChild();
+        ui::EndChild();
 
         if (!m_Error.empty())
         {
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::TextWrapped("%s", m_Error.c_str());
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            ui::TextWrapped(m_Error);
         }
 
         // add ability to re-express a component in a new frame (#326)
         tryDrawReexpressPropertyInFrameCheckbox(*component, *socket);
 
-        if (ImGui::Button("Cancel"))
+        if (ui::Button("Cancel"))
         {
             requestClose();
             return;
@@ -236,8 +236,8 @@ private:
         if (!physFrameSocket)
         {
             bool v = false;
-            ImGui::Checkbox(label.c_str(), &v);
-            DrawTooltipBodyOnlyIfItemHovered("Disabled: the socket doesn't connect to a physical frame");
+            ui::Checkbox(label, &v);
+            ui::DrawTooltipBodyOnlyIfItemHovered("Disabled: the socket doesn't connect to a physical frame");
             return;
         }
 
@@ -246,12 +246,12 @@ private:
         if (!componentSpatialRepresentation)
         {
             bool v = false;
-            ImGui::Checkbox(label.c_str(), &v);
-            DrawTooltipBodyOnlyIfItemHovered("Disabled: the component doesn't have a spatial representation that OSC knows how to re-express");
+            ui::Checkbox(label, &v);
+            ui::DrawTooltipBodyOnlyIfItemHovered("Disabled: the component doesn't have a spatial representation that OSC knows how to re-express");
             return;
         }
 
-        ImGui::Checkbox(label.c_str(), &m_TryReexpressInDifferentFrame);
+        ui::Checkbox(label, &m_TryReexpressInDifferentFrame);
     }
 
     std::shared_ptr<UndoableModelStatePair> m_Model;

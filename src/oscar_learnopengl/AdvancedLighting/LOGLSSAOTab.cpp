@@ -1,7 +1,5 @@
 #include "LOGLSSAOTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -42,7 +40,7 @@ namespace
             // scale antiAliasingLevel such that they are more aligned to
             // the center of the kernel
             float scale = static_cast<float>(i)/static_cast<float>(numSamples);
-            scale = mix(0.1f, 1.0f, scale*scale);
+            scale = lerp(0.1f, 1.0f, scale*scale);
 
             Vec3 sample = {minusOneToOne(rng), minusOneToOne(rng), minusOneToOne(rng)};
             sample = normalize(sample);
@@ -160,8 +158,8 @@ private:
 
     void draw3DScene()
     {
-        Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
-        Vec2 const viewportDims = Dimensions(viewportRect);
+        Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 const viewportDims = dimensions(viewportRect);
         AntiAliasingLevel const antiAliasingLevel = AntiAliasingLevel::none();
 
         // ensure textures/buffers have correct dimensions
@@ -213,12 +211,12 @@ private:
         m_SSAO.material.setRenderTexture("uNormalTex", m_GBuffer.normal);
         m_SSAO.material.setTexture("uNoiseTex", m_NoiseTexture);
         m_SSAO.material.setVec3Array("uSamples", m_SampleKernel);
-        m_SSAO.material.setVec2("uNoiseScale", Dimensions(viewportRect) / Vec2{m_NoiseTexture.getDimensions()});
+        m_SSAO.material.setVec2("uNoiseScale", dimensions(viewportRect) / Vec2{m_NoiseTexture.getDimensions()});
         m_SSAO.material.setInt("uKernelSize", static_cast<int32_t>(m_SampleKernel.size()));
         m_SSAO.material.setFloat("uRadius", 0.5f);
         m_SSAO.material.setFloat("uBias", 0.125f);
 
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_SSAO.material, m_Camera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_SSAO.material, m_Camera);
         m_Camera.renderTo(m_SSAO.outputTexture);
 
         m_SSAO.material.clearRenderTexture("uPositionTex");
@@ -229,7 +227,7 @@ private:
     {
         m_Blur.material.setRenderTexture("uSSAOTex", m_SSAO.outputTexture);
 
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_Blur.material, m_Camera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_Blur.material, m_Camera);
         m_Camera.renderTo(m_Blur.outputTexture);
 
         m_Blur.material.clearRenderTexture("uSSAOTex");
@@ -246,7 +244,7 @@ private:
         m_Lighting.material.setFloat("uLightLinear", 0.09f);
         m_Lighting.material.setFloat("uLightQuadratic", 0.032f);
 
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_Lighting.material, m_Camera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_Lighting.material, m_Camera);
         m_Camera.renderTo(m_Lighting.outputTexture);
 
         m_Lighting.material.clearRenderTexture("uPositionTex");
@@ -282,9 +280,9 @@ private:
 
     MouseCapturingCamera m_Camera = CreateCameraWithSameParamsAsLearnOpenGL();
 
-    Mesh m_SphereMesh = GenerateUVSphereMesh(32, 32);
-    Mesh m_CubeMesh = GenerateCubeMesh();
-    Mesh m_QuadMesh = GenerateTexturedQuadMesh();
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 32, 32};
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
+    Mesh m_QuadMesh = PlaneGeometry{2.0f, 2.0f};
 
     // rendering state
     struct GBufferRenderingState final {

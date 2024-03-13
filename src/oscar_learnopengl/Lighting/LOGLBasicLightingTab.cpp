@@ -1,8 +1,5 @@
 #include "LOGLBasicLightingTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -55,7 +52,7 @@ private:
         m_Camera.onDraw();
 
         // clear screen and ensure camera has correct pixel rect
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         // draw cube
         m_LightingMaterial.setColor("uObjectColor", m_ObjectColor);
@@ -65,7 +62,7 @@ private:
         m_LightingMaterial.setFloat("uAmbientStrength", m_AmbientStrength);
         m_LightingMaterial.setFloat("uDiffuseStrength", m_DiffuseStrength);
         m_LightingMaterial.setFloat("uSpecularStrength", m_SpecularStrength);
-        Graphics::DrawMesh(m_CubeMesh, Identity<Transform>(), m_LightingMaterial, m_Camera);
+        Graphics::DrawMesh(m_CubeMesh, identity<Transform>(), m_LightingMaterial, m_Camera);
 
         // draw lamp
         m_LightCubeMaterial.setColor("uLightColor", m_LightColor);
@@ -75,14 +72,14 @@ private:
         m_Camera.renderToScreen();
 
         // render auxiliary UI
-        ImGui::Begin("controls");
-        ImGui::InputFloat3("light pos", value_ptr(m_LightTransform.position));
-        ImGui::InputFloat("ambient strength", &m_AmbientStrength);
-        ImGui::InputFloat("diffuse strength", &m_DiffuseStrength);
-        ImGui::InputFloat("specular strength", &m_SpecularStrength);
-        ImGui::ColorEdit3("object color", value_ptr(m_ObjectColor));
-        ImGui::ColorEdit3("light color", value_ptr(m_LightColor));
-        ImGui::End();
+        ui::Begin("controls");
+        ui::InputVec3("light pos", m_LightTransform.position);
+        ui::InputFloat("ambient strength", &m_AmbientStrength);
+        ui::InputFloat("diffuse strength", &m_DiffuseStrength);
+        ui::InputFloat("specular strength", &m_SpecularStrength);
+        ui::ColorEditRGB("object color", m_ObjectColor);
+        ui::ColorEditRGB("light color", m_LightColor);
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -97,7 +94,7 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/LightCube.frag"),
     }};
 
-    Mesh m_CubeMesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{};
 
     MouseCapturingCamera m_Camera = CreateCameraThatMatchesLearnOpenGL();
 

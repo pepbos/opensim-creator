@@ -1,5 +1,3 @@
-// these are the things that this file "implements"
-
 #include <oscar/Graphics/AntiAliasingLevel.h>
 #include <oscar/Graphics/Camera.h>
 #include <oscar/Graphics/CameraClearFlags.h>
@@ -19,12 +17,12 @@
 #include <oscar/Graphics/Detail/VertexAttributeFormatTraits.h>
 #include <oscar/Graphics/Detail/VertexAttributeHelpers.h>
 #include <oscar/Graphics/Detail/VertexAttributeList.h>
+#include <oscar/Graphics/Geometries/PlaneGeometry.h>
 #include <oscar/Graphics/Graphics.h>
 #include <oscar/Graphics/GraphicsContext.h>
-#include <oscar/Graphics/GraphicsHelpers.h>
 #include <oscar/Graphics/Material.h>
 #include <oscar/Graphics/Mesh.h>
-#include <oscar/Graphics/MeshGenerators.h>
+#include <oscar/Graphics/MeshFunctions.h>
 #include <oscar/Graphics/MeshTopology.h>
 #include <oscar/Graphics/OpenGL/CPUDataTypeOpenGLTraits.h>
 #include <oscar/Graphics/OpenGL/CPUImageFormatOpenGLTraits.h>
@@ -68,6 +66,7 @@
 #include <oscar/Platform/App.h>
 #include <oscar/Platform/Detail/SDL2Helpers.h>
 #include <oscar/Platform/Log.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/Concepts.h>
 #include <oscar/Utils/CStringView.h>
@@ -561,8 +560,7 @@ namespace
 
     ShaderElement const* TryGetValue(FastStringHashtable<ShaderElement> const& m, std::string_view k)
     {
-        auto const it = m.find(k);
-        return it != m.end() ? &it->second : nullptr;
+        return try_find(m, k);
     }
 }
 
@@ -616,7 +614,7 @@ namespace
             mesh{std::move(mesh_)},
             maybePropBlock{std::move(maybePropBlock_)},
             transform{transform_},
-            worldMidpoint{material.getTransparent() ? transform_point(transform_, Midpoint(mesh.getBounds())) : Vec3{}},
+            worldMidpoint{material.getTransparent() ? transform_point(transform_, centroid(mesh.getBounds())) : Vec3{}},
             maybeSubMeshIndex{maybeSubMeshIndex_}
         {
         }
@@ -632,7 +630,7 @@ namespace
             mesh{std::move(mesh_)},
             maybePropBlock{std::move(maybePropBlock_)},
             transform{transform_},
-            worldMidpoint{material.getTransparent() ? transform_ * Vec4{Midpoint(mesh.getBounds()), 1.0f} : Vec3{}},
+            worldMidpoint{material.getTransparent() ? transform_ * Vec4{centroid(mesh.getBounds()), 1.0f} : Vec3{}},
             maybeSubMeshIndex{maybeSubMeshIndex_}
         {
         }
@@ -1234,6 +1232,8 @@ namespace
     // the OpenGL data associated with an Texture2D
     struct CubemapOpenGLData final {
         gl::TextureCubemap texture;
+        UID dataVersion;
+        UID parametersVersion;
     };
 }
 
@@ -1269,7 +1269,7 @@ public:
         m_WrapModeU = wm;
         m_WrapModeV = wm;
         m_WrapModeW = wm;
-        // TODO: update parameter block that tells OpenGL to reformat the params if necessary
+        m_TextureParamsVersion.reset();
     }
 
     TextureWrapMode getWrapModeU() const
@@ -1280,7 +1280,7 @@ public:
     void setWrapModeU(TextureWrapMode wm)
     {
         m_WrapModeU = wm;
-        // TODO: update parameter block that tells OpenGL to reformat the params if necessary
+        m_TextureParamsVersion.reset();
     }
 
     TextureWrapMode getWrapModeV() const
@@ -1291,7 +1291,7 @@ public:
     void setWrapModeV(TextureWrapMode wm)
     {
         m_WrapModeV = wm;
-        // TODO: update parameter block that tells OpenGL to reformat the params if necessary
+        m_TextureParamsVersion.reset();
     }
 
     TextureWrapMode getWrapModeW() const
@@ -1302,7 +1302,7 @@ public:
     void setWrapModeW(TextureWrapMode wm)
     {
         m_WrapModeW = wm;
-        // TODO: update parameter block that tells OpenGL to reformat the params if necessary
+        m_TextureParamsVersion.reset();
     }
 
     TextureFilterMode getFilterMode() const
@@ -1313,7 +1313,7 @@ public:
     void setFilterMode(TextureFilterMode fm)
     {
         m_FilterMode = fm;
-        // TODO: update parameter block that tells OpenGL to reformat the params if necessary
+        m_TextureParamsVersion.reset();
     }
 
     void setPixelData(CubemapFace face, std::span<uint8_t const> data)
@@ -1328,34 +1328,36 @@ public:
         OSC_ASSERT(data.size() == numBytesPerCubeFace && "incorrect amount of data passed to Cubemap::setPixelData: the data must match the dimensions and texture format of the cubemap");
         OSC_ASSERT(destinationDataEnd <= m_Data.size() && "out of range assignment detected: this should be handled in the constructor");
 
-        std::copy(data.begin(), data.end(), m_Data.begin() + destinationDataStart);
-        // TODO: ensure OpenGL is reset etc.
+        copy(data, m_Data.begin() + destinationDataStart);
+        m_DataVersion.reset();
     }
 
     gl::TextureCubemap& updCubemap()
     {
-        if (!*m_MaybeGPUTexture)
-        {
-            uploadToGPU();
+        if (!*m_MaybeGPUTexture) {
+            *m_MaybeGPUTexture = CubemapOpenGLData{};
         }
-        OSC_ASSERT(*m_MaybeGPUTexture);
 
-        CubemapOpenGLData& bufs = **m_MaybeGPUTexture;
+        CubemapOpenGLData& buf = **m_MaybeGPUTexture;
 
-        return bufs.texture;
+        if (buf.dataVersion != m_DataVersion) {
+            uploadPixelData(buf);
+        }
+
+        if (buf.parametersVersion != m_TextureParamsVersion) {
+            updateTextureParameters(buf);
+        }
+
+        return buf.texture;
     }
 private:
-    void uploadToGPU()
+    void uploadPixelData(CubemapOpenGLData& buf)
     {
-        // create new OpenGL handle(s)
-        *m_MaybeGPUTexture = CubemapOpenGLData{};
-
         // calculate CPU-to-GPU data transfer parameters
         size_t const numBytesPerPixel = NumBytesPerPixel(m_Format);
         size_t const numBytesPerRow = m_Width * numBytesPerPixel;
         size_t const numBytesPerFace = m_Width * numBytesPerRow;
-        size_t const numFaces = NumOptions<CubemapFace>();
-        size_t const numBytesInCubemap = numFaces * numBytesPerFace;
+        size_t const numBytesInCubemap = NumOptions<CubemapFace>() * numBytesPerFace;
         CPUDataType const cpuDataType = ToEquivalentCPUDataType(m_Format);  // TextureFormat's datatype == CPU format's datatype for cubemaps
         CPUImageFormat const cpuChannelLayout = ToEquivalentCPUImageFormat(m_Format);  // TextureFormat's layout == CPU formats's layout for cubemaps
         GLint const unpackAlignment = ToOpenGLUnpackAlignment(m_Format);
@@ -1368,7 +1370,7 @@ private:
 
         // upload cubemap to GPU
         static_assert(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z - GL_TEXTURE_CUBE_MAP_POSITIVE_X == 5);
-        gl::BindTexture((*m_MaybeGPUTexture)->texture);
+        gl::BindTexture(buf.texture);
         gl::PixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
         for (GLint faceIdx = 0; faceIdx < static_cast<GLint>(NumOptions<CubemapFace>()); ++faceIdx)
         {
@@ -1390,6 +1392,15 @@ private:
         // generate mips (care: they can be uploaded to with Graphics::CopyTexture)
         glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
+        gl::BindTexture();
+
+        buf.dataVersion = m_DataVersion;
+    }
+
+    void updateTextureParameters(CubemapOpenGLData& buf)
+    {
+        gl::BindTexture(buf.texture);
+
         // set texture parameters
         gl::TexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, ToGLTextureMagFilterParam(m_FilterMode));
         gl::TexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, ToGLTextureMinFilterParam(m_FilterMode));
@@ -1399,15 +1410,20 @@ private:
 
         // cleanup OpenGL binding state
         gl::BindTexture();
+
+        buf.parametersVersion = m_TextureParamsVersion;
     }
 
     int32_t m_Width;
     TextureFormat m_Format;
+    std::vector<uint8_t> m_Data;
+    UID m_DataVersion;
+
     TextureWrapMode m_WrapModeU = TextureWrapMode::Repeat;
     TextureWrapMode m_WrapModeV = TextureWrapMode::Repeat;
     TextureWrapMode m_WrapModeW = TextureWrapMode::Repeat;
     TextureFilterMode m_FilterMode = TextureFilterMode::Mipmap;
-    std::vector<uint8_t> m_Data;
+    UID m_TextureParamsVersion;
 
     DefaultConstructOnCopy<std::optional<CubemapOpenGLData>> m_MaybeGPUTexture;
 };
@@ -1538,7 +1554,7 @@ namespace
 
                     std::span<uint8_t const> src{pixelData.data() + channelStart, sizeof(float)};
                     std::array<uint8_t, sizeof(float)> dest{};
-                    std::copy(src.begin(), src.end(), dest.begin());
+                    copy(src, dest.begin());
 
                     color[channel] = cpp20::bit_cast<float>(dest);
                 }
@@ -1601,7 +1617,7 @@ namespace
 
                     std::span<uint8_t const> src{pixelData.data() + channelStart, sizeof(float)};
                     std::array<uint8_t, sizeof(float)> dest{};
-                    std::copy(src.begin(), src.end(), dest.begin());
+                    copy(src, dest.begin());
                     auto const channelFloat = cpp20::bit_cast<float>(dest);
 
                     color[channel] = Unorm8{channelFloat};
@@ -1823,7 +1839,7 @@ public:
         OSC_ASSERT(pixelData.size() == NumBytesPerPixel(m_Format)*m_Dimensions.x*m_Dimensions.y && "incorrect number of bytes passed to Texture2D::setPixelData");
         OSC_ASSERT(pixelData.size() == m_PixelData.size());
 
-        std::copy(pixelData.begin(), pixelData.end(), m_PixelData.begin());
+        copy(pixelData, m_PixelData.begin());
     }
 
     // non PIMPL method
@@ -2918,9 +2934,7 @@ public:
 
     std::optional<ptrdiff_t> findPropertyIndex(std::string_view propertyName) const
     {
-        auto const it = m_Uniforms.find(propertyName);
-
-        if (it != m_Uniforms.end())
+        if (auto const it = m_Uniforms.find(propertyName); it != m_Uniforms.end())
         {
             return static_cast<ptrdiff_t>(std::distance(m_Uniforms.begin(), it));
         }
@@ -3424,19 +3438,16 @@ private:
     std::optional<TConverted> getValue(std::string_view propertyName) const
         requires std::convertible_to<T, TConverted>
     {
-        auto const it = m_Values.find(propertyName);
+        auto const* value = try_find(m_Values, propertyName);
 
-        if (it == m_Values.end())
+        if (!value) {
+            return std::nullopt;
+        }
+        if (!std::holds_alternative<T>(*value))
         {
             return std::nullopt;
         }
-
-        if (!std::holds_alternative<T>(it->second))
-        {
-            return std::nullopt;
-        }
-
-        return TConverted{std::get<T>(it->second)};
+        return TConverted{std::get<T>(*value)};
     }
 
     template<typename T>
@@ -4054,7 +4065,7 @@ namespace
         using ComponentType = typename VertexAttributeFormatTraits<EncodingFormat>::component_type;
         constexpr auto numComponents = NumComponents(EncodingFormat);
         constexpr auto sizeOfComponent = SizeOfComponent(EncodingFormat);
-        constexpr auto n = std::min(std::tuple_size_v<T>, static_cast<typename T::size_type>(numComponents));
+        constexpr auto n = min(std::tuple_size_v<T>, static_cast<typename T::size_type>(numComponents));
 
         for (typename T::size_type i = 0; i < n; ++i)
         {
@@ -4068,7 +4079,7 @@ namespace
         using ComponentType = typename VertexAttributeFormatTraits<EncodingFormat>::component_type;
         constexpr auto numComponents = NumComponents(EncodingFormat);
         constexpr auto sizeOfComponent = SizeOfComponent(EncodingFormat);
-        constexpr auto n = std::min(std::tuple_size_v<T>, static_cast<typename T::size_type>(numComponents));
+        constexpr auto n = min(std::tuple_size_v<T>, static_cast<typename T::size_type>(numComponents));
 
         T rv{};
         for (typename T::size_type i = 0; i < n; ++i)
@@ -4135,7 +4146,7 @@ namespace
     {
         using SourceCPUFormat = typename VertexAttributeFormatTraits<SourceFormat>::type;
         using DestCPUFormat = typename VertexAttributeFormatTraits<DestinationFormat>::type;
-        constexpr auto n = std::min(std::tuple_size_v<SourceCPUFormat>, std::tuple_size_v<DestCPUFormat>);
+        constexpr auto n = min(std::tuple_size_v<SourceCPUFormat>, std::tuple_size_v<DestCPUFormat>);
 
         auto const decoded = DecodeMany<SourceFormat, SourceCPUFormat>(src.data());
         DestCPUFormat converted{};
@@ -4241,7 +4252,7 @@ namespace
         OSC_ASSERT(src.size() % srcStride == 0);
         OSC_ASSERT(dest.size() % destStride == 0);
 
-        size_t const n = std::min(src.size() / srcStride, dest.size() / destStride);
+        size_t const n = min(src.size() / srcStride, dest.size() / destStride);
 
         auto const reencoders = GetReencoders(srcFormat, destFormat);
         for (size_t i = 0; i < n; ++i)
@@ -4628,7 +4639,7 @@ namespace
             }
 
             // write els to vertex buffer
-            std::copy(els.begin(), els.end(), iter<T>(attr).begin());
+            copy(els.begin(), els.end(), iter<T>(attr).begin());
         }
 
         template<UserFacingVertexData T, typename UnaryOperation>
@@ -5133,7 +5144,7 @@ private:
         m_IndicesAre32Bit = false;
         m_NumIndices = indices.size();
         m_IndicesData.resize((indices.size()+1)/2);
-        std::copy(indices.begin(), indices.end(), &m_IndicesData.front().u16.a);
+        copy(indices, &m_IndicesData.front().u16.a);
 
         rangeCheckIndicesAndRecalculateBounds(flags);
         m_Version->reset();
@@ -5146,12 +5157,12 @@ private:
             return v > std::numeric_limits<uint16_t>::max();
         };
 
-        if (std::any_of(vs.begin(), vs.end(), isGreaterThanU16Max))
+        if (any_of(vs, isGreaterThanU16Max))
         {
             m_IndicesAre32Bit = true;
             m_NumIndices = vs.size();
             m_IndicesData.resize(vs.size());
-            std::copy(vs.begin(), vs.end(), &m_IndicesData.front().u32);
+            copy(vs, &m_IndicesData.front().u32);
         }
         else
         {
@@ -5859,7 +5870,7 @@ private:
     std::optional<Rect> m_MaybeScreenPixelRect = std::nullopt;
     std::optional<Rect> m_MaybeScissorRect = std::nullopt;
     Vec3 m_Position = {};
-    Quat m_Rotation = Identity<Quat>();
+    Quat m_Rotation = identity<Quat>();
     std::optional<Mat4> m_MaybeViewMatrixOverride;
     std::optional<Mat4> m_MaybeProjectionMatrixOverride;
     std::vector<RenderObject> m_RenderQueue;
@@ -5917,9 +5928,9 @@ Radians osc::Camera::getVerticalFOV() const
     return m_Impl->getVerticalFOV();
 }
 
-void osc::Camera::setVerticalFOV(Radians verticalFOV)
+void osc::Camera::setVerticalFOV(Radians vertical_fov)
 {
-    m_Impl.upd()->setVerticalFOV(verticalFOV);
+    m_Impl.upd()->setVerticalFOV(vertical_fov);
 }
 
 float osc::Camera::getNearClippingPlane() const
@@ -6565,7 +6576,7 @@ private:
     };
 
     // a generic quad mesh: two triangles covering NDC @ Z=0
-    Mesh m_QuadMesh = GenerateTexturedQuadMesh();
+    Mesh m_QuadMesh = PlaneGeometry{2.0f, 2.0f, 1, 1};
 
     // storage for instance data
     std::vector<float> m_InstanceCPUBuffer;
@@ -6922,7 +6933,7 @@ void osc::GraphicsBackend::TryBindMaterialValueToShaderElement(
     case VariantIndex<MaterialValue, std::vector<Color>>():
     {
         auto const& colors = std::get<std::vector<Color>>(v);
-        int32_t const numToAssign = std::min(se.size, static_cast<int32_t>(colors.size()));
+        int32_t const numToAssign = min(se.size, static_cast<int32_t>(colors.size()));
 
         if (numToAssign > 0)
         {
@@ -6960,7 +6971,7 @@ void osc::GraphicsBackend::TryBindMaterialValueToShaderElement(
     case VariantIndex<MaterialValue, std::vector<float>>():
     {
         auto const& vals = std::get<std::vector<float>>(v);
-        int32_t const numToAssign = std::min(se.size, static_cast<int32_t>(vals.size()));
+        int32_t const numToAssign = min(se.size, static_cast<int32_t>(vals.size()));
 
         if (numToAssign > 0)
         {
@@ -6992,7 +7003,7 @@ void osc::GraphicsBackend::TryBindMaterialValueToShaderElement(
     case VariantIndex<MaterialValue, std::vector<Vec3>>():
     {
         auto const& vals = std::get<std::vector<Vec3>>(v);
-        int32_t const numToAssign = std::min(se.size, static_cast<int32_t>(vals.size()));
+        int32_t const numToAssign = min(se.size, static_cast<int32_t>(vals.size()));
 
         if (numToAssign > 0)
         {
@@ -7033,7 +7044,7 @@ void osc::GraphicsBackend::TryBindMaterialValueToShaderElement(
     case VariantIndex<MaterialValue, std::vector<Mat4>>():
     {
         auto const& vals = std::get<std::vector<Mat4>>(v);
-        int32_t const numToAssign = std::min(se.size, static_cast<int32_t>(vals.size()));
+        int32_t const numToAssign = min(se.size, static_cast<int32_t>(vals.size()));
         if (numToAssign > 0)
         {
             // CARE: assigning to uniform arrays should be done in one `glUniform` call
@@ -7221,7 +7232,7 @@ void osc::GraphicsBackend::HandleBatchWithSameMesh(
     auto batchIt = els.begin();
     while (batchIt != els.end())
     {
-        auto const batchEnd = std::find_if_not(batchIt, els.end(), RenderObjectHasSubMeshIndex{batchIt->maybeSubMeshIndex});
+        auto const batchEnd = find_if_not(batchIt, els.end(), RenderObjectHasSubMeshIndex{batchIt->maybeSubMeshIndex});
         HandleBatchWithSameSubMesh({batchIt, batchEnd}, ins);
         batchIt = batchEnd;
     }
@@ -7247,10 +7258,9 @@ void osc::GraphicsBackend::HandleBatchWithSameMaterialPropertyBlock(
     {
         for (auto const& [name, value] : els.front().maybePropBlock->m_Impl->m_Values)
         {
-            auto const it = uniforms.find(name);
-            if (it != uniforms.end())
+            if (auto const* uniform = try_find(uniforms, name))
             {
-                TryBindMaterialValueToShaderElement(it->second, value, textureSlot);
+                TryBindMaterialValueToShaderElement(*uniform, value, textureSlot);
             }
         }
     }
@@ -7259,7 +7269,7 @@ void osc::GraphicsBackend::HandleBatchWithSameMaterialPropertyBlock(
     auto batchIt = els.begin();
     while (batchIt != els.end())
     {
-        auto const batchEnd = std::find_if_not(batchIt, els.end(), RenderObjectHasMesh{&batchIt->mesh});
+        auto const batchEnd = find_if_not(batchIt, els.end(), RenderObjectHasMesh{&batchIt->mesh});
         HandleBatchWithSameMesh({batchIt, batchEnd}, ins);
         batchIt = batchEnd;
     }
@@ -7352,7 +7362,7 @@ void osc::GraphicsBackend::HandleBatchWithSameMaterial(
     auto batchIt = els.begin();
     while (batchIt != els.end())
     {
-        auto const batchEnd = std::find_if_not(batchIt, els.end(), RenderObjectHasMaterialPropertyBlock{&batchIt->maybePropBlock});
+        auto const batchEnd = find_if_not(batchIt, els.end(), RenderObjectHasMaterialPropertyBlock{&batchIt->maybePropBlock});
         HandleBatchWithSameMaterialPropertyBlock({batchIt, batchEnd}, textureSlot, maybeInstances);
         batchIt = batchEnd;
     }
@@ -7385,7 +7395,7 @@ void osc::GraphicsBackend::DrawRenderObjects(
     auto batchIt = els.begin();
     while (batchIt != els.end())
     {
-        auto const batchEnd = std::find_if_not(batchIt, els.end(), RenderObjectHasMaterial{&batchIt->material});
+        auto const batchEnd = find_if_not(batchIt, els.end(), RenderObjectHasMaterial{&batchIt->material});
         HandleBatchWithSameMaterial(renderPassState, {batchIt, batchEnd});
         batchIt = batchEnd;
     }
@@ -7400,7 +7410,7 @@ void osc::GraphicsBackend::DrawBatchedByOpaqueness(
     auto batchIt = els.begin();
     while (batchIt != els.end())
     {
-        auto const opaqueEnd = std::find_if_not(batchIt, els.end(), IsOpaque);
+        auto const opaqueEnd = find_if_not(batchIt, els.end(), IsOpaque);
 
         if (opaqueEnd != batchIt)
         {
@@ -7414,7 +7424,7 @@ void osc::GraphicsBackend::DrawBatchedByOpaqueness(
         if (opaqueEnd != els.end())
         {
             // [opaqueEnd..els.end()] contains transparent elements
-            auto const transparentEnd = std::find_if(opaqueEnd, els.end(), IsOpaque);
+            auto const transparentEnd = find_if(opaqueEnd, els.end(), IsOpaque);
             gl::Enable(GL_BLEND);
             DrawRenderObjects(renderPassState, {opaqueEnd, transparentEnd});
 
@@ -7457,7 +7467,7 @@ void osc::GraphicsBackend::FlushRenderQueue(Camera::Impl& camera, float aspectRa
     auto batchIt = queue.begin();
     while (batchIt != queue.end())
     {
-        auto const depthTestedEnd = std::find_if_not(batchIt, queue.end(), IsDepthTested);
+        auto const depthTestedEnd = find_if_not(batchIt, queue.end(), IsDepthTested);
 
         if (depthTestedEnd != batchIt)
         {
@@ -7473,7 +7483,7 @@ void osc::GraphicsBackend::FlushRenderQueue(Camera::Impl& camera, float aspectRa
         {
             // there are >0 not-depth-tested elements that cannot be reordered
 
-            auto const ignoreDepthTestEnd = std::find_if(depthTestedEnd, queue.end(), IsDepthTested);
+            auto const ignoreDepthTestEnd = find_if(depthTestedEnd, queue.end(), IsDepthTested);
 
             // these elements aren't depth-tested and should just be drawn as-is
             gl::Disable(GL_DEPTH_TEST);
@@ -7523,7 +7533,7 @@ Rect osc::GraphicsBackend::CalcViewportRect(
         Rect{{}, targetDims};
 
     Vec2 const cameraRectBottomLeft = BottomLeft(cameraRect);
-    Vec2 const outputDimensions = Dimensions(cameraRect);
+    Vec2 const outputDimensions = dimensions(cameraRect);
     Vec2 const topLeft = {cameraRectBottomLeft.x, targetDims.y - cameraRectBottomLeft.y};
 
     return Rect{topLeft, topLeft + outputDimensions};
@@ -7534,7 +7544,7 @@ Rect osc::GraphicsBackend::SetupTopLevelPipelineState(
     RenderTarget* maybeCustomRenderTarget)
 {
     Rect const viewportRect = CalcViewportRect(camera, maybeCustomRenderTarget);
-    Vec2 const viewportDims = Dimensions(viewportRect);
+    Vec2 const viewportDims = dimensions(viewportRect);
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     gl::Viewport(
@@ -7547,7 +7557,7 @@ Rect osc::GraphicsBackend::SetupTopLevelPipelineState(
     if (camera.m_MaybeScissorRect)
     {
         Rect const scissorRect = *camera.m_MaybeScissorRect;
-        Vec2i const scissorDims = Dimensions(scissorRect);
+        Vec2i const scissorDims = dimensions(scissorRect);
 
         gl::Enable(GL_SCISSOR_TEST);
         glScissor(
@@ -7614,6 +7624,9 @@ std::optional<gl::FrameBuffer> osc::GraphicsBackend::BindAndClearRenderBuffers(
                         t.multisampledRBO
                     );
                 },
+#ifdef EMSCRIPTEN
+                [](SingleSampledCubemap&) {}
+#else
                 [i](SingleSampledCubemap& t)
                 {
                     glFramebufferTexture(
@@ -7623,6 +7636,7 @@ std::optional<gl::FrameBuffer> osc::GraphicsBackend::BindAndClearRenderBuffers(
                         0
                     );
                 }
+#endif
             }, maybeCustomRenderTarget->colors[i].buffer->m_Impl->updRenderBufferData());
         }
 
@@ -7646,6 +7660,9 @@ std::optional<gl::FrameBuffer> osc::GraphicsBackend::BindAndClearRenderBuffers(
                     t.multisampledRBO
                 );
             },
+#ifdef EMSCRIPTEN
+            [](SingleSampledCubemap&) {}
+#else
             [](SingleSampledCubemap& t)
             {
                 glFramebufferTexture(
@@ -7655,6 +7672,7 @@ std::optional<gl::FrameBuffer> osc::GraphicsBackend::BindAndClearRenderBuffers(
                     0
                 );
             }
+#endif
         }, maybeCustomRenderTarget->depth.buffer->m_Impl->updRenderBufferData());
 
         // Multi-Render Target (MRT) support: tell OpenGL to use all specified
@@ -7938,8 +7956,8 @@ void osc::GraphicsBackend::Blit(
 {
     Camera c;
     c.setBackgroundColor(Color::clear());
-    c.setProjectionMatrixOverride(Identity<Mat4>());
-    c.setViewMatrixOverride(Identity<Mat4>());
+    c.setProjectionMatrixOverride(identity<Mat4>());
+    c.setViewMatrixOverride(identity<Mat4>());
 
     Material m = g_GraphicsContextImpl->getQuadMaterial();
     m.setTexture("uTexture", source);
@@ -7968,8 +7986,8 @@ void osc::GraphicsBackend::BlitToScreen(
     Camera c;
     c.setBackgroundColor(Color::clear());
     c.setPixelRect(rect);
-    c.setProjectionMatrixOverride(Identity<Mat4>());
-    c.setViewMatrixOverride(Identity<Mat4>());
+    c.setProjectionMatrixOverride(identity<Mat4>());
+    c.setViewMatrixOverride(identity<Mat4>());
     c.setClearFlags(CameraClearFlags::Nothing);
 
     Material copy{material};
@@ -7988,8 +8006,8 @@ void osc::GraphicsBackend::BlitToScreen(
     Camera c;
     c.setBackgroundColor(Color::clear());
     c.setPixelRect(rect);
-    c.setProjectionMatrixOverride(Identity<Mat4>());
-    c.setViewMatrixOverride(Identity<Mat4>());
+    c.setProjectionMatrixOverride(identity<Mat4>());
+    c.setViewMatrixOverride(identity<Mat4>());
     c.setClearFlags(CameraClearFlags::Nothing);
 
     Material copy{g_GraphicsContextImpl->getQuadMaterial()};
@@ -8114,7 +8132,7 @@ void osc::GraphicsBackend::CopyTexture(
     // related:
     //
     // - https://registry.khronos.org/OpenGL-Refpages/es2.0/xhtml/glTexImage2D.xml
-    size_t const maxMipmapLevel = static_cast<size_t>(std::max(
+    size_t const maxMipmapLevel = static_cast<size_t>(max(
         0,
         cpp20::bit_width(static_cast<size_t>(destinationCubemap.getWidth())) - 1
     ));

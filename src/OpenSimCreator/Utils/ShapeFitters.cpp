@@ -3,7 +3,6 @@
 #include <OpenSimCreator/Utils/SimTKHelpers.h>
 
 #include <Simbody.h>
-#include <oscar/Graphics/GraphicsHelpers.h>
 #include <oscar/Graphics/Mesh.h>
 #include <oscar/Maths/GeometricFunctions.h>
 #include <oscar/Maths/MathHelpers.h>
@@ -652,10 +651,10 @@ Plane osc::FitPlane(Mesh const& mesh)
     }
 
     // determine the xyz centroid of the point cloud
-    Vec3 const centroid = CalcMean(vertices);
+    Vec3 const mean = CalcMean(vertices);
 
     // shift point cloud such that the centroid is at the origin
-    std::vector<Vec3> const verticesReduced = Subtract(vertices, centroid);
+    std::vector<Vec3> const verticesReduced = Subtract(vertices, mean);
 
     // pack the vertices into a covariance matrix, ready for principal component analysis (PCA)
     SimTK::Mat33 const covarianceMatrix = CalcCovarianceMatrix(verticesReduced);
@@ -677,7 +676,7 @@ Plane osc::FitPlane(Mesh const& mesh)
     Rect const bounds = BoundingRectOf(projectedPoints);
 
     // calculate the midpoint of those bounds in plane-space
-    Vec2 const boundsMidpointInPlaneSpace = Midpoint(bounds);
+    Vec2 const boundsMidpointInPlaneSpace = centroid(bounds);
 
     // un-project the plane-space midpoint back into mesh-space
     Vec3 const boundsMidPointInReducedSpace = Unproject2DPlanePointInto3D(
@@ -685,7 +684,7 @@ Plane osc::FitPlane(Mesh const& mesh)
         ToVec3(basis1),
         ToVec3(basis2)
     );
-    Vec3 const boundsMidPointInMeshSpace = boundsMidPointInReducedSpace + centroid;
+    Vec3 const boundsMidPointInMeshSpace = boundsMidPointInReducedSpace + mean;
 
     // return normal and boundsMidPointInMeshSpace
     return Plane{boundsMidPointInMeshSpace, ToVec3(normal)};
@@ -750,6 +749,6 @@ Ellipsoid osc::FitEllipsoid(Mesh const& mesh)
     {
         ToVec3(ellipsoidOrigin),
         ToVec3(SimTK::sqrt(Reciporical(Diag(evals)))),
-        {ToVec3(evecs.col(0)), ToVec3(evecs.col(1)), ToVec3(evecs.col(2))},
+        quat_cast(ToMat3(evecs)),
     };
 }

@@ -2,6 +2,7 @@
 
 #include <oscar/Platform/AppSettingValue.h>
 #include <oscar/Platform/AppSettingValueType.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/CStringView.h>
 #include <oscar/Utils/EnumHelpers.h>
 
@@ -177,14 +178,14 @@ void osc::OpenSimDecorationOptions::tryUpdFromValues(
     {
         buf.resize(prefixLen);
         buf.insert(prefixLen, v);
-        auto const it = lut.find(buf);
-        return it != lut.end() ? &it->second : nullptr;
+
+        return try_find(lut, buf);
     };
 
     if (auto* appVal = lookup("muscle_decoration_style"); appVal->type() == AppSettingValueType::String)
     {
         auto const metadata = GetAllMuscleDecorationStyleMetadata();
-        auto const it = std::find_if(metadata.begin(), metadata.end(), [appVal](auto const& m)
+        auto const it = find_if(metadata, [appVal](auto const& m)
         {
             return appVal->toString() == m.id;
         });
@@ -197,7 +198,7 @@ void osc::OpenSimDecorationOptions::tryUpdFromValues(
     if (auto* appVal = lookup("muscle_coloring_style"); appVal->type() == AppSettingValueType::String)
     {
         auto const metadata = GetAllMuscleColoringStyleMetadata();
-        auto const it = std::find_if(metadata.begin(), metadata.end(), [appVal](auto const& m)
+        auto const it = find_if(metadata, [appVal](auto const& m)
         {
             return appVal->toString() == m.id;
         });
@@ -210,7 +211,7 @@ void osc::OpenSimDecorationOptions::tryUpdFromValues(
     if (auto* appVal = lookup("muscle_sizing_style"); appVal->type() == AppSettingValueType::String)
     {
         auto const metadata = GetAllMuscleSizingStyleMetadata();
-        auto const it = std::find_if(metadata.begin(), metadata.end(), [appVal](auto const& m)
+        auto const it = find_if(metadata, [appVal](auto const& m)
         {
             return appVal->toString() == m.id;
         });

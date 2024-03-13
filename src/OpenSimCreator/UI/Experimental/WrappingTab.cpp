@@ -13,8 +13,20 @@
 
 using namespace osc;
 
+
+
 namespace
 {
+    Mesh GenerateXYZToXYZLineMesh()
+    {
+        Mesh data;
+        data.setVerts({{0.0f, 0.0f, 0.0f}, {+1.0f, +1.0f, +1.0f}});
+        data.setNormals({{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}});
+        data.setIndices({0, 1});
+        data.setTopology(MeshTopology::Lines);
+        return data;
+    }
+
     Vec3 ToVec3(const Vector3& v)
     {
         return Vec3{
@@ -64,13 +76,6 @@ namespace
         Vec3 pos;
         bool isHovered = false;
     };
-
-    MaterialPropertyBlock GeneratePropertyBlock(Color const& color)
-    {
-        MaterialPropertyBlock p;
-        p.setColor("uColor", color);
-        return p;
-    }
 
     struct PathTerminalPoint
     {
@@ -188,7 +193,7 @@ private:
             return true;
         } else if (
             e.type == SDL_MOUSEBUTTONDOWN
-            && IsMouseInMainViewportWorkspaceScreenRect()) {
+            && ui::IsMouseInMainViewportWorkspaceScreenRect()) {
             m_IsMouseCaptured = true;
             return true;
         }
@@ -247,21 +252,21 @@ private:
     {
         // handle mouse capturing
         if (m_IsMouseCaptured) {
-            UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
-            ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+            ui::UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
+            ui::SetMouseCursor(ImGuiMouseCursor_None);
             App::upd().setShowCursor(false);
         } else {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
+            ui::SetMouseCursor(ImGuiMouseCursor_Arrow);
             App::upd().setShowCursor(true);
         }
 
         bool freezeClicked = m_FreezePath;
-        if (ImGui::Begin("viewer")) {
+        if (ui::Begin("viewer")) {
             ImGui::SliderAngle("phi", &m_EndPoint.phi);
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
-            ImGui::Checkbox("Cache path", &m_CachePath);
-            ImGui::Checkbox("Freeze", &m_FreezePath);
-            ImGui::Checkbox("Singular", &m_Singular);
+            ui::Checkbox("Cache path", &m_CachePath);
+            ui::Checkbox("Freeze", &m_FreezePath);
+            ui::Checkbox("Singular", &m_Singular);
         }
         freezeClicked = m_FreezePath != freezeClicked;
         if (freezeClicked) {
@@ -393,7 +398,7 @@ private:
                 false);
         }
 
-        Rect const viewport = GetMainViewportWorkspaceScreenRect();
+        Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
 
         // draw scene to screen
         m_Camera.setPixelRect(viewport);
@@ -412,34 +417,24 @@ private:
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
-    Material m_TransparantMaterial{
-        Shader{
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
-               }
-    };
-    Material m_Material{
-        Shader{
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
-               }
-    };
+    MeshBasicMaterial m_TransparantMaterial{};
+    MeshBasicMaterial m_Material{};
 
-    Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
-    Mesh m_CylinderMesh = GenerateCylinderMesh2(
-            1., 1., 1., 45, 45, false, Radians{0.}, Radians{2. * M_PI});
+    Mesh m_SphereMesh = SphereGeometry(1.0f, 12, 12);
+    Mesh m_CylinderMesh = CylinderGeometry(
+            1., 1., 1., 45, 1, false, Radians{0.}, Radians{2. * M_PI});
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
 
-    MaterialPropertyBlock m_BlackColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
-    MaterialPropertyBlock m_BlueColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.2f});
-    MaterialPropertyBlock m_GreenColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.5f, 0.0f, 0.2f});
-    MaterialPropertyBlock m_RedColorMaterialProps =
-        GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
-    MaterialPropertyBlock m_GreyColorMaterialProps =
-        GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.2f});
+    MeshBasicMaterial::PropertyBlock m_BlackColorMaterialProps
+        {Color::black()};
+    MeshBasicMaterial::PropertyBlock  m_BlueColorMaterialProps
+        {Color::blue()};
+    MeshBasicMaterial::PropertyBlock m_GreenColorMaterialProps
+        {Color::dark_green().with_alpha(0.2f)};
+    MeshBasicMaterial::PropertyBlock m_RedColorMaterialProps
+        {Color::red()};
+    MeshBasicMaterial::PropertyBlock m_GreyColorMaterialProps
+        {Color::half_grey().with_alpha(0.2f)};
 
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);

@@ -50,17 +50,17 @@ public:
 
     void drawRightClickedNothingContextMenu()
     {
-        ImGui::TextDisabled("(clicked nothing)");
+        ui::TextDisabled("(clicked nothing)");
     }
 
     void drawRightClickedSomethingContextMenu(OpenSim::Component const& c)
     {
         // draw context menu for whatever's selected
-        ImGui::TextUnformatted(c.getName().c_str());
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", c.getConcreteClassName().c_str());
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 3.0f});
+        ui::TextUnformatted(c.getName());
+        ui::SameLine();
+        ui::TextDisabled(c.getConcreteClassName());
+        ui::Separator();
+        ui::Dummy({0.0f, 3.0f});
 
         DrawSelectOwnerMenu(*m_Model, c);
         DrawWatchOutputMenu(*m_API, c);

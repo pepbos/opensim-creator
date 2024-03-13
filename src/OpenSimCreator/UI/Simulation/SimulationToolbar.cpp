@@ -28,14 +28,14 @@ namespace
         {
         case SimulationStatus::Initializing:
         case SimulationStatus::Running:
-            return Color::mutedBlue();
+            return Color::muted_blue();
         case SimulationStatus::Completed:
-            return Color::darkGreen();
+            return Color::dark_green();
         case SimulationStatus::Cancelled:
         case SimulationStatus::Error:
             return Color::red();
         default:
-            return Color{Vec4{ImGui::GetStyle().Colors[ImGuiCol_Text]}};
+            return Color{Vec4{ui::GetStyle().Colors[ImGuiCol_Text]}};
         }
     }
 }
@@ -60,7 +60,7 @@ public:
         {
             drawContent();
         }
-        ImGui::End();
+        ui::End();
     }
 
 private:
@@ -68,45 +68,45 @@ private:
     {
         drawScaleFactorGroup();
 
-        ImGui::SameLine();
-        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-        ImGui::SameLine();
+        ui::SameLine();
+        ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ui::SameLine();
 
         m_Scrubber.onDraw();
 
-        ImGui::SameLine();
-        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-        ImGui::SameLine();
+        ui::SameLine();
+        ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ui::SameLine();
 
         drawSimulationStatusGroup();
     }
 
     void drawScaleFactorGroup()
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
-        ImGui::TextUnformatted(ICON_FA_EXPAND_ALT);
-        DrawTooltipIfItemHovered("Scene Scale Factor", "Rescales decorations in the model by this amount. Changing this can be handy when working on extremely small/large models.");
-        ImGui::SameLine();
+        ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
+        ui::TextUnformatted(ICON_FA_EXPAND_ALT);
+        ui::DrawTooltipIfItemHovered("Scene Scale Factor", "Rescales decorations in the model by this amount. Changing this can be handy when working on extremely small/large models.");
+        ui::SameLine();
 
         {
             float scaleFactor = m_Simulation->getFixupScaleFactor();
-            ImGui::SetNextItemWidth(ImGui::CalcTextSize("0.00000").x);
-            if (ImGui::InputFloat("##scaleinput", &scaleFactor))
+            ui::SetNextItemWidth(ui::CalcTextSize("0.00000").x);
+            if (ui::InputFloat("##scaleinput", &scaleFactor))
             {
                 m_Simulation->setFixupScaleFactor(scaleFactor);
             }
         }
-        ImGui::PopStyleVar();
+        ui::PopStyleVar();
     }
 
     void drawSimulationStatusGroup()
     {
         SimulationStatus const status = m_Simulation->getStatus();
-        ImGui::TextDisabled("simulator status:");
-        ImGui::SameLine();
-        PushStyleColor(ImGuiCol_Text, CalcStatusColor(status));
-        ImGui::TextUnformatted(GetAllSimulationStatusStrings()[static_cast<size_t>(status)].c_str());
-        PopStyleColor();
+        ui::TextDisabled("simulator status:");
+        ui::SameLine();
+        ui::PushStyleColor(ImGuiCol_Text, CalcStatusColor(status));
+        ui::TextUnformatted(GetAllSimulationStatusStrings()[static_cast<size_t>(status)]);
+        ui::PopStyleColor();
     }
 
     std::string m_Label;

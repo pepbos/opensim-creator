@@ -49,21 +49,21 @@ private:
     {
         if (m_API->getNumUserOutputExtractors() <= 0)
         {
-            ImGui::TextDisabled("(no outputs requested)");
+            ui::TextDisabled("(no outputs requested)");
             return;
         }
 
         if (IsAnyOutputExportableToCSV(*m_API))
         {
-            ImGui::Button(ICON_FA_SAVE " Save All " ICON_FA_CARET_DOWN);
-            if (ImGui::BeginPopupContextItem("##exportoptions", ImGuiPopupFlags_MouseButtonLeft))
+            ui::Button(ICON_FA_SAVE " Save All " ICON_FA_CARET_DOWN);
+            if (ui::BeginPopupContextItem("##exportoptions", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("as CSV"))
+                if (ui::MenuItem("as CSV"))
                 {
                     TryPromptAndSaveAllUserDesiredOutputsAsCSV(*m_SimulatorUIAPI);
                 }
 
-                if (ImGui::MenuItem("as CSV (and open)"))
+                if (ui::MenuItem("as CSV (and open)"))
                 {
                     auto p = TryPromptAndSaveAllUserDesiredOutputsAsCSV(*m_SimulatorUIAPI);
                     if (!p.empty())
@@ -72,22 +72,22 @@ private:
                     }
                 }
 
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
 
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 5.0f});
+        ui::Separator();
+        ui::Dummy({0.0f, 5.0f});
 
         for (int i = 0; i < m_API->getNumUserOutputExtractors(); ++i)
         {
             OutputExtractor output = m_API->getUserOutputExtractor(i);
 
-            ImGui::PushID(i);
+            ui::PushID(i);
             SimulationOutputPlot plot{m_SimulatorUIAPI, output, 64.0f};
             plot.onDraw();
             DrawOutputNameColumn(output, true, m_SimulatorUIAPI->tryGetCurrentSimulationState());
-            ImGui::PopID();
+            ui::PopID();
         }
     }
 

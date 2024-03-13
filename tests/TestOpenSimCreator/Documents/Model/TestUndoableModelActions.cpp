@@ -4,15 +4,21 @@
 
 #include <OpenSim/Common/AbstractProperty.h>
 #include <OpenSim/Simulation/Model/Model.h>
+#include <OpenSim/Simulation/Wrap/WrapCylinder.h>
+#include <OpenSim/Simulation/Wrap/WrapSphere.h>
 #include <OpenSim/Simulation/SimbodyEngine/Body.h>
 #include <OpenSim/Simulation/SimbodyEngine/Coordinate.h>
 #include <OpenSim/Simulation/SimbodyEngine/FreeJoint.h>
 #include <OpenSim/Simulation/SimbodyEngine/PinJoint.h>
+#include <OpenSimCreator/ComponentRegistry/ComponentRegistry.h>
+#include <OpenSimCreator/ComponentRegistry/ComponentRegistryEntry.h>
+#include <OpenSimCreator/ComponentRegistry/StaticComponentRegistries.h>
 #include <OpenSimCreator/Documents/Model/ObjectPropertyEdit.h>
 #include <OpenSimCreator/Documents/Model/UndoableModelStatePair.h>
 #include <OpenSimCreator/Utils/OpenSimHelpers.h>
 #include <gtest/gtest.h>
 #include <oscar/Maths/MathHelpers.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <functional>
 #include <memory>
@@ -64,7 +70,7 @@ TEST(OpenSimActions, ActionApplyRangeDeletionPropertyEditReturnsFalseToIndicateF
     auto undoableModel = []()
     {
         OpenSim::Model model;
-        auto body = std::make_unique<OpenSim::Body>("body", 1.0, SimTK::Vec3{}, SimTK::Inertia{});
+        auto body = std::make_unique<OpenSim::Body>("body", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0});
         auto joint = std::make_unique<OpenSim::PinJoint>();
         joint->setName("joint");
         joint->updCoordinate().setName("rotation");
@@ -124,7 +130,7 @@ TEST(OpenSimActions, ActionFitSphereToMeshFitsASphereToAMeshInTheModelAndSelects
         std::filesystem::path{OSC_TESTING_SOURCE_DIR} / "build_resources" / "TestOpenSimCreator" / "arrow.vtp";
 
     UndoableModelStatePair model;
-    auto& body = AddBody(model.updModel(), std::make_unique<OpenSim::Body>("name", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0}));
+    auto& body = AddBody(model.updModel(), std::make_unique<OpenSim::Body>("name", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0}));
     body.setMass(1.0);
     auto& mesh = dynamic_cast<OpenSim::Mesh&>(AttachGeometry(body, std::make_unique<OpenSim::Mesh>(geomFile.string())));
     FinalizeConnections(model.updModel());
@@ -143,7 +149,7 @@ TEST(OpenSimActions, ActionFitSphereToMeshAppliesMeshesScaleFactorsCorrectly)
         std::filesystem::path{OSC_TESTING_SOURCE_DIR} / "build_resources" / "TestOpenSimCreator" / "arrow.vtp";
 
     UndoableModelStatePair model;
-    auto& body = AddBody(model.updModel(), std::make_unique<OpenSim::Body>("name", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0}));
+    auto& body = AddBody(model.updModel(), std::make_unique<OpenSim::Body>("name", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0}));
     body.setMass(1.0);
     auto& unscaledMesh = dynamic_cast<OpenSim::Mesh&>(AttachGeometry(body, std::make_unique<OpenSim::Mesh>(geomFile.string())));
     auto& scaledMesh = dynamic_cast<OpenSim::Mesh&>(AttachGeometry(body, std::make_unique<OpenSim::Mesh>(geomFile.string())));
@@ -167,7 +173,7 @@ TEST(OpenSimActions, ActionFitSphereToMeshAppliesMeshesScaleFactorsCorrectly)
 TEST(OpenSimActions, ActionAddParentOffsetFrameToJointWorksInNormalCase)
 {
     UndoableModelStatePair um;
-    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0});
+    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0});
     auto& joint = AddJoint<OpenSim::FreeJoint>(um.updModel(), "jname", um.getModel().getGround(), body);
 
     // this should be ok
@@ -195,7 +201,7 @@ TEST(OpenSimActions, ActionAddParentOffsetFrameToJointWorksInNormalCase)
 TEST(OpenSimActions, DISABLED_ActionAddParentOffsetFrameToJointWorksInChainedCase)
 {
     UndoableModelStatePair um;
-    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0});
+    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0});
     auto& joint = AddJoint<OpenSim::FreeJoint>(um.updModel(), "jname", um.getModel().getGround(), body);
 
     // this should be ok
@@ -227,7 +233,7 @@ TEST(OpenSimActions, DISABLED_ActionAddParentOffsetFrameToJointWorksInChainedCas
 TEST(OpenSimActions, ActionAddChildOffsetFrameToJointWorksInNormalCase)
 {
     UndoableModelStatePair um;
-    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0});
+    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0});
     auto& joint = AddJoint<OpenSim::FreeJoint>(um.updModel(), "jname", um.getModel().getGround(), body);
 
     // this should be ok
@@ -255,7 +261,7 @@ TEST(OpenSimActions, ActionAddChildOffsetFrameToJointWorksInNormalCase)
 TEST(OpenSimActions, DISABLED_ActionAddChildOffsetFrameToJointWorksInChainedCase)
 {
     UndoableModelStatePair um;
-    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{}, SimTK::Inertia{1.0});
+    auto& body = AddBody(um.updModel(), "bodyname", 1.0, SimTK::Vec3{0.0}, SimTK::Inertia{1.0});
     auto& joint = AddJoint<OpenSim::FreeJoint>(um.updModel(), "jname", um.getModel().getGround(), body);
 
     // this should be ok
@@ -282,4 +288,91 @@ TEST(OpenSimActions, DISABLED_ActionAddChildOffsetFrameToJointWorksInChainedCase
     ASSERT_NE(&child2, &child1);
     ASSERT_TRUE(dynamic_cast<OpenSim::PhysicalOffsetFrame const*>(&child2));
     ASSERT_EQ(&dynamic_cast<OpenSim::PhysicalOffsetFrame const&>(child2).getParentFrame(), &child1);
+}
+
+TEST(OpenSimActions, ActionAddWrapObjectToPhysicalFrameCanAddWrapCylinderToGround)
+{
+    // test one concrete instance (this test isn't coupled to the component registry)
+    UndoableModelStatePair um;
+    auto wrapCylinder = std::make_unique<OpenSim::WrapCylinder>();
+    wrapCylinder->setName("should_be_findable_in_model");
+
+    ASSERT_TRUE(ActionAddWrapObjectToPhysicalFrame(um, um.getModel().getGround().getAbsolutePath(), std::move(wrapCylinder)));
+    ASSERT_TRUE(um.getModel().findComponent("should_be_findable_in_model"));
+}
+
+TEST(OpenSimActions, ActionAddWrapObjectToPhysicalFrameCanAddAllRegisteredWrapObjectsToGround)
+{
+    UndoableModelStatePair um;
+    OpenSim::ComponentPath const groundPath = um.getModel().getGround().getAbsolutePath();
+
+    for (auto const& entry : GetComponentRegistry<OpenSim::WrapObject>()) {
+        ASSERT_TRUE(ActionAddWrapObjectToPhysicalFrame(um, groundPath, entry.instantiate()));
+    }
+
+    size_t numWrapsInModel = 0;
+    for ([[maybe_unused]] auto const& wrap : um.getModel().getComponentList<OpenSim::WrapObject>()) {
+        ++numWrapsInModel;
+    }
+
+    ASSERT_EQ(numWrapsInModel, GetComponentRegistry<OpenSim::WrapObject>().size());
+}
+
+TEST(OpenSimActions, ActionAddPathWrapToGeometryPathWorksInExampleCase)
+{
+    UndoableModelStatePair um;
+    OpenSim::Model& model = um.updModel();
+
+    auto& pof = AddModelComponent<OpenSim::PhysicalOffsetFrame>(model, model.getGround(), SimTK::Transform{SimTK::Vec3{0.0, 1.0, 0.0}});
+    auto& body = AddBody(model, "body", 1.0f, SimTK::Vec3{0.0}, SimTK::Inertia(0.1));
+    AddJoint<OpenSim::FreeJoint>(model, "joint", pof, body);
+    auto& path = AddModelComponent<OpenSim::GeometryPath>(model);
+    path.appendNewPathPoint("p1_ground", model.getGround(), SimTK::Vec3{0.0});
+    path.appendNewPathPoint("p2_body", body, SimTK::Vec3{0.0});
+
+    FinalizeConnections(model);
+    InitializeModel(model);
+    auto const& state = InitializeState(model);
+
+    ASSERT_NEAR(path.getLength(state), 1.0, epsilon_v<double>) << "an uninterrupted path should have this length";
+
+    auto& sphere = AddWrapObject<OpenSim::WrapSphere>(pof);
+    sphere.set_radius(0.25);
+    sphere.set_translation({0.001, -0.5, 0.0});  // prevent singularities
+
+    FinalizeConnections(model);
+    InitializeModel(model);
+    auto const& state2 = InitializeState(model);
+
+    ASSERT_NEAR(path.getLength(state2), 1.0, epsilon_v<double>) << "the wrap object hasn't been added to the model yet";
+
+    ActionAddWrapObjectToGeometryPathWraps(um, path, sphere);
+
+    ASSERT_GT(path.getLength(um.getState()), 1.1)  << "path should start wrapping";
+}
+
+TEST(OpenSimActions, ActionRemoveWrapObjectFromGeometryPathWrapsWorksInExampleCase)
+{
+    UndoableModelStatePair um;
+    OpenSim::Model& model = um.updModel();
+
+    auto& pof = AddModelComponent<OpenSim::PhysicalOffsetFrame>(model, model.getGround(), SimTK::Transform{SimTK::Vec3{0.0, 1.0, 0.0}});
+    auto& body = AddBody(model, "body", 1.0f, SimTK::Vec3{0.0}, SimTK::Inertia(0.1));
+    AddJoint<OpenSim::FreeJoint>(model, "joint", pof, body);
+    auto& path = AddModelComponent<OpenSim::GeometryPath>(model);
+    path.appendNewPathPoint("p1_ground", model.getGround(), SimTK::Vec3{0.0});
+    path.appendNewPathPoint("p2_body", body, SimTK::Vec3{0.0});
+    auto& sphere = AddWrapObject<OpenSim::WrapSphere>(pof);
+    sphere.set_radius(0.25);
+    sphere.set_translation({0.001, -0.5, 0.0});  // prevent singularities
+    FinalizeConnections(model);  // note: out of order because OpenSim seems to otherwise not notice the addition
+    path.addPathWrap(sphere);
+    InitializeModel(model);
+    InitializeState(model);
+
+    ASSERT_GT(path.getLength(um.getState()), 1.1)  << "initial state of model includes wrapping";
+
+    ActionRemoveWrapObjectFromGeometryPathWraps(um, path, sphere);
+
+    ASSERT_NEAR(path.getLength(um.getState()), 1.0, epsilon_v<double>)  << "should stop wrapping";
 }

@@ -21,10 +21,10 @@
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
 #include <oscar/UI/Widgets/StandardPopup.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/StringHelpers.h>
 #include <SimTKcommon/SmallMatrix.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -151,14 +151,10 @@ private:
         OpenSim::Model const& model = m_Uum->getModel();
 
         bool hasName = !m_Name.empty();
-        bool allSocketsAssigned = std::all_of(
-            m_SocketConnecteePaths.begin(),
-            m_SocketConnecteePaths.end(),
-            [&model](OpenSim::ComponentPath const& cp)
-            {
-                return ContainsComponent(model, cp);
-            }
-        );
+        bool allSocketsAssigned = all_of(m_SocketConnecteePaths, [&model](OpenSim::ComponentPath const& cp)
+        {
+            return ContainsComponent(model, cp);
+        });
         bool hasEnoughPathPoints =
             dynamic_cast<OpenSim::PathActuator const*>(m_Proto.get()) == nullptr ||
             m_PathPoints.size() >= 2;
@@ -168,29 +164,29 @@ private:
 
     void drawNameEditor()
     {
-        ImGui::Columns(2);
+        ui::Columns(2);
 
-        ImGui::TextUnformatted("name");
-        ImGui::SameLine();
-        DrawHelpMarker("Name the newly-added component will have after being added into the model. Note: this is used to derive the name of subcomponents (e.g. path points)");
-        ImGui::NextColumn();
+        ui::TextUnformatted("name");
+        ui::SameLine();
+        ui::DrawHelpMarker("Name the newly-added component will have after being added into the model. Note: this is used to derive the name of subcomponents (e.g. path points)");
+        ui::NextColumn();
 
-        InputString("##componentname", m_Name);
-        App::upd().addFrameAnnotation("AddComponentPopup::ComponentNameInput", GetItemRect());
+        ui::InputString("##componentname", m_Name);
+        App::upd().addFrameAnnotation("AddComponentPopup::ComponentNameInput", ui::GetItemRect());
 
-        ImGui::NextColumn();
+        ui::NextColumn();
 
-        ImGui::Columns();
+        ui::Columns();
     }
 
     void drawPropertyEditors()
     {
-        ImGui::TextUnformatted("Properties");
-        ImGui::SameLine();
-        DrawHelpMarker("These are properties of the OpenSim::Component being added. Their datatypes, default values, and help text are defined in the source code (see OpenSim_DECLARE_PROPERTY in OpenSim's C++ source code, if you want the details). Their default values are typically sane enough to let you add the component directly into your model.");
-        ImGui::Separator();
+        ui::TextUnformatted("Properties");
+        ui::SameLine();
+        ui::DrawHelpMarker("These are properties of the OpenSim::Component being added. Their datatypes, default values, and help text are defined in the source code (see OpenSim_DECLARE_PROPERTY in OpenSim's C++ source code, if you want the details). Their default values are typically sane enough to let you add the component directly into your model.");
+        ui::Separator();
 
-        ImGui::Dummy({0.0f, 3.0f});
+        ui::Dummy({0.0f, 3.0f});
 
         auto maybeUpdater = m_PrototypePropertiesEditor.onDraw();
         if (maybeUpdater)
@@ -210,19 +206,19 @@ private:
             return;
         }
 
-        ImGui::TextUnformatted("Socket assignments (required)");
-        ImGui::SameLine();
-        DrawHelpMarker("The OpenSim::Component being added has `socket`s that connect to other components in the model. You must specify what these sockets should be connected to; otherwise, the component cannot be added to the model.\n\nIn OpenSim, a Socket formalizes the dependency between a Component and another object (typically another Component) without owning that object. While Components can be composites (of multiple components) they often depend on unrelated objects/components that are defined and owned elsewhere. The object that satisfies the requirements of the Socket we term the 'connectee'. When a Socket is satisfied by a connectee we have a successful 'connection' or is said to be connected.");
-        ImGui::Separator();
+        ui::TextUnformatted("Socket assignments (required)");
+        ui::SameLine();
+        ui::DrawHelpMarker("The OpenSim::Component being added has `socket`s that connect to other components in the model. You must specify what these sockets should be connected to; otherwise, the component cannot be added to the model.\n\nIn OpenSim, a Socket formalizes the dependency between a Component and another object (typically another Component) without owning that object. While Components can be composites (of multiple components) they often depend on unrelated objects/components that are defined and owned elsewhere. The object that satisfies the requirements of the Socket we term the 'connectee'. When a Socket is satisfied by a connectee we have a successful 'connection' or is said to be connected.");
+        ui::Separator();
 
-        ImGui::Dummy({0.0f, 1.0f});
+        ui::Dummy({0.0f, 1.0f});
 
         // for each socket in the prototype (cached), check if the user has chosen a
         // connectee for it yet and provide a UI for selecting them
         for (size_t i = 0; i < m_ProtoSockets.size(); ++i)
         {
             drawIthSocketEditor(i);
-            ImGui::Dummy({0.0f, 0.5f*ImGui::GetTextLineHeight()});
+            ui::Dummy({0.0f, 0.5f*ui::GetTextLineHeight()});
         }
     }
 
@@ -231,21 +227,21 @@ private:
         OpenSim::AbstractSocket const& socket = *m_ProtoSockets[i];
         OpenSim::ComponentPath& connectee = m_SocketConnecteePaths[i];
 
-        ImGui::Columns(2);
+        ui::Columns(2);
 
-        ImGui::TextUnformatted(socket.getName().c_str());
-        ImGui::SameLine();
-        DrawHelpMarker(m_Proto->getPropertyByName("socket_" + socket.getName()).getComment());
-        ImGui::TextDisabled("%s", socket.getConnecteeTypeName().c_str());
-        ImGui::NextColumn();
+        ui::TextUnformatted(socket.getName());
+        ui::SameLine();
+        ui::DrawHelpMarker(m_Proto->getPropertyByName("socket_" + socket.getName()).getComment());
+        ui::TextDisabled(socket.getConnecteeTypeName());
+        ui::NextColumn();
 
         // rhs: search and connectee choices
-        ImGui::PushID(static_cast<int>(i));
-        ImGui::TextUnformatted(ICON_FA_SEARCH);
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-        InputString("##search", m_SocketSearchStrings[i]);
-        ImGui::BeginChild("##pfselector", {ImGui::GetContentRegionAvail().x, 128.0f});
+        ui::PushID(static_cast<int>(i));
+        ui::TextUnformatted(ICON_FA_SEARCH);
+        ui::SameLine();
+        ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+        ui::InputString("##search", m_SocketSearchStrings[i]);
+        ui::BeginChild("##pfselector", {ui::GetContentRegionAvail().x, 128.0f});
 
         // iterate through potential connectees in model and print connect-able options
         int innerID = 0;
@@ -266,16 +262,16 @@ private:
             OpenSim::ComponentPath const absPath = GetAbsolutePath(c);
             bool selected = absPath == connectee;
 
-            ImGui::PushID(innerID++);
-            if (ImGui::Selectable(c.getName().c_str(), selected))
+            ui::PushID(innerID++);
+            if (ui::Selectable(c.getName(), selected))
             {
                 connectee = absPath;
             }
 
-            Rect const selectableRect = GetItemRect();
-            DrawTooltipIfItemHovered(absPath.toString());
+            Rect const selectableRect = ui::GetItemRect();
+            ui::DrawTooltipIfItemHovered(absPath.toString());
 
-            ImGui::PopID();
+            ui::PopID();
 
             if (selected)
             {
@@ -283,10 +279,10 @@ private:
             }
         }
 
-        ImGui::EndChild();
-        ImGui::PopID();
-        ImGui::NextColumn();
-        ImGui::Columns();
+        ui::EndChild();
+        ui::PopID();
+        ui::NextColumn();
+        ui::Columns();
     }
 
     void drawPathPointEditorChoices()
@@ -294,7 +290,7 @@ private:
         OpenSim::Model const& model = m_Uum->getModel();
 
         // show list of choices
-        ImGui::BeginChild("##pf_ppchoices", {ImGui::GetContentRegionAvail().x, 128.0f});
+        ui::BeginChild("##pf_ppchoices", {ui::GetContentRegionAvail().x, 128.0f});
 
         // choices
         for (OpenSim::Component const& c : model.getComponentList())
@@ -303,7 +299,7 @@ private:
             {
                 return p.userChoice == GetAbsolutePath(c);
             };
-            if (std::any_of(m_PathPoints.begin(), m_PathPoints.end(), isSameUserChoiceAsComponent))
+            if (any_of(m_PathPoints, isSameUserChoiceAsComponent))
             {
                 continue;  // already selected
             }
@@ -355,7 +351,7 @@ private:
                 continue;  // search failed
             }
 
-            if (ImGui::Selectable(c.getName().c_str()))
+            if (ui::Selectable(c.getName()))
             {
                 m_PathPoints.emplace_back(
                     GetAbsolutePath(*userChoice),
@@ -363,73 +359,73 @@ private:
                     locationInFrame
                 );
             }
-            DrawTooltipIfItemHovered(c.getName(), (GetAbsolutePathString(c) + " " + c.getConcreteClassName()));
+            ui::DrawTooltipIfItemHovered(c.getName(), (GetAbsolutePathString(c) + " " + c.getConcreteClassName()));
         }
 
-        ImGui::EndChild();
+        ui::EndChild();
     }
 
     void drawPathPointEditorAlreadyChosenPoints()
     {
         OpenSim::Model const& model = m_Uum->getModel();
 
-        ImGui::BeginChild("##pf_pathpoints", {ImGui::GetContentRegionAvail().x, 128.0f});
+        ui::BeginChild("##pf_pathpoints", {ui::GetContentRegionAvail().x, 128.0f});
 
         std::optional<ptrdiff_t> maybeIndexToErase;
         for (ptrdiff_t i = 0; i < std::ssize(m_PathPoints); ++i)
         {
-            PushID(i);
+            ui::PushID(i);
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0f, 0.0f});
+            ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
 
-            if (ImGui::Button(ICON_FA_TRASH))
+            if (ui::Button(ICON_FA_TRASH))
             {
                 maybeIndexToErase = i;
             }
 
-            ImGui::SameLine();
+            ui::SameLine();
 
             if (i <= 0)
             {
-                ImGui::BeginDisabled();
+                ui::BeginDisabled();
             }
-            if (ImGui::Button(ICON_FA_ARROW_UP) && i > 0)
+            if (ui::Button(ICON_FA_ARROW_UP) && i > 0)
             {
                 std::swap(m_PathPoints[i], m_PathPoints[i-1]);
             }
             if (i <= 0)
             {
-                ImGui::EndDisabled();
+                ui::EndDisabled();
             }
 
-            ImGui::SameLine();
+            ui::SameLine();
 
             if (i >= std::ssize(m_PathPoints) - 1)
             {
-                ImGui::BeginDisabled();
+                ui::BeginDisabled();
             }
-            if (ImGui::Button(ICON_FA_ARROW_DOWN) && i < std::ssize(m_PathPoints) - 1)
+            if (ui::Button(ICON_FA_ARROW_DOWN) && i < std::ssize(m_PathPoints) - 1)
             {
                 std::swap(m_PathPoints[i], m_PathPoints[i+1]);
             }
             if (i >= std::ssize(m_PathPoints) - 1)
             {
-                ImGui::EndDisabled();
+                ui::EndDisabled();
             }
 
-            ImGui::PopStyleVar();
-            ImGui::SameLine();
+            ui::PopStyleVar();
+            ui::SameLine();
 
-            ImGui::Text("%s", m_PathPoints[i].userChoice.getComponentName().c_str());
-            if (ImGui::IsItemHovered())
+            ui::Text(m_PathPoints[i].userChoice.getComponentName());
+            if (ui::IsItemHovered())
             {
                 if (OpenSim::Component const* c = FindComponent(model, m_PathPoints[i].userChoice))
                 {
-                    DrawTooltip(c->getName(), GetAbsolutePathString(*c));
+                    ui::DrawTooltip(c->getName(), GetAbsolutePathString(*c));
                 }
             }
 
-            PopID();
+            ui::PopID();
         }
 
         if (maybeIndexToErase)
@@ -437,7 +433,7 @@ private:
             m_PathPoints.erase(m_PathPoints.begin() + *maybeIndexToErase);
         }
 
-        ImGui::EndChild();
+        ui::EndChild();
     }
 
     void drawPathPointEditor()
@@ -449,32 +445,32 @@ private:
         }
 
         // header
-        ImGui::TextUnformatted("Path Points (at least 2 required)");
-        ImGui::SameLine();
-        DrawHelpMarker("The Component being added is (effectively) a line that connects physical frames (e.g. bodies) in the model. For example, an OpenSim::Muscle can be described as an actuator that connects bodies in the model together. You **must** specify at least two physical frames on the line in order to add a PathActuator component.\n\nDetails: in OpenSim, some `Components` are `PathActuator`s. All `Muscle`s are defined as `PathActuator`s. A `PathActuator` is an `Actuator` that actuates along a path. Therefore, a `Model` containing a `PathActuator` with zero or one points would be invalid. This is why it is required that you specify at least two points");
-        ImGui::Separator();
+        ui::TextUnformatted("Path Points (at least 2 required)");
+        ui::SameLine();
+        ui::DrawHelpMarker("The Component being added is (effectively) a line that connects physical frames (e.g. bodies) in the model. For example, an OpenSim::Muscle can be described as an actuator that connects bodies in the model together. You **must** specify at least two physical frames on the line in order to add a PathActuator component.\n\nDetails: in OpenSim, some `Components` are `PathActuator`s. All `Muscle`s are defined as `PathActuator`s. A `PathActuator` is an `Actuator` that actuates along a path. Therefore, a `Model` containing a `PathActuator` with zero or one points would be invalid. This is why it is required that you specify at least two points");
+        ui::Separator();
 
-        InputString(ICON_FA_SEARCH " search", m_PathSearchString);
+        ui::InputString(ICON_FA_SEARCH " search", m_PathSearchString);
 
-        ImGui::Columns(2);
+        ui::Columns(2);
         int imguiID = 0;
 
-        ImGui::PushID(imguiID++);
+        ui::PushID(imguiID++);
         drawPathPointEditorChoices();
-        ImGui::PopID();
-        ImGui::NextColumn();
+        ui::PopID();
+        ui::NextColumn();
 
-        ImGui::PushID(imguiID++);
+        ui::PushID(imguiID++);
         drawPathPointEditorAlreadyChosenPoints();
-        ImGui::PopID();
-        ImGui::NextColumn();
+        ui::PopID();
+        ui::NextColumn();
 
-        ImGui::Columns();
+        ui::Columns();
     }
 
     void drawBottomButtons()
     {
-        if (ImGui::Button("cancel"))
+        if (ui::Button("cancel"))
         {
             requestClose();
         }
@@ -484,9 +480,9 @@ private:
             return;  // can't add anything yet
         }
 
-        ImGui::SameLine();
+        ui::SameLine();
 
-        if (ImGui::Button(ICON_FA_PLUS " add"))
+        if (ui::Button(ICON_FA_PLUS " add"))
         {
             std::unique_ptr<OpenSim::Component> rv = tryCreateComponentFromState();
             if (rv)
@@ -503,11 +499,11 @@ private:
     {
         if (!m_CurrentErrors.empty())
         {
-            PushStyleColor(ImGuiCol_Text, Color::red());
-            ImGui::Dummy({0.0f, 2.0f});
-            ImGui::TextWrapped("Error adding component to model: %s", m_CurrentErrors.c_str());
-            ImGui::Dummy({0.0f, 2.0f});
-            PopStyleColor();
+            ui::PushStyleColor(ImGuiCol_Text, Color::red());
+            ui::Dummy({0.0f, 2.0f});
+            ui::TextWrapped("Error adding component to model: %s", m_CurrentErrors.c_str());
+            ui::Dummy({0.0f, 2.0f});
+            ui::PopStyleColor();
         }
     }
 
@@ -517,17 +513,17 @@ private:
 
         drawPropertyEditors();
 
-        ImGui::Dummy({0.0f, 3.0f});
+        ui::Dummy({0.0f, 3.0f});
 
         drawSocketEditors();
 
-        ImGui::Dummy({0.0f, 1.0f});
+        ui::Dummy({0.0f, 1.0f});
 
         drawPathPointEditor();
 
         drawAnyErrorMessages();
 
-        ImGui::Dummy({0.0f, 1.0f});
+        ui::Dummy({0.0f, 1.0f});
 
         drawBottomButtons();
     }

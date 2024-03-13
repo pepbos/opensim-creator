@@ -1,7 +1,5 @@
 #include "LOGLPBRLightingTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -87,7 +85,7 @@ private:
 
     void draw3DRender()
     {
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         m_PBRMaterial.setVec3("uCameraWorldPos", m_Camera.getPosition());
         m_PBRMaterial.setVec3Array("uLightPositions", c_LightPositions);
@@ -133,7 +131,7 @@ private:
 
     ResourceLoader m_Loader = App::resource_loader();
     MouseCapturingCamera m_Camera = CreateCamera();
-    Mesh m_SphereMesh = GenerateUVSphereMesh(64, 64);
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 64, 64};
     Material m_PBRMaterial = CreateMaterial(m_Loader);
     PerfPanel m_PerfPanel{"Perf"};
 };

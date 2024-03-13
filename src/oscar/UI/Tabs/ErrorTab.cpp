@@ -30,37 +30,37 @@ private:
         constexpr float width = 800.0f;
         constexpr float padding = 10.0f;
 
-        Rect tabRect = GetMainViewportWorkspaceScreenRect();
-        Vec2 tabDims = Dimensions(tabRect);
+        Rect tabRect = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 tabDims = dimensions(tabRect);
 
         // error message panel
         {
             Vec2 pos{tabRect.p1.x + tabDims.x/2.0f, tabRect.p1.y + padding};
-            ImGui::SetNextWindowPos(pos, ImGuiCond_Once, {0.5f, 0.0f});
-            ImGui::SetNextWindowSize({width, 0.0f});
+            ui::SetNextWindowPos(pos, ImGuiCond_Once, {0.5f, 0.0f});
+            ui::SetNextWindowSize({width, 0.0f});
 
-            if (ImGui::Begin("fatal error"))
+            if (ui::Begin("fatal error"))
             {
-                ImGui::TextWrapped("The application threw an exception with the following message:");
-                ImGui::Dummy({2.0f, 10.0f});
-                ImGui::SameLine();
-                ImGui::TextWrapped("%s", m_ErrorMessage.c_str());
-                ImGui::Dummy({0.0f, 10.0f});
+                ui::TextWrapped("The application threw an exception with the following message:");
+                ui::Dummy({2.0f, 10.0f});
+                ui::SameLine();
+                ui::TextWrapped(m_ErrorMessage);
+                ui::Dummy({0.0f, 10.0f});
             }
-            ImGui::End();
+            ui::End();
         }
 
         // log message panel
         {
             Vec2 pos{tabRect.p1.x + tabDims.x/2.0f, tabRect.p2.y - padding};
-            ImGui::SetNextWindowPos(pos, ImGuiCond_Once, ImVec2(0.5f, 1.0f));
-            ImGui::SetNextWindowSize(ImVec2(width, 0.0f));
+            ui::SetNextWindowPos(pos, ImGuiCond_Once, {0.5f, 1.0f});
+            ui::SetNextWindowSize({width, 0.0f});
 
-            if (ImGui::Begin("Error Log", nullptr, ImGuiWindowFlags_MenuBar))
+            if (ui::Begin("Error Log", nullptr, ImGuiWindowFlags_MenuBar))
             {
                 m_LogViewer.onDraw();
             }
-            ImGui::End();
+            ui::End();
         }
     }
 

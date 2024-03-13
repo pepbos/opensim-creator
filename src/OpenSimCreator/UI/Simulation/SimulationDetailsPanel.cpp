@@ -9,6 +9,7 @@
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
 #include <oscar/UI/Panels/StandardPanelImpl.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Perf.h>
 
 #include <filesystem>
@@ -35,19 +36,19 @@ private:
     void implDrawContent() final
     {
         {
-            ImGui::Dummy({0.0f, 1.0f});
-            ImGui::TextUnformatted("info:");
-            ImGui::SameLine();
-            DrawHelpMarker("Top-level info about the simulation");
-            ImGui::Separator();
-            ImGui::Dummy({0.0f, 2.0f});
+            ui::Dummy({0.0f, 1.0f});
+            ui::TextUnformatted("info:");
+            ui::SameLine();
+            ui::DrawHelpMarker("Top-level info about the simulation");
+            ui::Separator();
+            ui::Dummy({0.0f, 2.0f});
 
-            ImGui::Columns(2);
-            ImGui::Text("num reports");
-            ImGui::NextColumn();
-            ImGui::Text("%zu", m_Simulation->getNumReports());
-            ImGui::NextColumn();
-            ImGui::Columns();
+            ui::Columns(2);
+            ui::Text("num reports");
+            ui::NextColumn();
+            ui::Text("%zu", m_Simulation->getNumReports());
+            ui::NextColumn();
+            ui::Columns();
         }
 
         {
@@ -55,7 +56,7 @@ private:
             DrawSimulationParams(m_Simulation->getParams());
         }
 
-        ImGui::Dummy({0.0f, 10.0f});
+        ui::Dummy({0.0f, 10.0f});
 
         {
             OSC_PERF("draw simulation stats");
@@ -69,27 +70,27 @@ private:
 
         if (outputs.empty())
         {
-            ImGui::TextDisabled("(no simulator output plots available for this simulation)");
+            ui::TextDisabled("(no simulator output plots available for this simulation)");
             return;
         }
 
-        ImGui::Dummy({0.0f, 1.0f});
-        ImGui::Columns(2);
-        ImGui::TextUnformatted("plots:");
-        ImGui::SameLine();
-        DrawHelpMarker("Various statistics collected when the simulation was ran");
-        ImGui::NextColumn();
-        if (std::any_of(outputs.begin(), outputs.end(), [](OutputExtractor const& o) { return o.getOutputType() == OutputType::Float; }))
+        ui::Dummy({0.0f, 1.0f});
+        ui::Columns(2);
+        ui::TextUnformatted("plots:");
+        ui::SameLine();
+        ui::DrawHelpMarker("Various statistics collected when the simulation was ran");
+        ui::NextColumn();
+        if (any_of(outputs, [](OutputExtractor const& o) { return o.getOutputType() == OutputType::Float; }))
         {
-            ImGui::Button(ICON_FA_SAVE " Save All " ICON_FA_CARET_DOWN);
-            if (ImGui::BeginPopupContextItem("##exportoptions", ImGuiPopupFlags_MouseButtonLeft))
+            ui::Button(ICON_FA_SAVE " Save All " ICON_FA_CARET_DOWN);
+            if (ui::BeginPopupContextItem("##exportoptions", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("as CSV"))
+                if (ui::MenuItem("as CSV"))
                 {
                     TryPromptAndSaveOutputsAsCSV(*m_SimulatorUIAPI, outputs);
                 }
 
-                if (ImGui::MenuItem("as CSV (and open)"))
+                if (ui::MenuItem("as CSV (and open)"))
                 {
                     std::filesystem::path p = TryPromptAndSaveOutputsAsCSV(*m_SimulatorUIAPI, outputs);
                     if (!p.empty())
@@ -98,28 +99,28 @@ private:
                     }
                 }
 
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
 
-        ImGui::NextColumn();
-        ImGui::Columns();
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 2.0f});
+        ui::NextColumn();
+        ui::Columns();
+        ui::Separator();
+        ui::Dummy({0.0f, 2.0f});
 
         int imguiID = 0;
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (OutputExtractor const& output : sim.getOutputs())
         {
-            ImGui::PushID(imguiID++);
+            ui::PushID(imguiID++);
             DrawOutputNameColumn(output, false);
-            ImGui::NextColumn();
+            ui::NextColumn();
             SimulationOutputPlot plot{m_SimulatorUIAPI, output, 32.0f};
             plot.onDraw();
-            ImGui::NextColumn();
-            ImGui::PopID();
+            ui::NextColumn();
+            ui::PopID();
         }
-        ImGui::Columns();
+        ui::Columns();
     }
 
     ISimulatorUIAPI* m_SimulatorUIAPI;

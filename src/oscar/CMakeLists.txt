@@ -2,10 +2,12 @@
 cmake_policy(SET CMP0072 NEW)
 
 # find dependencies (usually built+installed from `third_party/`)
-find_package(OpenGL REQUIRED)
-find_package(glew REQUIRED CONFIG)
-find_package(SDL2 REQUIRED CONFIG)
-find_package(nativefiledialog REQUIRED CONFIG)
+if (NOT ${OSC_EMSCRIPTEN})
+    find_package(OpenGL REQUIRED)
+    find_package(glew REQUIRED CONFIG)
+    find_package(SDL2 REQUIRED CONFIG)
+    find_package(nativefiledialog REQUIRED CONFIG)
+endif()
 find_package(imgui REQUIRED CONFIG)
 find_package(IconFontCppHeaders REQUIRED CONFIG)
 find_package(ImGuizmo REQUIRED CONFIG)
@@ -53,6 +55,46 @@ add_library(oscar STATIC
     Graphics/Detail/VertexAttributeList.h
     Graphics/Detail/VertexAttributeTraits.h
 
+    Graphics/Geometries/AABBGeometry.cpp
+    Graphics/Geometries/AABBGeometry.h
+    Graphics/Geometries/BoxGeometry.cpp
+    Graphics/Geometries/BoxGeometry.h
+    Graphics/Geometries/CircleGeometry.cpp
+    Graphics/Geometries/CircleGeometry.h
+    Graphics/Geometries/CylinderGeometry.cpp
+    Graphics/Geometries/CylinderGeometry.h
+    Graphics/Geometries/ConeGeometry.cpp
+    Graphics/Geometries/ConeGeometry.h
+    Graphics/Geometries/DodecahedronGeometry.cpp
+    Graphics/Geometries/DodecahedronGeometry.h
+    Graphics/Geometries/GridGeometry.cpp
+    Graphics/Geometries/GridGeometry.h
+    Graphics/Geometries/IcosahedronGeometry.cpp
+    Graphics/Geometries/IcosahedronGeometry.h
+    Graphics/Geometries/LatheGeometry.cpp
+    Graphics/Geometries/LatheGeometry.h
+    Graphics/Geometries/OctahedronGeometry.cpp
+    Graphics/Geometries/OctahedronGeometry.h
+    Graphics/Geometries/PlaneGeometry.cpp
+    Graphics/Geometries/PlaneGeometry.h
+    Graphics/Geometries/PolyhedronGeometry.cpp
+    Graphics/Geometries/PolyhedronGeometry.h
+    Graphics/Geometries/RingGeometry.cpp
+    Graphics/Geometries/RingGeometry.h
+    Graphics/Geometries/SphereGeometry.cpp
+    Graphics/Geometries/SphereGeometry.h
+    Graphics/Geometries/TetrahedronGeometry.cpp
+    Graphics/Geometries/TetrahedronGeometry.h
+    Graphics/Geometries/TorusGeometry.cpp
+    Graphics/Geometries/TorusGeometry.h
+    Graphics/Geometries/TorusKnotGeometry.cpp
+    Graphics/Geometries/TorusKnotGeometry.h
+    Graphics/Geometries/WireframeGeometry.cpp
+    Graphics/Geometries/WireframeGeometry.h
+
+    Graphics/Materials/MeshBasicMaterial.cpp
+    Graphics/Materials/MeshBasicMaterial.h
+
     Graphics/OpenGL/CPUDataTypeOpenGLTraits.h
     Graphics/OpenGL/CPUImageFormatOpenGLTraits.h
     Graphics/OpenGL/Gl.cpp
@@ -72,8 +114,9 @@ add_library(oscar STATIC
     Graphics/Scene/SceneRenderer.h
     Graphics/Scene/SceneRendererParams.cpp
     Graphics/Scene/SceneRendererParams.h
-    Graphics/Scene/ShaderCache.cpp
-    Graphics/Scene/ShaderCache.h
+
+    Graphics/Textures/ChequeredTexture.cpp
+    Graphics/Textures/ChequeredTexture.h
 
     Graphics/AntiAliasingLevel.cpp
     Graphics/AntiAliasingLevel.h
@@ -90,17 +133,17 @@ add_library(oscar STATIC
     Graphics/Cubemap.h
     Graphics/CubemapFace.h
     Graphics/DepthStencilFormat.h
+    Graphics/Geometries.h
     Graphics/Graphics.h
     Graphics/GraphicsContext.h
-    Graphics/GraphicsHelpers.cpp
-    Graphics/GraphicsHelpers.h
     Graphics/GraphicsImplementation.cpp
     Graphics/Material.h
     Graphics/MaterialPropertyBlock.h
-    Graphics/MeshGenerators.cpp
-    Graphics/MeshGenerators.h
+    Graphics/Materials.h
     Graphics/MeshIndicesView.h
     Graphics/Mesh.h
+    Graphics/MeshFunctions.cpp
+    Graphics/MeshFunctions.h
     Graphics/MeshTopology.h
     Graphics/MeshUpdateFlags.h
     Graphics/RenderBuffer.h
@@ -126,8 +169,7 @@ add_library(oscar STATIC
     Graphics/TextureDimensionality.h
     Graphics/TextureFilterMode.h
     Graphics/TextureFormat.h
-    Graphics/TextureGenerators.cpp
-    Graphics/TextureGenerators.h
+    Graphics/Textures.h
     Graphics/TextureWrapMode.h
     Graphics/Texture2D.h
     Graphics/Unorm8.h
@@ -152,6 +194,7 @@ add_library(oscar STATIC
     Maths/Disc.h
     Maths/EasingFunctions.h
     Maths/Ellipsoid.h
+    Maths/EllipsoidFunctions.h
     Maths/EulerPerspectiveCamera.h
     Maths/Eulers.h
     Maths/FrameAxis.h
@@ -166,6 +209,7 @@ add_library(oscar STATIC
     Maths/Mat3.h
     Maths/Mat4.h
     Maths/Plane.h
+    Maths/PlaneFunctions.h
     Maths/PointDirection.h
     Maths/PolarPerspectiveCamera.h
     Maths/Qua.h
@@ -289,6 +333,9 @@ add_library(oscar STATIC
     UI/ImGuiHelpers.h
     UI/ImGuizmoHelpers.cpp
     UI/ImGuizmoHelpers.h
+    UI/imgui_impl_sdl2.cpp
+    UI/imgui_impl_sdl2.h
+    UI/MouseCapturingCamera.h
     UI/oscimgui.h
     UI/oscimgui_internal.h
     UI/oscimgui_config.h
@@ -301,7 +348,7 @@ add_library(oscar STATIC
     UI/ui_graphics_backend.h
     UI/Widgets.h
 
-    Utils/At.h
+    Utils/Algorithms.h
     Utils/Assertions.cpp
     Utils/Assertions.h
     Utils/CircularBuffer.h
@@ -373,10 +420,10 @@ target_link_libraries(oscar PUBLIC
 
     oscar_compiler_configuration
 
-    OpenGL::GL
-    GLEW::glew_s
-    SDL2::SDL2
-    nativefiledialog
+    $<$<NOT:$<BOOL:${OSC_EMSCRIPTEN}>>:OpenGL::GL>
+    $<$<NOT:$<BOOL:${OSC_EMSCRIPTEN}>>:GLEW::glew_s>
+    $<$<NOT:$<BOOL:${OSC_EMSCRIPTEN}>>:SDL2::SDL2>
+    $<$<NOT:$<BOOL:${OSC_EMSCRIPTEN}>>:nativefiledialog>
     imgui
     IconFontCppHeaders
     ImGuizmo

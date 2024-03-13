@@ -1,7 +1,5 @@
 #include "LOGLPBRSpecularIrradianceTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -77,7 +75,7 @@ namespace
         );
 
         Camera camera;
-        Graphics::DrawMesh(GenerateCubeMesh(), Identity<Transform>(), material, camera);
+        Graphics::DrawMesh(BoxGeometry{2.0f, 2.0f, 2.0f}, identity<Transform>(), material, camera);
         camera.renderTo(cubemapRenderTarget);
 
         // TODO: some way of copying it into an `Cubemap` would make sense
@@ -106,7 +104,7 @@ namespace
         );
 
         Camera camera;
-        Graphics::DrawMesh(GenerateCubeMesh(), Identity<Transform>(), material, camera);
+        Graphics::DrawMesh(BoxGeometry{2.0f, 2.0f, 2.0f}, identity<Transform>(), material, camera);
         camera.renderTo(irradianceCubemap);
 
         // TODO: some way of copying it into an `Cubemap` would make sense
@@ -140,7 +138,7 @@ namespace
         rv.setWrapMode(TextureWrapMode::Clamp);
         rv.setFilterMode(TextureFilterMode::Mipmap);
 
-        size_t const maxMipmapLevel = static_cast<size_t>(std::max(
+        size_t const maxMipmapLevel = static_cast<size_t>(max(
             0,
             cpp20::bit_width(static_cast<size_t>(levelZeroWidth)) - 1
         ));
@@ -155,7 +153,7 @@ namespace
             float const roughness = static_cast<float>(mip)/static_cast<float>(maxMipmapLevel);
             material.setFloat("uRoughness", roughness);
 
-            Graphics::DrawMesh(GenerateCubeMesh(), Identity<Transform>(), material, camera);
+            Graphics::DrawMesh(BoxGeometry{2.0f, 2.0f, 2.0f}, identity<Transform>(), material, camera);
             camera.renderTo(captureRT);
             Graphics::CopyTexture(captureRT, rv, mip);
         }
@@ -174,14 +172,12 @@ namespace
             rl.slurp("oscar_learnopengl/shaders/PBR/ibl_specular/BRDF.frag"),
         }};
 
-        Mesh quad = GenerateTexturedQuadMesh();
-
         // TODO: Graphics::Blit with material
         Camera camera;
-        camera.setProjectionMatrixOverride(Identity<Mat4>());
-        camera.setViewMatrixOverride(Identity<Mat4>());
+        camera.setProjectionMatrixOverride(identity<Mat4>());
+        camera.setViewMatrixOverride(identity<Mat4>());
 
-        Graphics::DrawMesh(quad, Identity<Transform>(), material, camera);
+        Graphics::DrawMesh(PlaneGeometry{2.0f, 2.0f, 1, 1}, identity<Transform>(), material, camera);
         camera.renderTo(renderTex);
 
         Texture2D rv{
@@ -232,8 +228,8 @@ private:
 
     void implOnDraw() final
     {
-        Rect const outputRect = GetMainViewportWorkspaceScreenRect();
-        m_OutputRender.setDimensions(Dimensions(outputRect));
+        Rect const outputRect = ui::GetMainViewportWorkspaceScreenRect();
+        m_OutputRender.setDimensions(dimensions(outputRect));
         m_OutputRender.setAntialiasingLevel(App::get().getCurrentAntiAliasingLevel());
 
         m_Camera.onDraw();
@@ -297,7 +293,7 @@ private:
     {
         m_BackgroundMaterial.setRenderTexture("uEnvironmentMap", m_ProjectedMap);
         m_BackgroundMaterial.setDepthFunction(DepthFunction::LessOrEqual);  // for skybox depth trick
-        Graphics::DrawMesh(m_CubeMesh, Identity<Transform>(), m_BackgroundMaterial, m_Camera);
+        Graphics::DrawMesh(m_CubeMesh, identity<Transform>(), m_BackgroundMaterial, m_Camera);
         m_Camera.setClearFlags(CameraClearFlags::Nothing);
         m_Camera.renderTo(m_OutputRender);
         m_Camera.setClearFlags(CameraClearFlags::Default);
@@ -305,13 +301,13 @@ private:
 
     void draw2DUI()
     {
-        if (ImGui::Begin("Controls")) {
+        if (ui::Begin("Controls")) {
             float ao = m_PBRMaterial.getFloat("uAO").value_or(1.0f);
-            if (ImGui::SliderFloat("ao", &ao, 0.0f, 1.0f)) {
+            if (ui::SliderFloat("ao", &ao, 0.0f, 1.0f)) {
                 m_PBRMaterial.setFloat("uAO", ao);
             }
         }
-        ImGui::End();
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -333,9 +329,9 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/PBR/ibl_specular/Skybox.frag"),
     }};
 
-    Mesh m_CubeMesh = GenerateCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
     Material m_PBRMaterial = CreateMaterial(m_Loader);
-    Mesh m_SphereMesh = GenerateUVSphereMesh(64, 64);
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 64, 64};
 
     MouseCapturingCamera m_Camera = CreateCamera();
 

@@ -14,6 +14,7 @@
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
 #include <oscar/UI/Panels/StandardPanelImpl.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/StringHelpers.h>
 
@@ -117,13 +118,13 @@ namespace
         }
 
         // reverse to yield parent --> child
-        std::reverse(out.begin(), out.end());
+        reverse(out);
     }
 
     bool pathContains(ComponentPath const& p, OpenSim::Component const* c)
     {
         auto end = p.begin() == p.end() ? p.end() : p.end()-1;
-        return std::find(p.begin(), end, c) != end;
+        return contains(p.begin(), end, c);
     }
 
     enum class ResponseType {
@@ -139,7 +140,7 @@ namespace
 
     bool isSearchHit(std::string const& searchStr, ComponentPath const& cp)
     {
-        return std::any_of(cp.begin(), cp.end(), [&searchStr](OpenSim::Component const* c)
+        return any_of(cp, [&searchStr](OpenSim::Component const* c)
         {
             return ContainsCaseInsensitive(c->getName(), searchStr);
         });
@@ -180,7 +181,7 @@ private:
     {
         if (!m_Model)
         {
-            ImGui::TextDisabled("(no model)");
+            ui::TextDisabled("(no model)");
             return;
         }
 
@@ -199,25 +200,25 @@ private:
     {
         Response rv;
 
-        ImGui::Dummy({0.0f, 3.0f});
+        ui::Dummy({0.0f, 3.0f});
 
         // draw filter stuff
 
-        ImGui::TextUnformatted(ICON_FA_EYE);
-        if (ImGui::BeginPopupContextItem("##filterpopup"))
+        ui::TextUnformatted(ICON_FA_EYE);
+        if (ui::BeginPopupContextItem("##filterpopup"))
         {
-            ImGui::Checkbox("frames", &m_ShowFrames);
-            ImGui::EndPopup();
+            ui::Checkbox("frames", &m_ShowFrames);
+            ui::EndPopup();
         }
-        ImGui::SameLine();
+        ui::SameLine();
         DrawSearchBar(m_CurrentSearch);
 
-        ImGui::Dummy({0.0f, 3.0f});
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 3.0f});
+        ui::Dummy({0.0f, 3.0f});
+        ui::Separator();
+        ui::Dummy({0.0f, 3.0f});
 
         // draw content
-        ImGui::BeginChild("##componentnavigatorvieweritems", {0.0, 0.0}, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
+        ui::BeginChild("##componentnavigatorvieweritems", {0.0, 0.0}, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
 
         OpenSim::Component const* root = &m_Model->getModel();
         OpenSim::Component const* selection = m_Model->getSelected();
@@ -253,7 +254,7 @@ private:
         int imguiId = 0;
         bool const hasSearch = !m_CurrentSearch.empty();
 
-        float const unindentPerLevel = ImGui::GetTreeNodeToLabelSpacing() - 15.0f;
+        float const unindentPerLevel = ui::GetTreeNodeToLabelSpacing() - 15.0f;
 
         while (lookahead)
         {
@@ -309,8 +310,8 @@ private:
             // pop tree nodes down to the current depth
             while (imguiTreeDepth >= currentPath.sizei())
             {
-                ImGui::Indent(unindentPerLevel);
-                ImGui::TreePop();
+                ui::Indent(unindentPerLevel);
+                ui::TreePop();
                 --imguiTreeDepth;
             }
             OSC_ASSERT(imguiTreeDepth <= currentPath.sizei() - 1);
@@ -323,12 +324,12 @@ private:
             int styles = 0;
             if (cur == selection)
             {
-                PushStyleColor(ImGuiCol_Text, Color::yellow());
+                ui::PushStyleColor(ImGuiCol_Text, Color::yellow());
                 ++styles;
             }
             else if (cur == hover)
             {
-                PushStyleColor(ImGuiCol_Text, Color::yellow());
+                ui::PushStyleColor(ImGuiCol_Text, Color::yellow());
                 ++styles;
             }
             else if (!hasSearch || searchHit)
@@ -337,40 +338,40 @@ private:
             }
             else
             {
-                PushStyleColor(ImGuiCol_Text, Color::halfGrey());
+                ui::PushStyleColor(ImGuiCol_Text, Color::half_grey());
                 ++styles;
             }
 
             // auto-open in these cases
             if (searchHit || currentPath.sizei() == 1 || pathContains(selectionPath, cur))
             {
-                ImGui::SetNextItemOpen(true);
+                ui::SetNextItemOpen(true);
             }
 
-            ImGui::PushID(imguiId);
-            if (ImGui::TreeNodeEx(cur->getName().c_str(), nodeFlags))
+            ui::PushID(imguiId);
+            if (ui::TreeNodeEx(cur->getName(), nodeFlags))
             {
-                ImGui::Unindent(unindentPerLevel);
+                ui::Unindent(unindentPerLevel);
                 ++imguiTreeDepth;
             }
-            ImGui::PopID();
-            ImGui::PopStyleColor(styles);
+            ui::PopID();
+            ui::PopStyleColor(styles);
 
-            if (ImGui::IsItemHovered())
+            if (ui::IsItemHovered())
             {
                 rv.type = ResponseType::HoverChanged;
                 rv.ptr = cur;
 
-                DrawTooltip(cur->getConcreteClassName());
+                ui::DrawTooltip(cur->getConcreteClassName());
             }
 
-            if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            if (ui::IsItemClicked(ImGuiMouseButton_Left))
             {
                 rv.type = ResponseType::SelectionChanged;
                 rv.ptr = cur;
             }
 
-            if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+            if (ui::IsItemClicked(ImGuiMouseButton_Right))
             {
                 m_OnRightClick(GetAbsolutePath(*cur));
             }
@@ -379,11 +380,11 @@ private:
         // pop remaining dangling tree elements
         while (imguiTreeDepth-- > 0)
         {
-            ImGui::Indent(unindentPerLevel);
-            ImGui::TreePop();
+            ui::Indent(unindentPerLevel);
+            ui::TreePop();
         }
 
-        ImGui::EndChild();
+        ui::EndChild();
 
         return rv;
     }

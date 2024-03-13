@@ -19,7 +19,6 @@
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneHelpers.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/BVH.h>
 #include <oscar/Maths/CollisionTests.h>
 #include <oscar/Maths/Line.h>
@@ -65,9 +64,9 @@ namespace osc
         void implDrawContent() final
         {
             // compute top-level UI variables (render rect, mouse pos, etc.)
-            Rect const contentRect = ContentRegionAvailScreenRect();
-            Vec2 const contentRectDims = Dimensions(contentRect);
-            Vec2 const mousePos = ImGui::GetMousePos();
+            Rect const contentRect = ui::ContentRegionAvailScreenRect();
+            Vec2 const contentRectDims = dimensions(contentRect);
+            Vec2 const mousePos = ui::GetMousePos();
 
             // un-project mouse's (2D) location into the 3D scene as a ray
             Line const cameraRay = m_Camera.unprojectTopLeftPosToWorldRay(mousePos - contentRect.p1, contentRectDims);
@@ -99,8 +98,8 @@ namespace osc
 
             // render 3D: draw the scene into the content rect and 2D-hittest it
             RenderTexture& renderTexture = renderScene(contentRectDims, meshCollision, landmarkCollision);
-            DrawTextureAsImGuiImage(renderTexture);
-            m_LastTextureHittestResult = HittestLastImguiItem();
+            ui::DrawTextureAsImGuiImage(renderTexture);
+            m_LastTextureHittestResult = ui::HittestLastImguiItem();
 
             // handle any events due to hovering over, clicking, etc.
             handleInputAndHoverEvents(m_LastTextureHittestResult, meshCollision, landmarkCollision);
@@ -129,7 +128,7 @@ namespace osc
             // if the user interacts with the render, update the camera as necessary
             if (m_LastTextureHittestResult.isHovered)
             {
-                if (UpdatePolarCameraFromImGuiMouseInputs(m_Camera, Dimensions(m_LastTextureHittestResult.rect)))
+                if (ui::UpdatePolarCameraFromImGuiMouseInputs(m_Camera, dimensions(m_LastTextureHittestResult.rect)))
                 {
                     m_State->linkedCameraBase = m_Camera;  // reflects latest modification
                 }
@@ -170,7 +169,7 @@ namespace osc
 
             // hittest the landmark as an analytic sphere
             Sphere const landmarkSphere = {.origin = *maybePos, .radius = m_LandmarkRadius};
-            if (auto const collision = GetRayCollisionSphere(cameraRay, landmarkSphere))
+            if (auto const collision = find_collision(cameraRay, landmarkSphere))
             {
                 if (!closest || length(closest->getWorldspaceLocation() - cameraRay.origin) > collision->distance)
                 {
@@ -204,7 +203,7 @@ namespace osc
                 .radius = GetNonParticipatingLandmarkScaleFactor()*m_LandmarkRadius
             };
 
-            if (auto const collision = GetRayCollisionSphere(cameraRay, decorationSphere))
+            if (auto const collision = find_collision(cameraRay, decorationSphere))
             {
                 if (!closest || length(closest->getWorldspaceLocation() - cameraRay.origin) > collision->distance)
                 {
@@ -366,13 +365,13 @@ namespace osc
             decorationConsumer({
                 .mesh = m_State->landmarkSphere,
                 .transform = {.scale = Vec3{radius}, .position = meshCollisionPosition},
-                .color = color.withAlpha(0.8f),  // faded
+                .color = color.with_alpha(0.8f),  // faded
             });
         }
 
         // handle any input-related side-effects
         void handleInputAndHoverEvents(
-            ImGuiItemHittestResult const& htResult,
+            ui::ImGuiItemHittestResult const& htResult,
             std::optional<RayCollision> const& meshCollision,
             std::optional<MeshWarpingTabHover> const& landmarkCollision)
         {
@@ -381,7 +380,7 @@ namespace osc
             {
                 if (landmarkCollision && landmarkCollision->isHoveringASceneElement())
                 {
-                    if (!IsShiftDown())
+                    if (!ui::IsShiftDown())
                     {
                         m_State->clearSelection();
                     }
@@ -416,7 +415,7 @@ namespace osc
 
             // event: if the user is hovering the render while something is selected and the user
             // presses delete then the landmarks should be deleted
-            if (htResult.isHovered && IsAnyKeyPressed({ImGuiKey_Delete, ImGuiKey_Backspace}))
+            if (htResult.isHovered && ui::IsAnyKeyPressed({ImGuiKey_Delete, ImGuiKey_Backspace}))
             {
                 ActionDeleteSceneElementsByID(
                     m_State->updUndoable(),
@@ -431,122 +430,122 @@ namespace osc
         // draws 2D ImGui overlays over the scene render
         void draw2DOverlayUI(Rect const& renderRect)
         {
-            ImGui::SetCursorScreenPos(renderRect.p1 + m_State->overlayPadding);
+            ui::SetCursorScreenPos(renderRect.p1 + m_State->overlayPadding);
 
             drawInformationIcon();
-            ImGui::SameLine();
+            ui::SameLine();
             drawImportButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawExportButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawAutoFitCameraButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawLandmarkRadiusSlider();
         }
 
         // draws a information icon that shows basic mesh info when hovered
         void drawInformationIcon()
         {
-            ButtonNoBg(ICON_FA_INFO_CIRCLE);
-            if (ImGui::IsItemHovered())
+            ui::ButtonNoBg(ICON_FA_INFO_CIRCLE);
+            if (ui::IsItemHovered())
             {
-                BeginTooltip();
+                ui::BeginTooltip();
 
-                ImGui::TextDisabled("Input Information:");
+                ui::TextDisabled("Input Information:");
                 drawInputInformationTable();
 
-                EndTooltip();
+                ui::EndTooltip();
             }
         }
 
         // draws a table containing useful input information (handy for debugging)
         void drawInputInformationTable()
         {
-            if (ImGui::BeginTable("##inputinfo", 2))
+            if (ui::BeginTable("##inputinfo", 2))
             {
-                ImGui::TableSetupColumn("Name");
-                ImGui::TableSetupColumn("Value");
+                ui::TableSetupColumn("Name");
+                ui::TableSetupColumn("Value");
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("# landmarks");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%zu", CountNumLandmarksForInput(m_State->getScratch(), m_DocumentIdentifier));
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("# landmarks");
+                ui::TableSetColumnIndex(1);
+                ui::Text("%zu", CountNumLandmarksForInput(m_State->getScratch(), m_DocumentIdentifier));
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("# verts");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%zu", m_State->getScratchMesh(m_DocumentIdentifier).getNumVerts());
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("# verts");
+                ui::TableSetColumnIndex(1);
+                ui::Text("%zu", m_State->getScratchMesh(m_DocumentIdentifier).getNumVerts());
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("# triangles");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%zu", m_State->getScratchMesh(m_DocumentIdentifier).getNumIndices()/3);
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("# triangles");
+                ui::TableSetColumnIndex(1);
+                ui::Text("%zu", m_State->getScratchMesh(m_DocumentIdentifier).getNumIndices()/3);
 
-                ImGui::EndTable();
+                ui::EndTable();
             }
         }
 
         // draws an import button that enables the user to import things for this input
         void drawImportButton()
         {
-            ImGui::Button(ICON_FA_FILE_IMPORT " import" ICON_FA_CARET_DOWN);
-            if (ImGui::BeginPopupContextItem("##importcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
+            ui::Button(ICON_FA_FILE_IMPORT " import" ICON_FA_CARET_DOWN);
+            if (ui::BeginPopupContextItem("##importcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("Mesh"))
+                if (ui::MenuItem("Mesh"))
                 {
                     ActionLoadMeshFile(m_State->updUndoable(), m_DocumentIdentifier);
                 }
-                if (ImGui::MenuItem("Landmarks from CSV"))
+                if (ui::MenuItem("Landmarks from CSV"))
                 {
                     ActionLoadLandmarksFromCSV(m_State->updUndoable(), m_DocumentIdentifier);
                 }
                 if (m_DocumentIdentifier == TPSDocumentInputIdentifier::Source &&
-                    ImGui::MenuItem("Non-Participating Landmarks from CSV"))
+                    ui::MenuItem("Non-Participating Landmarks from CSV"))
                 {
                     ActionLoadNonParticipatingLandmarksFromCSV(m_State->updUndoable());
                 }
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
 
         // draws an export button that enables the user to export things from this input
         void drawExportButton()
         {
-            ImGui::Button(ICON_FA_FILE_EXPORT " export" ICON_FA_CARET_DOWN);
-            if (ImGui::BeginPopupContextItem("##exportcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
+            ui::Button(ICON_FA_FILE_EXPORT " export" ICON_FA_CARET_DOWN);
+            if (ui::BeginPopupContextItem("##exportcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("Mesh to OBJ"))
+                if (ui::MenuItem("Mesh to OBJ"))
                 {
                     ActionTrySaveMeshToObjFile(m_State->getScratchMesh(m_DocumentIdentifier));
                 }
-                if (ImGui::MenuItem("Mesh to STL"))
+                if (ui::MenuItem("Mesh to STL"))
                 {
                     ActionTrySaveMeshToStlFile(m_State->getScratchMesh(m_DocumentIdentifier));
                 }
-                if (ImGui::MenuItem("Landmarks to CSV"))
+                if (ui::MenuItem("Landmarks to CSV"))
                 {
                     ActionSaveLandmarksToCSV(m_State->getScratch(), m_DocumentIdentifier);
                 }
-                if (ImGui::MenuItem("Landmark Positions to CSV"))
+                if (ui::MenuItem("Landmark Positions to CSV"))
                 {
                     ActionSaveLandmarksToCSV(m_State->getScratch(), m_DocumentIdentifier, LandmarkCSVFlags::NoHeader | LandmarkCSVFlags::NoNames);
                 }
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
 
         // draws a button that auto-fits the camera to the 3D scene
         void drawAutoFitCameraButton()
         {
-            if (ImGui::Button(ICON_FA_EXPAND_ARROWS_ALT))
+            if (ui::Button(ICON_FA_EXPAND_ARROWS_ALT))
             {
                 AutoFocus(m_Camera, m_State->getScratchMesh(m_DocumentIdentifier).getBounds(), AspectRatio(m_LastTextureHittestResult.rect));
                 m_State->linkedCameraBase = m_Camera;
             }
-            DrawTooltipIfItemHovered("Autoscale Scene", "Zooms camera to try and fit everything in the scene into the viewer");
+            ui::DrawTooltipIfItemHovered("Autoscale Scene", "Zooms camera to try and fit everything in the scene into the viewer");
         }
 
         // draws a slider that lets the user edit how large the landmarks are
@@ -557,27 +556,25 @@ namespace osc
             ImGuiSliderFlags const flags = ImGuiSliderFlags_Logarithmic;
 
             CStringView const label = "landmark radius";
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(label.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x - m_State->overlayPadding.x);
-            ImGui::SliderFloat(label.c_str(), &m_LandmarkRadius, 0.0001f, 100.0f, "%.4f", flags);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x - ui::CalcTextSize(label).x - ui::GetStyle().ItemInnerSpacing.x - m_State->overlayPadding.x);
+            ui::SliderFloat(label, &m_LandmarkRadius, 0.0001f, 100.0f, "%.4f", flags);
         }
 
         bool isUserPlacingNonParticipatingLandmark() const
         {
             static_assert(NumOptions<TPSDocumentInputIdentifier>() == 2);
             bool const isSourceMesh = m_DocumentIdentifier == TPSDocumentInputIdentifier::Source;
-            bool const isCtrlPressed = IsAnyKeyDown({ImGuiKey_LeftCtrl, ImGuiKey_RightCtrl});
+            bool const isCtrlPressed = ui::IsAnyKeyDown({ImGuiKey_LeftCtrl, ImGuiKey_RightCtrl});
             return isSourceMesh && isCtrlPressed;
         }
 
         std::shared_ptr<MeshWarpingTabSharedState> m_State;
         TPSDocumentInputIdentifier m_DocumentIdentifier;
         PolarPerspectiveCamera m_Camera = CreateCameraFocusedOn(m_State->getScratchMesh(m_DocumentIdentifier).getBounds());
-        CachedSceneRenderer m_CachedRenderer
-        {
-            *App::singleton<SceneCache>(),
-            *App::singleton<ShaderCache>(App::resource_loader()),
+        CachedSceneRenderer m_CachedRenderer{
+            *App::singleton<SceneCache>(App::resource_loader()),
         };
-        ImGuiItemHittestResult m_LastTextureHittestResult;
+        ui::ImGuiItemHittestResult m_LastTextureHittestResult;
         bool m_WireframeMode = true;
         float m_LandmarkRadius = 0.05f;
     };

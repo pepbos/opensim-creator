@@ -4,13 +4,13 @@
 
 void osc::mow::FileMenu::onDraw()
 {
-    if (ImGui::BeginMenu("File")) {
+    if (ui::BeginMenu("File")) {
         drawContent();
-        ImGui::EndMenu();
+        ui::EndMenu();
     }
 }
 
 void osc::mow::FileMenu::drawContent()
 {
-    ImGui::Text("TODO");
+    ui::Text("TODO");
 }

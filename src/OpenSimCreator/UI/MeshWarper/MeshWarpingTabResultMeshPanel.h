@@ -12,7 +12,6 @@
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/MathHelpers.h>
 #include <oscar/Maths/PolarPerspectiveCamera.h>
 #include <oscar/Maths/Vec2.h>
@@ -47,14 +46,14 @@ namespace osc
         void implDrawContent() final
         {
             // fill the entire available region with the render
-            Vec2 const dims = ImGui::GetContentRegionAvail();
+            Vec2 const dims = ui::GetContentRegionAvail();
 
             updateCamera();
 
             // render it via ImGui and hittest it
             RenderTexture& renderTexture = renderScene(dims);
-            DrawTextureAsImGuiImage(renderTexture);
-            m_LastTextureHittestResult = HittestLastImguiItem();
+            ui::DrawTextureAsImGuiImage(renderTexture);
+            m_LastTextureHittestResult = ui::HittestLastImguiItem();
 
             drawOverlays(m_LastTextureHittestResult.rect);
         }
@@ -78,7 +77,7 @@ namespace osc
             // update camera if user drags it around etc.
             if (m_LastTextureHittestResult.isHovered)
             {
-                if (UpdatePolarCameraFromImGuiMouseInputs(m_Camera, Dimensions(m_LastTextureHittestResult.rect)))
+                if (ui::UpdatePolarCameraFromImGuiMouseInputs(m_Camera, dimensions(m_LastTextureHittestResult.rect)))
                 {
                     m_State->linkedCameraBase = m_Camera;  // reflects latest modification
                 }
@@ -89,16 +88,16 @@ namespace osc
         void drawOverlays(Rect const& renderRect)
         {
             // ImGui: set cursor to draw over the top-right of the render texture (with padding)
-            ImGui::SetCursorScreenPos(renderRect.p1 + m_OverlayPadding);
+            ui::SetCursorScreenPos(renderRect.p1 + m_OverlayPadding);
 
             drawInformationIcon();
-            ImGui::SameLine();
+            ui::SameLine();
             drawExportButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawAutoFitCameraButton();
-            ImGui::SameLine();
-            ImGui::Checkbox("show destination", &m_ShowDestinationMesh);
-            ImGui::SameLine();
+            ui::SameLine();
+            ui::Checkbox("show destination", &m_ShowDestinationMesh);
+            ui::SameLine();
             drawLandmarkRadiusSlider();
             drawBlendingFactorSlider();
         }
@@ -106,81 +105,81 @@ namespace osc
         // draws a information icon that shows basic mesh info when hovered
         void drawInformationIcon()
         {
-            ButtonNoBg(ICON_FA_INFO_CIRCLE);
-            if (ImGui::IsItemHovered())
+            ui::ButtonNoBg(ICON_FA_INFO_CIRCLE);
+            if (ui::IsItemHovered())
             {
-                BeginTooltip();
+                ui::BeginTooltip();
 
-                ImGui::TextDisabled("Result Information:");
+                ui::TextDisabled("Result Information:");
                 drawInformationTable();
 
-                EndTooltip();
+                ui::EndTooltip();
             }
         }
 
         // draws a table containing useful input information (handy for debugging)
         void drawInformationTable()
         {
-            if (ImGui::BeginTable("##inputinfo", 2))
+            if (ui::BeginTable("##inputinfo", 2))
             {
-                ImGui::TableSetupColumn("Name");
-                ImGui::TableSetupColumn("Value");
+                ui::TableSetupColumn("Name");
+                ui::TableSetupColumn("Value");
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("# verts");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%zu", m_State->getResultMesh().getNumVerts());
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("# verts");
+                ui::TableSetColumnIndex(1);
+                ui::Text("%zu", m_State->getResultMesh().getNumVerts());
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("# triangles");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%zu", m_State->getResultMesh().getNumIndices()/3);
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("# triangles");
+                ui::TableSetColumnIndex(1);
+                ui::Text("%zu", m_State->getResultMesh().getNumIndices()/3);
 
-                ImGui::EndTable();
+                ui::EndTable();
             }
         }
 
         // draws an export button that enables the user to export things from this input
         void drawExportButton()
         {
-            m_CursorXAtExportButton = ImGui::GetCursorPos().x;  // needed to align the blending factor slider
-            ImGui::Button(ICON_FA_FILE_EXPORT " export" ICON_FA_CARET_DOWN);
-            if (ImGui::BeginPopupContextItem("##exportcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
+            m_CursorXAtExportButton = ui::GetCursorPos().x;  // needed to align the blending factor slider
+            ui::Button(ICON_FA_FILE_EXPORT " export" ICON_FA_CARET_DOWN);
+            if (ui::BeginPopupContextItem("##exportcontextmenu", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("Mesh to OBJ"))
+                if (ui::MenuItem("Mesh to OBJ"))
                 {
                     ActionTrySaveMeshToObjFile(m_State->getResultMesh());
                 }
-                if (ImGui::MenuItem("Mesh to STL"))
+                if (ui::MenuItem("Mesh to STL"))
                 {
                     ActionTrySaveMeshToStlFile(m_State->getResultMesh());
                 }
-                if (ImGui::MenuItem("Warped Non-Participating Landmarks to CSV"))
+                if (ui::MenuItem("Warped Non-Participating Landmarks to CSV"))
                 {
                     ActionSaveWarpedNonParticipatingLandmarksToCSV(m_State->getScratch(), m_State->meshResultCache);
                 }
-                if (ImGui::MenuItem("Warped Non-Participating Landmark Positions to CSV"))
+                if (ui::MenuItem("Warped Non-Participating Landmark Positions to CSV"))
                 {
                     ActionSaveWarpedNonParticipatingLandmarksToCSV(m_State->getScratch(), m_State->meshResultCache, LandmarkCSVFlags::NoHeader | LandmarkCSVFlags::NoNames);
                 }
-                if (ImGui::MenuItem("Landmark Pairs to CSV"))
+                if (ui::MenuItem("Landmark Pairs to CSV"))
                 {
                     ActionSavePairedLandmarksToCSV(m_State->getScratch());
                 }
-                if (ImGui::MenuItem("Landmark Pairs to CSV (no names)"))
+                if (ui::MenuItem("Landmark Pairs to CSV (no names)"))
                 {
                     ActionSavePairedLandmarksToCSV(m_State->getScratch(), LandmarkCSVFlags::NoNames);
                 }
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
         }
 
         // draws a button that auto-fits the camera to the 3D scene
         void drawAutoFitCameraButton()
         {
-            if (ImGui::Button(ICON_FA_EXPAND_ARROWS_ALT))
+            if (ui::Button(ICON_FA_EXPAND_ARROWS_ALT))
             {
                 AutoFocus(
                     m_Camera,
@@ -189,7 +188,7 @@ namespace osc
                 );
                 m_State->linkedCameraBase = m_Camera;
             }
-            DrawTooltipIfItemHovered(
+            ui::DrawTooltipIfItemHovered(
                 "Autoscale Scene",
                 "Zooms camera to try and fit everything in the scene into the viewer"
             );
@@ -203,23 +202,23 @@ namespace osc
             ImGuiSliderFlags const flags = ImGuiSliderFlags_Logarithmic;
 
             CStringView const label = "landmark radius";
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(label.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x - m_State->overlayPadding.x);
-            ImGui::SliderFloat(label.c_str(), &m_LandmarkRadius, 0.0001f, 100.0f, "%.4f", flags);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x - ui::CalcTextSize(label).x - ui::GetStyle().ItemInnerSpacing.x - m_State->overlayPadding.x);
+            ui::SliderFloat(label, &m_LandmarkRadius, 0.0001f, 100.0f, "%.4f", flags);
         }
 
         void drawBlendingFactorSlider()
         {
-            ImGui::SetCursorPosX(m_CursorXAtExportButton);  // align with "export" button in row above
+            ui::SetCursorPosX(m_CursorXAtExportButton);  // align with "export" button in row above
 
             CStringView const label = "blending factor  ";  // deliberate trailing spaces (for alignment with "landmark radius")
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(label.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x - m_OverlayPadding.x);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x - ui::CalcTextSize(label).x - ui::GetStyle().ItemInnerSpacing.x - m_OverlayPadding.x);
 
             float factor = m_State->getScratch().blendingFactor;
-            if (ImGui::SliderFloat(label.c_str(), &factor, 0.0f, 1.0f))
+            if (ui::SliderFloat(label, &factor, 0.0f, 1.0f))
             {
                 ActionSetBlendFactorWithoutCommitting(m_State->updUndoable(), factor);
             }
-            if (ImGui::IsItemDeactivatedAfterEdit())
+            if (ui::IsItemDeactivatedAfterEdit())
             {
                 ActionSetBlendFactor(m_State->updUndoable(), factor);
             }
@@ -243,7 +242,7 @@ namespace osc
             {
                 decorationConsumer({
                     .mesh = m_State->getScratch().destinationMesh,
-                    .color = Color::red().withAlpha(0.5f),
+                    .color = Color::red().with_alpha(0.5f),
                 });
             }
 
@@ -277,12 +276,10 @@ namespace osc
 
         std::shared_ptr<MeshWarpingTabSharedState> m_State;
         PolarPerspectiveCamera m_Camera = CreateCameraFocusedOn(m_State->getResultMesh().getBounds());
-        CachedSceneRenderer m_CachedRenderer
-        {
-            *App::singleton<SceneCache>(),
-            *App::singleton<ShaderCache>(App::resource_loader()),
+        CachedSceneRenderer m_CachedRenderer{
+            *App::singleton<SceneCache>(App::resource_loader()),
         };
-        ImGuiItemHittestResult m_LastTextureHittestResult;
+        ui::ImGuiItemHittestResult m_LastTextureHittestResult;
         bool m_WireframeMode = true;
         bool m_ShowDestinationMesh = false;
         Vec2 m_OverlayPadding = {10.0f, 10.0f};

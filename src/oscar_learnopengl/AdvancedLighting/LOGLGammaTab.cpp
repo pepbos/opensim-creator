@@ -1,7 +1,5 @@
 #include "LOGLGammaTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -125,19 +123,19 @@ private:
     void draw3DScene()
     {
         // clear screen and ensure camera has correct pixel rect
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         // render scene
         m_Material.setVec3("uViewPos", m_Camera.getPosition());
-        Graphics::DrawMesh(m_PlaneMesh, Identity<Transform>(), m_Material, m_Camera);
+        Graphics::DrawMesh(m_PlaneMesh, identity<Transform>(), m_Material, m_Camera);
         m_Camera.renderToScreen();
     }
 
     void draw2DUI()
     {
-        ImGui::Begin("controls");
-        ImGui::Text("no need to gamma correct - OSC is a gamma-corrected renderer");
-        ImGui::End();
+        ui::Begin("controls");
+        ui::Text("no need to gamma correct - OSC is a gamma-corrected renderer");
+        ui::End();
     }
 
     Material m_Material = CreateFloorMaterial(App::resource_loader());

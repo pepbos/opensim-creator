@@ -23,10 +23,10 @@ namespace osc
 
         void onDraw()
         {
-            if (ImGui::BeginMenu("Actions"))
+            if (ui::BeginMenu("Actions"))
             {
                 drawContent();
-                ImGui::EndMenu();
+                ui::EndMenu();
             }
         }
 
@@ -44,17 +44,17 @@ namespace osc
 
             if (!hasLandmarks)
             {
-                ImGui::BeginDisabled();
+                ui::BeginDisabled();
             }
 
-            if (ImGui::MenuItem(ICON_FA_ERASER " clear landmarks"))
+            if (ui::MenuItem(ICON_FA_ERASER " clear landmarks"))
             {
                 ActionClearAllLandmarks(m_State->updUndoable());
             }
 
             if (!hasLandmarks)
             {
-                ImGui::EndDisabled();
+                ui::EndDisabled();
             }
         }
 
@@ -65,17 +65,17 @@ namespace osc
 
             if (!hasNonParticipatingLandmarks)
             {
-                ImGui::BeginDisabled();
+                ui::BeginDisabled();
             }
 
-            if (ImGui::MenuItem(ICON_FA_ERASER " clear non-participating landmarks"))
+            if (ui::MenuItem(ICON_FA_ERASER " clear non-participating landmarks"))
             {
                 ActionClearAllNonParticipatingLandmarks(m_State->updUndoable());
             }
 
             if (!hasNonParticipatingLandmarks)
             {
-                ImGui::EndDisabled();
+                ui::EndDisabled();
             }
         }
 

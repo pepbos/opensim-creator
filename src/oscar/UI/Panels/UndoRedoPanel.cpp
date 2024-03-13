@@ -36,14 +36,14 @@ private:
 
 void osc::UndoRedoPanel::DrawContent(UndoRedoBase& storage)
 {
-    if (ImGui::Button("undo"))
+    if (ui::Button("undo"))
     {
         storage.undo();
     }
 
-    ImGui::SameLine();
+    ui::SameLine();
 
-    if (ImGui::Button("redo"))
+    if (ui::Button("redo"))
     {
         storage.redo();
     }
@@ -53,27 +53,27 @@ void osc::UndoRedoPanel::DrawContent(UndoRedoBase& storage)
     // draw undo entries oldest (highest index) to newest (lowest index)
     for (ptrdiff_t i = storage.getNumUndoEntriesi()-1; 0 <= i && i < storage.getNumUndoEntriesi(); --i)
     {
-        ImGui::PushID(imguiID++);
-        if (ImGui::Selectable(storage.getUndoEntry(i).message().c_str()))
+        ui::PushID(imguiID++);
+        if (ui::Selectable(storage.getUndoEntry(i).message()))
         {
             storage.undoTo(i);
         }
-        ImGui::PopID();
+        ui::PopID();
     }
 
-    ImGui::PushID(imguiID++);
-    ImGui::Text("  %s", storage.getHead().message().c_str());
-    ImGui::PopID();
+    ui::PushID(imguiID++);
+    ui::Text("  %s", storage.getHead().message().c_str());
+    ui::PopID();
 
     // draw redo entries oldest (lowest index) to newest (highest index)
     for (ptrdiff_t i = 0; i < storage.getNumRedoEntriesi(); ++i)
     {
-        ImGui::PushID(imguiID++);
-        if (ImGui::Selectable(storage.getRedoEntry(i).message().c_str()))
+        ui::PushID(imguiID++);
+        if (ui::Selectable(storage.getRedoEntry(i).message()))
         {
             storage.redoTo(i);
         }
-        ImGui::PopID();
+        ui::PopID();
     }
 }
 

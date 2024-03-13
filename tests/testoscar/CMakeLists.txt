@@ -24,9 +24,10 @@ add_executable(testoscar
     Graphics/TestCubemap.cpp
     Graphics/TestCubemapFace.cpp
     Graphics/TestCullMode.cpp
+    Graphics/TestGeometries.cpp
     Graphics/TestSubMeshDescriptor.cpp
     Graphics/TestMesh.cpp
-    Graphics/TestMeshGenerators.cpp
+    Graphics/TestMeshIndicesView.cpp
     Graphics/TestMeshUpdateFlags.cpp
     Graphics/TestRenderer.cpp
     Graphics/TestRenderTarget.cpp
@@ -44,7 +45,9 @@ add_executable(testoscar
 
     Maths/TestAngle.cpp
     Maths/TestBVH.cpp
+    Maths/TestCommonFunctions.cpp
     Maths/TestFrameAxis.cpp
+    Maths/TestPlaneFunctions.cpp
     Maths/TestTransform.cpp
     Maths/TestUnitVec.cpp
     Maths/TestVec2.cpp
@@ -72,6 +75,7 @@ add_executable(testoscar
     Shims/Cpp20/TestBit.cpp
     Shims/Cpp23/TestCstddef.cpp
 
+    Utils/TestAlgorithms.cpp
     Utils/TestCStringView.cpp
     Utils/TestEnumHelpers.cpp
     Utils/TestFileChangePoller.cpp
@@ -120,7 +124,9 @@ target_link_libraries(testoscar PUBLIC
 )
 
 # tell CMake (+IDEs) how to find all tests
-gtest_discover_tests(testoscar)
+if(${OSC_DISCOVER_TESTS})
+    gtest_discover_tests(testoscar)
+endif()
 
 # for development on Windows, copy all runtime dlls to the exe directory
 # (because Windows doesn't have an RPATH)

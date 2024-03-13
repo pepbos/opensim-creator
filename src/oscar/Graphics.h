@@ -14,13 +14,14 @@
 #include <oscar/Graphics/CullMode.h>
 #include <oscar/Graphics/DepthFunction.h>
 #include <oscar/Graphics/DepthStencilFormat.h>
+#include <oscar/Graphics/Geometries.h>
 #include <oscar/Graphics/Graphics.h>
 #include <oscar/Graphics/GraphicsContext.h>
-#include <oscar/Graphics/GraphicsHelpers.h>
 #include <oscar/Graphics/Material.h>
+#include <oscar/Graphics/Materials.h>
 #include <oscar/Graphics/MaterialPropertyBlock.h>
 #include <oscar/Graphics/Mesh.h>
-#include <oscar/Graphics/MeshGenerators.h>
+#include <oscar/Graphics/MeshFunctions.h>
 #include <oscar/Graphics/MeshIndicesView.h>
 #include <oscar/Graphics/MeshTopology.h>
 #include <oscar/Graphics/MeshUpdateFlags.h>
@@ -44,7 +45,7 @@
 #include <oscar/Graphics/TextureDimensionality.h>
 #include <oscar/Graphics/TextureFilterMode.h>
 #include <oscar/Graphics/TextureFormat.h>
-#include <oscar/Graphics/TextureGenerators.h>
+#include <oscar/Graphics/Textures.h>
 #include <oscar/Graphics/TextureWrapMode.h>
 #include <oscar/Graphics/Texture2D.h>
 #include <oscar/Graphics/Unorm8.h>

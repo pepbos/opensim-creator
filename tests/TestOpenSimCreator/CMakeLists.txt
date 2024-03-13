@@ -9,9 +9,10 @@ add_executable(TestOpenSimCreator
     Documents/Model/TestUndoableModelActions.cpp
     Documents/Model/TestUndoableModelStatePair.cpp
     Documents/ModelWarper/TestCachedModelWarper.cpp
-    Documents/ModelWarper/TestDocument.cpp
-    Documents/ModelWarper/TestFrameDefinitionLookup.cpp
-    Documents/ModelWarper/TestMeshWarpLookup.cpp
+    Documents/ModelWarper/TestFrameWarperFactories.cpp
+    Documents/ModelWarper/TestInMemoryMesh.cpp
+    Documents/ModelWarper/TestModelWarpDocument.cpp
+    Documents/ModelWarper/TestPointWarperFactories.cpp
     Documents/Simulation/TestForwardDynamicSimulation.cpp
     Graphics/TestOpenSimDecorationGenerator.cpp
     Graphics/TestSimTKDecorationGenerator.cpp
@@ -48,7 +49,9 @@ target_link_libraries(TestOpenSimCreator PUBLIC
 )
 
 # tell CMake (+IDEs) how to find all tests
-gtest_discover_tests(TestOpenSimCreator)
+if(${OSC_DISCOVER_TESTS})
+    gtest_discover_tests(TestOpenSimCreator)
+endif()
 
 # for development on Windows, copy all runtime dlls to the exe directory
 # (because Windows doesn't have an RPATH)

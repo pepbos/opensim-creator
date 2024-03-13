@@ -26,6 +26,7 @@
 #include <oscar/UI/ui_context.h>
 #include <oscar/UI/Widgets/SaveChangesPopup.h>
 #include <oscar/UI/Widgets/SaveChangesPopupConfig.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/CStringView.h>
 #include <oscar/Utils/ParentPtr.h>
@@ -342,7 +343,7 @@ public:
 
     bool implHasUserOutputExtractor(OutputExtractor const& oe) const final
     {
-        return std::find(m_UserOutputExtractors.begin(), m_UserOutputExtractors.end(), oe) != m_UserOutputExtractors.end();
+        return contains(m_UserOutputExtractors, oe);
     }
 
     bool implRemoveUserOutputExtractor(OutputExtractor const& oe) final
@@ -360,9 +361,9 @@ private:
     {
         OSC_PERF("MainUIScreen/drawTabSpecificMenu");
 
-        if (BeginMainViewportTopBar("##TabSpecificMenuBar"))
+        if (ui::BeginMainViewportTopBar("##TabSpecificMenuBar"))
         {
-            if (ImGui::BeginMenuBar())
+            if (ui::BeginMenuBar())
             {
                 if (ITab* active = getActiveTab())
                 {
@@ -387,9 +388,9 @@ private:
                         return;  // must return here to prevent the ImGui End calls from erroring
                     }
                 }
-                ImGui::EndMenuBar();
+                ui::EndMenuBar();
             }
-            ImGui::End();
+            ui::End();
             handleDeletedTabs();
         }
     }
@@ -398,15 +399,15 @@ private:
     {
         OSC_PERF("MainUIScreen/drawTabBar");
 
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{ ImGui::GetStyle().FramePadding.x + 2.0f, ImGui::GetStyle().FramePadding.y + 2.0f });
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{ 5.0f, 0.0f });
-        ImGui::PushStyleVar(ImGuiStyleVar_TabRounding, 10.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-        if (BeginMainViewportTopBar("##TabBarViewport"))
+        ui::PushStyleVar(ImGuiStyleVar_FramePadding, Vec2{ui::GetStyle().FramePadding} + 2.0f);
+        ui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, Vec2{5.0f, 0.0f});
+        ui::PushStyleVar(ImGuiStyleVar_TabRounding, 10.0f);
+        ui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+        if (ui::BeginMainViewportTopBar("##TabBarViewport"))
         {
-            if (ImGui::BeginMenuBar())
+            if (ui::BeginMenuBar())
             {
-                if (ImGui::BeginTabBar("##TabBar"))
+                if (ui::BeginTabBar("##TabBar"))
                 {
                     for (size_t i = 0; i < m_Tabs.size(); ++i)
                     {
@@ -433,10 +434,10 @@ private:
                             m_ActiveTabNameLastFrame = m_Tabs[i]->getName();
                         }
 
-                        ImGui::PushID(m_Tabs[i].get());
+                        ui::PushID(m_Tabs[i].get());
                         bool active = true;
 
-                        if (ImGui::BeginTabItem(m_Tabs[i]->getName().c_str(), &active, flags))
+                        if (ui::BeginTabItem(m_Tabs[i]->getName(), &active, flags))
                         {
                             if (m_Tabs[i]->getID() != m_ActiveTabID)
                             {
@@ -460,10 +461,10 @@ private:
                                 return;
                             }
 
-                            ImGui::EndTabItem();
+                            ui::EndTabItem();
                         }
 
-                        ImGui::PopID();
+                        ui::PopID();
                         if (!active && i != 0)  // can't close the splash tab
                         {
                             implCloseTab(m_Tabs[i]->getID());
@@ -471,23 +472,23 @@ private:
                     }
 
                     // adding buttons to tab bars: https://github.com/ocornut/imgui/issues/3291
-                    ImGui::TabItemButton(ICON_FA_PLUS);
+                    ui::TabItemButton(ICON_FA_PLUS);
 
-                    if (ImGui::BeginPopupContextItem("popup", ImGuiPopupFlags_MouseButtonLeft))
+                    if (ui::BeginPopupContextItem("popup", ImGuiPopupFlags_MouseButtonLeft))
                     {
                         drawAddNewTabMenu();
-                        ImGui::EndPopup();
+                        ui::EndPopup();
                     }
 
-                    ImGui::EndTabBar();
+                    ui::EndTabBar();
                 }
-                ImGui::EndMenuBar();
+                ui::EndMenuBar();
             }
 
-            ImGui::End();
+            ui::End();
             handleDeletedTabs();
         }
-        ImGui::PopStyleVar(4);
+        ui::PopStyleVar(4);
     }
 
     void drawUIContent()
@@ -545,12 +546,12 @@ private:
 
     void drawAddNewTabMenu()
     {
-        if (ImGui::MenuItem(ICON_FA_EDIT " Editor"))
+        if (ui::MenuItem(ICON_FA_EDIT " Editor"))
         {
             selectTab(addTab(std::make_unique<ModelEditorTab>(getTabHostAPI(), std::make_unique<UndoableModelStatePair>())));
         }
 
-        if (ImGui::MenuItem(ICON_FA_CUBE " Mesh Importer"))
+        if (ui::MenuItem(ICON_FA_CUBE " Mesh Importer"))
         {
             selectTab(addTab(std::make_unique<mi::MeshImporterTab>(getTabHostAPI())));
         }
@@ -558,24 +559,24 @@ private:
         std::shared_ptr<TabRegistry const> const tabs = App::singleton<TabRegistry>();
         if (tabs->size() > 0)
         {
-            if (ImGui::BeginMenu("Experimental Tabs"))
+            if (ui::BeginMenu("Experimental Tabs"))
             {
                 for (size_t i = 0; i < tabs->size(); ++i)
                 {
                     TabRegistryEntry e = (*tabs)[i];
-                    if (ImGui::MenuItem(e.getName().c_str()))
+                    if (ui::MenuItem(e.getName()))
                     {
                         selectTab(addTab(e.createTab(ParentPtr<ITabHost>{getTabHostAPI()})));
                     }
                 }
-                ImGui::EndMenu();
+                ui::EndMenu();
             }
         }
     }
 
     ITab* getTabByID(UID id)
     {
-        auto it = std::find_if(m_Tabs.begin(), m_Tabs.end(), [id](auto const& p)
+        auto it = find_if(m_Tabs, [id](auto const& p)
         {
             return p->getID() == id;
         });
@@ -659,7 +660,7 @@ private:
         int lowestDeletedTab = std::numeric_limits<int>::max();
         for (UID id : m_DeletedTabs)
         {
-            auto it = std::find_if(m_Tabs.begin(), m_Tabs.end(), [id](auto const& o) { return o->getID() == id; });
+            auto it = find_if(m_Tabs, [id](auto const& o) { return o->getID() == id; });
 
             if (it != m_Tabs.end())
             {
@@ -667,7 +668,7 @@ private:
                 {
                     (*it)->onUnmount();
                     m_ActiveTabID = UID::empty();
-                    lowestDeletedTab = std::min(lowestDeletedTab, static_cast<int>(std::distance(m_Tabs.begin(), it)));
+                    lowestDeletedTab = min(lowestDeletedTab, static_cast<int>(std::distance(m_Tabs.begin(), it)));
                 }
                 m_Tabs.erase(it);
             }

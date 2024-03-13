@@ -34,7 +34,7 @@ private:
 
         if (!maybeShownState)
         {
-            ImGui::TextDisabled("(no simulation selected)");
+            ui::TextDisabled("(no simulation selected)");
             return;
         }
 
@@ -44,34 +44,34 @@ private:
 
         if (!selected)
         {
-            ImGui::TextDisabled("(nothing selected)");
+            ui::TextDisabled("(nothing selected)");
             return;
         }
 
         m_ComponentDetailsWidget.onDraw(ms.getState(), selected);
 
-        if (ImGui::CollapsingHeader("outputs"))
+        if (ui::CollapsingHeader("outputs"))
         {
             int imguiID = 0;
-            ImGui::Columns(2);
+            ui::Columns(2);
             for (auto const& [outputName, aoPtr] : selected->getOutputs())
             {
-                ImGui::PushID(imguiID++);
+                ui::PushID(imguiID++);
 
-                ImGui::Text("%s", outputName.c_str());
-                ImGui::NextColumn();
+                ui::Text(outputName);
+                ui::NextColumn();
                 SimulationOutputPlot plot
                 {
                     m_SimulatorUIAPI,
                     OutputExtractor{ComponentOutputExtractor{*aoPtr}},
-                    ImGui::GetTextLineHeight(),
+                    ui::GetTextLineHeight(),
                 };
                 plot.onDraw();
-                ImGui::NextColumn();
+                ui::NextColumn();
 
-                ImGui::PopID();
+                ui::PopID();
             }
-            ImGui::Columns();
+            ui::Columns();
         }
     }
 

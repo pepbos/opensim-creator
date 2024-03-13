@@ -3,7 +3,6 @@
 #include <OpenSimCreator/UI/ModelWarper/UIState.h>
 #include <OpenSimCreator/UI/Shared/Readonly3DModelViewer.h>
 
-#include <imgui.h>
 #include <oscar/UI.h>
 
 #include <memory>
@@ -23,12 +22,12 @@ public:
 private:
     void implBeforeImGuiBegin() final
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
+        ui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
     }
 
     void implAfterImGuiBegin() final
     {
-        ImGui::PopStyleVar();
+        ui::PopStyleVar();
     }
 
     void implDrawContent() final
@@ -37,7 +36,7 @@ private:
     }
 
     std::shared_ptr<UIState> m_State;
-    Readonly3DModelViewer m_ModelViewer{this->getName()};
+    Readonly3DModelViewer m_ModelViewer{this->getName(), Readonly3DModelViewerFlags::NoSceneHittest};
 };
 
 osc::mow::SourceModelViewerPanel::SourceModelViewerPanel(

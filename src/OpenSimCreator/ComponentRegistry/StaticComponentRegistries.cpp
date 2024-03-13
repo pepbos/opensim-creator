@@ -5,6 +5,7 @@
 #include <OpenSimCreator/Documents/FrameDefinition/MidpointLandmark.h>
 #include <OpenSimCreator/Documents/FrameDefinition/PointToPointEdge.h>
 #include <OpenSimCreator/Documents/FrameDefinition/SphereLandmark.h>
+#include <OpenSimCreator/Documents/ModelWarper/InMemoryMesh.h>
 #include <OpenSimCreator/Utils/OpenSimHelpers.h>
 
 #include <OpenSim/Actuators/ActivationCoordinateActuator.h>
@@ -22,6 +23,7 @@
 #include <OpenSim/Simulation/Model/HuntCrossleyForce.h>
 #include <OpenSim/Simulation/Model/PathSpring.h>
 #include <OpenSim/Simulation/Model/Probe.h>
+#include <OpenSim/Simulation/Model/StationDefinedFrame.h>
 #include <OpenSim/Simulation/SimbodyEngine/BallJoint.h>
 #include <OpenSim/Simulation/SimbodyEngine/ConstantDistanceConstraint.h>
 #include <OpenSim/Simulation/SimbodyEngine/Constraint.h>
@@ -72,11 +74,34 @@ namespace
 // lookup initialization
 namespace
 {
-    // create a lookup for user-facing description strings
+    // creates a lookup for OSC-specific custom components
     //
-    // these are used for in-UI documentation. If a component doesn't have one of these
-    // then the UI should show something appropriate (e.g. "no description")
-    std::unordered_map<CStringView, CStringView> CreateDescriptionLut()
+    // these are components that are only available in OpenSim Creator: either because they're
+    // custom (as in, they are in OSC's source tree), or because OpenSim hasn't released a
+    // version that includes the component
+    std::vector<std::shared_ptr<OpenSim::Component const>> CreateCustomComponentList()
+    {
+        return {
+            std::make_shared<CrossProductEdge>(),
+            std::make_shared<MidpointLandmark>(),
+            std::make_shared<PointToPointEdge>(),
+            std::make_shared<SphereLandmark>(),
+            std::make_shared<OpenSim::StationDefinedFrame>(),
+            std::make_shared<mow::InMemoryMesh>(),
+        };
+    }
+
+    // returns a cached version of the custom component lookup
+    std::vector<std::shared_ptr<OpenSim::Component const>> const& GetCustomComponentList()
+    {
+        static std::vector<std::shared_ptr<OpenSim::Component const>> const s_CustomComponentLUT = CreateCustomComponentList();
+        return s_CustomComponentLUT;
+    }
+
+    // creates a lookup for user-facing description strings
+    //
+    // these are shwon to the user as in-UI documentation
+    std::unordered_map<CStringView, CStringView> CreateComponentDescriptionLookup()
     {
         return
         {
@@ -276,22 +301,28 @@ namespace
                 "ConstantDistanceConstraint",
                 "A constraint that maintains a constant distance between two points on separate physical frames (underlying constraint: SimTK::Constraint::Rod)",
             },
+            {
+                "StationDefinedFrame",
+                "Note: this should become available in OpenSim >=4.6.\n\nA PhysicalFrame that has its orientation and origin point computed from Stations.\n\nIntended to be used as an alternative to OffsetFrame that explicitly establishes coordinate systems (`Frame`s) from relationships between Stations in the model.",
+            },
         };
     }
 
-    // fetch cached version of the above lookup
-    std::unordered_map<CStringView, CStringView> const& GetDescriptionLut()
+    // returns a cached version of the description lookup
+    std::unordered_map<CStringView, CStringView> const& GetComponentDescriptionLookup()
     {
-        static std::unordered_map<CStringView, CStringView> const s_Lut = CreateDescriptionLut();
+        static std::unordered_map<CStringView, CStringView> const s_Lut = CreateComponentDescriptionLookup();
         return s_Lut;
     }
 
-    // creates a list of classes that shouldn't be presented to the user as addition options
+    // creates a list of classes that shouldn't be presented to the user. Usual reasons:
     //
-    // this is because they are known to be troublemakers that crash the UI
-    std::unordered_set<std::string> CreateBlacklist()
+    // - the component has a bug/design deficiency that makes the UI fail when automating adding it
+    // - the component is a custom component that shouldn't be presented alongside the list of official
+    //   OpenSim components
+    std::unordered_set<std::string> CreateComponentBlacklist()
     {
-        return
+        std::unordered_set<std::string> rv
         {
             // it implicitly depends on having an owning joint and will explode when it tries to
             // get its associated joint (it doesn't declare this dependency via sockets)
@@ -317,8 +348,8 @@ namespace
             // deduce (#526)
             "CMC",
 
-            // wrap geometry crash the UI if the user adds it because they implicitly depend on `setFrame`
-            // being called during `generateDecorations` they do not have an API-visible socket
+            // wrap geometry will crash the UI if the user adds it because they implicitly depend on `setFrame`
+            // being called during `generateDecorations`, but they do not have an API-visible socket
             "WrapCylinder",
             "WrapEllipsoid",
             "WrapCylinderObst",
@@ -344,12 +375,19 @@ namespace
             // probably shouldn't allow two grounds in a model (#521)
             "Ground",
         };
+
+        // also, ensure all custom components are blacklisted (they should only appear
+        // in the explicitly-labelled custom components section)
+        for (auto const& customComponent : GetCustomComponentList()) {
+            rv.emplace(customComponent->getConcreteClassName());
+        }
+        return rv;
     }
 
     // cached version of the above
-    std::unordered_set<std::string> const& GetBlacklist()
+    std::unordered_set<std::string> const& GetComponentBlacklist()
     {
-        static std::unordered_set<std::string> const s_Blacklist = CreateBlacklist();
+        static std::unordered_set<std::string> const s_Blacklist = CreateComponentBlacklist();
         return s_Blacklist;
     }
 
@@ -556,7 +594,7 @@ namespace
     }
 
     template<std::derived_from<OpenSim::Component> T>
-    std::vector<std::shared_ptr<T const>> CreatePrototypeLutT()
+    std::vector<std::shared_ptr<T const>> CreatePrototypeLutT(bool useBlacklist = true)
     {
         OpenSim::ArrayPtrs<T> ptrs;
         OpenSim::Object::getRegisteredObjectsOfGivenType<T>(ptrs);
@@ -565,20 +603,18 @@ namespace
         rv.reserve(ptrs.size());
 
         auto const& protoLut = GetPrototypeLut();
-        auto const& blacklistLut = GetBlacklist();
+        auto const& blacklistLut = GetComponentBlacklist();
 
         for (int i = 0; i < ptrs.size(); ++i)
         {
             T const& v = *ptrs[i];
             std::string const& name = v.getConcreteClassName();
-            if (blacklistLut.find(name) != blacklistLut.end())
+            if (useBlacklist && blacklistLut.contains(name))
             {
                 continue;  // it's a blacklisted component, hide it in the UI
             }
 
-            auto it = protoLut.find(name);
-
-            if (it != protoLut.end())
+            if (auto it = protoLut.find(name); it != protoLut.end())
             {
                 // it has already been manually created in the prototype LUT - use that
                 std::shared_ptr<T const> p = std::dynamic_pointer_cast<T const>(it->second);
@@ -610,7 +646,7 @@ namespace
     std::vector<std::shared_ptr<OpenSim::Component const>> CreateOtherComponentLut()
     {
         std::unordered_set<std::string> const& grouped = GetSetOfAllGroupedElements();
-        std::unordered_set<std::string> const& blacklisted = GetBlacklist();
+        std::unordered_set<std::string> const& blacklisted = GetComponentBlacklist();
 
         OpenSim::ArrayPtrs<OpenSim::ModelComponent> ptrs;
         OpenSim::Object::getRegisteredObjectsOfGivenType<OpenSim::ModelComponent>(ptrs);
@@ -646,16 +682,6 @@ namespace
         return rv;
     }
 
-    std::vector<std::shared_ptr<OpenSim::Component const>> CreateCustomComponentLut()
-    {
-        return {
-            std::make_shared<CrossProductEdge>(),
-            std::make_shared<MidpointLandmark>(),
-            std::make_shared<PointToPointEdge>(),
-            std::make_shared<SphereLandmark>(),
-        };
-    }
-
     template<std::derived_from<OpenSim::Component> T>
     ComponentRegistry<T> CreateRegistryFromLUT(
         std::string_view name,
@@ -665,7 +691,7 @@ namespace
         ComponentRegistry<T> rv{name, description};
 
         // populate entries
-        auto const& lut = GetDescriptionLut();
+        auto const& lut = GetComponentDescriptionLookup();
         for (std::shared_ptr<T const> const& el : protoLut)
         {
             std::string elName = el->getConcreteClassName();
@@ -684,9 +710,10 @@ namespace
     template<std::derived_from<OpenSim::Component> T>
     ComponentRegistry<T> CreateRegistry(
         std::string_view name,
-        std::string_view description)
+        std::string_view description,
+        bool useBlacklist = true)
     {
-        return CreateRegistryFromLUT<T>(name, description, CreatePrototypeLutT<T>());
+        return CreateRegistryFromLUT<T>(name, description, CreatePrototypeLutT<T>(useBlacklist));
     }
 
     ComponentRegistry<OpenSim::Component> CreateOtherComponentRegistry(
@@ -700,7 +727,7 @@ namespace
         std::string_view name,
         std::string_view description)
     {
-        return CreateRegistryFromLUT<OpenSim::Component>(name, description, CreateCustomComponentLut());
+        return CreateRegistryFromLUT<OpenSim::Component>(name, description, CreateCustomComponentList());
     }
 }
 
@@ -765,6 +792,17 @@ ComponentRegistry<OpenSim::Probe> const& osc::GetComponentRegistry()
 }
 
 template<>
+ComponentRegistry<OpenSim::WrapObject> const& osc::GetComponentRegistry()
+{
+    static auto const s_StaticReg = CreateRegistry<OpenSim::WrapObject>(
+        "WrapObject",
+        "An abstract class that specifies the interface for a wrapping object.",
+        false
+    );
+    return s_StaticReg;
+}
+
+template<>
 ComponentRegistry<OpenSim::Component> const& osc::GetComponentRegistry()
 {
     static auto const s_StaticReg = CreateOtherComponentRegistry(
@@ -777,8 +815,8 @@ ComponentRegistry<OpenSim::Component> const& osc::GetComponentRegistry()
 ComponentRegistry<OpenSim::Component> const& osc::GetCustomComponentRegistry()
 {
     static auto const s_StaticReg = CreateCustomComponentRegistry(
-        "OSC-Specific Experimental Components",
-        "You shouldn't use these if you want a standard osim file because they are custom components that only work in OpenSim Creator. However, they might be handy for very specific use-cases"
+        "Experimental Components",
+        "Components that are either specific to OSC, or not-yet-released in official OpenSim.\n\nBEWARE: using these will result in a non-standard osim file. You should only use them if you know what you're doing (or, at least, if you know how to convert them into a form that is compatible with OpenSim later)."
     );
     return s_StaticReg;
 }

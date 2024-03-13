@@ -1,8 +1,5 @@
 #include "LOGLCoordinateSystemsTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -110,7 +107,7 @@ private:
     void draw3DScene()
     {
         // clear screen and ensure camera has correct pixel rect
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         // draw 3D scene
         if (m_ShowStep1) {
@@ -137,24 +134,24 @@ private:
 
     void draw2DUI()
     {
-        ImGui::Begin("Tutorial Step");
-        ImGui::Checkbox("step1", &m_ShowStep1);
+        ui::Begin("Tutorial Step");
+        ui::Checkbox("step1", &m_ShowStep1);
         if (m_Camera.isCapturingMouse()) {
-            ImGui::Text("mouse captured (esc to uncapture)");
+            ui::Text("mouse captured (esc to uncapture)");
         }
 
         Vec3 const cameraPos = m_Camera.getPosition();
-        ImGui::Text("camera pos = (%f, %f, %f)", cameraPos.x, cameraPos.y, cameraPos.z);
-        Vec<3, Degrees> const cameraEulers = m_Camera.eulers();
-        ImGui::Text("camera eulers = (%f, %f, %f)", cameraEulers.x.count(), cameraEulers.y.count(), cameraEulers.z.count());
-        ImGui::End();
+        ui::Text("camera pos = (%f, %f, %f)", cameraPos.x, cameraPos.y, cameraPos.z);
+        Eulers const cameraEulers = m_Camera.eulers();
+        ui::Text("camera eulers = (%f, %f, %f)", cameraEulers.x.count(), cameraEulers.y.count(), cameraEulers.z.count());
+        ui::End();
 
         m_PerfPanel.onDraw();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
     Material m_Material = MakeBoxMaterial(m_Loader);
-    Mesh m_Mesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_Mesh = BoxGeometry{};
     MouseCapturingCamera m_Camera = CreateCameraThatMatchesLearnOpenGL();
     bool m_ShowStep1 = false;
     Transform m_Step1Transform;

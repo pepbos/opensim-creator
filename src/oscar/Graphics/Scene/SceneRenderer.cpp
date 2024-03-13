@@ -1,10 +1,11 @@
 #include "SceneRenderer.h"
 
+#include <oscar/Graphics/Materials/MeshBasicMaterial.h>
+#include <oscar/Graphics/Textures/ChequeredTexture.h>
 #include <oscar/Graphics/AntiAliasingLevel.h>
 #include <oscar/Graphics/Camera.h>
 #include <oscar/Graphics/Color.h>
 #include <oscar/Graphics/Graphics.h>
-#include <oscar/Graphics/GraphicsHelpers.h>
 #include <oscar/Graphics/Material.h>
 #include <oscar/Graphics/MaterialPropertyBlock.h>
 #include <oscar/Graphics/Mesh.h>
@@ -13,8 +14,6 @@
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneDecorationFlags.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
-#include <oscar/Graphics/TextureGenerators.h>
 #include <oscar/Maths/Angle.h>
 #include <oscar/Maths/Mat4.h>
 #include <oscar/Maths/MatFunctions.h>
@@ -49,7 +48,7 @@ namespace
 
     AABB WorldpaceAABB(SceneDecoration const& d)
     {
-        return TransformAABB(d.mesh.getBounds(), d.transform);
+        return transform_aabb(d.mesh.getBounds(), d.transform);
     }
 
     struct RimHighlights final {
@@ -121,7 +120,7 @@ namespace
         polarCamera.znear = 0.0f;
         polarCamera.zfar = 2.0f * casterSphere.radius;
 
-        Mat4 const viewMat = polarCamera.getViewMtx();
+        Mat4 const viewMat = polarCamera.view_matrix();
         Mat4 const projMat = ortho(
             -casterSphere.radius,
             casterSphere.radius,
@@ -138,26 +137,25 @@ namespace
 
 class osc::SceneRenderer::Impl final {
 public:
-    Impl(SceneCache& meshCache, ShaderCache& shaderCache) :
+    explicit Impl(SceneCache& cache) :
 
-        m_SceneColoredElementsMaterial{shaderCache.load("oscar/shaders/SceneRenderer/DrawColoredObjects.vert", "oscar/shaders/SceneRenderer/DrawColoredObjects.frag")},
-        m_SceneTexturedElementsMaterial{shaderCache.load("oscar/shaders/SceneRenderer/DrawTexturedObjects.vert", "oscar/shaders/SceneRenderer/DrawTexturedObjects.frag")},
-        m_SolidColorMaterial{shaderCache.load("oscar/shaders/SceneRenderer/SolidColor.vert", "oscar/shaders/SceneRenderer/SolidColor.frag")},
-        m_WireframeMaterial{m_SolidColorMaterial},
-        m_EdgeDetectorMaterial{shaderCache.load("oscar/shaders/SceneRenderer/EdgeDetector.vert", "oscar/shaders/SceneRenderer/EdgeDetector.frag")},
-        m_NormalsMaterial{shaderCache.load("oscar/shaders/SceneRenderer/NormalsVisualizer.vert", "oscar/shaders/SceneRenderer/NormalsVisualizer.geom", "oscar/shaders/SceneRenderer/NormalsVisualizer.frag")},
-        m_DepthWritingMaterial{shaderCache.load("oscar/shaders/SceneRenderer/DepthMap.vert", "oscar/shaders/SceneRenderer/DepthMap.frag")},
-        m_QuadMesh{meshCache.getTexturedQuadMesh()}
+        m_SceneColoredElementsMaterial{cache.getShaderResource("oscar/shaders/SceneRenderer/DrawColoredObjects.vert", "oscar/shaders/SceneRenderer/DrawColoredObjects.frag")},
+        m_SceneTexturedElementsMaterial{cache.getShaderResource("oscar/shaders/SceneRenderer/DrawTexturedObjects.vert", "oscar/shaders/SceneRenderer/DrawTexturedObjects.frag")},
+        m_SolidColorMaterial{cache.basicMaterial()},
+        m_WireframeMaterial{cache.wireframeMaterial()},
+        m_EdgeDetectorMaterial{cache.getShaderResource("oscar/shaders/SceneRenderer/EdgeDetector.vert", "oscar/shaders/SceneRenderer/EdgeDetector.frag")},
+        m_NormalsMaterial{cache.getShaderResource("oscar/shaders/SceneRenderer/NormalsVisualizer.vert", "oscar/shaders/SceneRenderer/NormalsVisualizer.geom", "oscar/shaders/SceneRenderer/NormalsVisualizer.frag")},
+        m_DepthWritingMaterial{cache.getShaderResource("oscar/shaders/SceneRenderer/DepthMap.vert", "oscar/shaders/SceneRenderer/DepthMap.frag")},
+        m_QuadMesh{cache.getTexturedQuadMesh()}
     {
         m_SceneTexturedElementsMaterial.setTexture("uDiffuseTexture", m_ChequerTexture);
         m_SceneTexturedElementsMaterial.setVec2("uTextureScale", {200.0f, 200.0f});
         m_SceneTexturedElementsMaterial.setTransparent(true);
 
-        m_WireframeMaterial.setColor("uDiffuseColor", Color::black());
-        m_WireframeMaterial.setWireframeMode(true);
+        m_WireframeMaterial.setColor(Color::black());
 
-        m_RimsSelectedColor.setColor("uDiffuseColor", Color::red());
-        m_RimsHoveredColor.setColor("uDiffuseColor", {0.5, 0.0f, 0.0f, 1.0f});
+        m_RimsSelectedColor.setColor(Color::red());
+        m_RimsHoveredColor.setColor({0.5, 0.0f, 0.0f, 1.0f});
 
         m_EdgeDetectorMaterial.setTransparent(true);
         m_EdgeDetectorMaterial.setDepthTested(false);
@@ -318,15 +316,14 @@ private:
         }
 
         // compute the worldspace bounds union of all rim-highlighted geometry
-        std::optional<AABB> maybeRimWorldspaceAABB;
-        for (SceneDecoration const& dec : decorations)
+        auto const rimAABB = [](SceneDecoration const& d) -> std::optional<AABB>
         {
-            if (dec.flags & (SceneDecorationFlags::IsSelected | SceneDecorationFlags::IsChildOfSelected | SceneDecorationFlags::IsHovered | SceneDecorationFlags::IsChildOfHovered))
-            {
-                AABB const decAABB = WorldpaceAABB(dec);
-                maybeRimWorldspaceAABB = maybeRimWorldspaceAABB ? Union(*maybeRimWorldspaceAABB, decAABB) : decAABB;
+            if (d.flags & (SceneDecorationFlags::IsSelected | SceneDecorationFlags::IsChildOfSelected | SceneDecorationFlags::IsHovered | SceneDecorationFlags::IsChildOfHovered)) {
+                return WorldpaceAABB(d);
             }
-        }
+            return std::nullopt;
+        };
+        std::optional<AABB> maybeRimWorldspaceAABB = maybe_aabb_of(decorations, rimAABB);
 
         if (!maybeRimWorldspaceAABB)
         {
@@ -335,7 +332,7 @@ private:
         }
 
         // figure out if the rims actually appear on the screen and (roughly) where
-        std::optional<Rect> maybeRimRectNDC = AABBToScreenNDCRect(
+        std::optional<Rect> maybeRimRectNDC = loosely_project_into_ndc(
             *maybeRimWorldspaceAABB,
             params.viewMatrix,
             params.projectionMatrix,
@@ -373,8 +370,8 @@ private:
 
         // compute where the quad needs to eventually be drawn in the scene
         Transform quadMeshToRimsQuad;
-        quadMeshToRimsQuad.position = {Midpoint(rimRectNDC), 0.0f};
-        quadMeshToRimsQuad.scale = {0.5f * Dimensions(rimRectNDC), 1.0f};
+        quadMeshToRimsQuad.position = {centroid(rimRectNDC), 0.0f};
+        quadMeshToRimsQuad.scale = {0.5f * dimensions(rimRectNDC), 1.0f};
 
         // rendering:
 
@@ -417,7 +414,7 @@ private:
         m_EdgeDetectorMaterial.setColor("uRimRgba", params.rimColor);
         m_EdgeDetectorMaterial.setVec2("uRimThickness", 0.5f*rimThicknessNDC);
         m_EdgeDetectorMaterial.setVec2("uTextureOffset", rimRectUV.p1);
-        m_EdgeDetectorMaterial.setVec2("uTextureScale", Dimensions(rimRectUV));
+        m_EdgeDetectorMaterial.setVec2("uTextureScale", dimensions(rimRectUV));
 
         // return necessary information for rendering the rims
         return RimHighlights
@@ -432,8 +429,7 @@ private:
         std::span<SceneDecoration const> decorations,
         SceneRendererParams const& params)
     {
-        if (!params.drawShadows)
-        {
+        if (!params.drawShadows) {
             return std::nullopt;  // the caller doesn't actually want shadows
         }
 
@@ -444,18 +440,14 @@ private:
         //
         // (also, while doing that, draw each mesh - to prevent multipass)
         std::optional<AABB> casterAABBs;
-        for (SceneDecoration const& dec : decorations)
-        {
-            if (dec.flags & SceneDecorationFlags::CastsShadows)
-            {
-                AABB const decorationAABB = WorldpaceAABB(dec);
-                casterAABBs = casterAABBs ? Union(*casterAABBs, decorationAABB) : decorationAABB;
+        for (SceneDecoration const& dec : decorations) {
+            if (dec.flags & SceneDecorationFlags::CastsShadows) {
+                casterAABBs = aabb_of(casterAABBs, WorldpaceAABB(dec));
                 Graphics::DrawMesh(dec.mesh, dec.transform, m_DepthWritingMaterial, m_Camera);
             }
         }
 
-        if (!casterAABBs)
-        {
+        if (!casterAABBs) {
             // there are no shadow casters, so there will be no shadows
             m_Camera.reset();
             return std::nullopt;
@@ -476,15 +468,15 @@ private:
 
     Material m_SceneColoredElementsMaterial;
     Material m_SceneTexturedElementsMaterial;
-    Material m_SolidColorMaterial;
-    Material m_WireframeMaterial;
+    MeshBasicMaterial m_SolidColorMaterial;
+    MeshBasicMaterial m_WireframeMaterial;
     Material m_EdgeDetectorMaterial;
     Material m_NormalsMaterial;
     Material m_DepthWritingMaterial;
-    MaterialPropertyBlock m_RimsSelectedColor;
-    MaterialPropertyBlock m_RimsHoveredColor;
+    MeshBasicMaterial::PropertyBlock m_RimsSelectedColor;
+    MeshBasicMaterial::PropertyBlock m_RimsHoveredColor;
     Mesh m_QuadMesh;
-    Texture2D m_ChequerTexture = GenerateChequeredFloorTexture();
+    Texture2D m_ChequerTexture = ChequeredTexture{};
     Camera m_Camera;
     RenderTexture m_RimsTexture;
     RenderTexture m_ShadowMapTexture;
@@ -494,8 +486,8 @@ private:
 
 // public API (PIMPL)
 
-osc::SceneRenderer::SceneRenderer(SceneCache& meshCache, ShaderCache& shaderCache) :
-    m_Impl{std::make_unique<Impl>(meshCache, shaderCache)}
+osc::SceneRenderer::SceneRenderer(SceneCache& meshCache) :
+    m_Impl{std::make_unique<Impl>(meshCache)}
 {
 }
 

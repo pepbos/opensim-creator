@@ -1,5 +1,7 @@
 #include "StringHelpers.h"
 
+#include <oscar/Utils/Algorithms.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -41,7 +43,7 @@ bool osc::Contains(std::string_view sv, std::string_view substr)
 
 bool osc::Contains(std::string_view sv, std::string_view::value_type c)
 {
-    return std::find(sv.begin(), sv.end(), c) != sv.end();
+    return contains(sv, c);
 }
 
 bool osc::ContainsCaseInsensitive(std::string_view sv, std::string_view substr)
@@ -68,7 +70,7 @@ bool osc::IsStringCaseInsensitiveGreaterThan(std::string_view a, std::string_vie
     //
     //     https://stackoverflow.com/questions/33379846/case-insensitive-sorting-of-an-array-of-strings
 
-    auto [itA, itB] = std::mismatch(a.begin(), a.end(), b.begin(), b.end(), [](auto c1, auto c2)
+    auto [itA, itB] = osc::mismatch(a, b, [](auto c1, auto c2)
     {
         return std::tolower(c1) == std::tolower(c2);
     });
@@ -95,7 +97,7 @@ bool osc::IsEqualCaseInsensitive(std::string_view a, std::string_view b)
         return std::tolower(static_cast<std::make_unsigned_t<decltype(c1)>>(c1)) == std::tolower(static_cast<std::make_unsigned_t<decltype(c2)>>(c2));
     };
 
-    return std::equal(a.begin(), a.end(), b.begin(), b.end(), compareChars);
+    return osc::equal(a, b, compareChars);
 }
 
 bool osc::IsValidIdentifier(std::string_view sv)
@@ -127,14 +129,14 @@ bool osc::IsValidIdentifier(std::string_view sv)
     }
     else
     {
-        return std::all_of(sv.begin() + 1, sv.end(), isValidTrailingCharacterOfIdentifier);
+        return all_of(sv.begin() + 1, sv.end(), isValidTrailingCharacterOfIdentifier);
     }
 }
 
 std::string_view osc::TrimLeadingAndTrailingWhitespace(std::string_view sv)
 {
-    std::string_view::const_iterator const front = std::find_if_not(sv.begin(), sv.end(), ::isspace);
-    std::string_view::const_iterator const back = std::find_if_not(sv.rbegin(), std::string_view::const_reverse_iterator{front}, ::isspace).base();
+    std::string_view::const_iterator const front = find_if_not(sv, ::isspace);
+    std::string_view::const_iterator const back = find_if_not(sv.rbegin(), std::string_view::const_reverse_iterator{front}, ::isspace).base();
     return {sv.data() + std::distance(sv.begin(), front), static_cast<size_t>(std::distance(front, back))};
 }
 
@@ -177,7 +179,7 @@ std::string osc::Ellipsis(std::string_view v, size_t maxLen)
         return std::string{v};
     }
 
-    std::string_view substr = v.substr(0, std::max(static_cast<ptrdiff_t>(0), static_cast<ptrdiff_t>(maxLen)-3));
+    std::string_view substr = v.substr(0, max(static_cast<ptrdiff_t>(0), static_cast<ptrdiff_t>(maxLen)-3));
     std::string rv;
     rv.reserve(substr.length() + 3);
     rv = substr;

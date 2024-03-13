@@ -65,40 +65,40 @@ private:
     {
         UpdateCachedSimulationReportIfNecessary(*m_Model, m_CachedReport);
 
-        if (m_API->getNumUserOutputExtractors() > 0 && ImGui::BeginTable("##OutputWatchesTable", 2, ImGuiTableFlags_SizingStretchProp))
+        if (m_API->getNumUserOutputExtractors() > 0 && ui::BeginTable("##OutputWatchesTable", 2, ImGuiTableFlags_SizingStretchProp))
         {
-            ImGui::TableSetupColumn("Output", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Value");
-            ImGui::TableHeadersRow();
+            ui::TableSetupColumn("Output", ImGuiTableColumnFlags_WidthStretch);
+            ui::TableSetupColumn("Value");
+            ui::TableHeadersRow();
 
             for (int outputIdx = 0; outputIdx < m_API->getNumUserOutputExtractors(); ++outputIdx)
             {
                 int column = 0;
                 OutputExtractor o = m_API->getUserOutputExtractor(outputIdx);
 
-                ImGui::PushID(outputIdx);
+                ui::PushID(outputIdx);
 
-                ImGui::TableNextRow();
+                ui::TableNextRow();
 
-                ImGui::TableSetColumnIndex(column++);
-                if (ImGui::SmallButton(ICON_FA_TRASH))
+                ui::TableSetColumnIndex(column++);
+                if (ui::SmallButton(ICON_FA_TRASH))
                 {
                     m_API->removeUserOutputExtractor(outputIdx);
                 }
-                ImGui::SameLine();
-                ImGui::TextUnformatted(o.getName().c_str());
+                ui::SameLine();
+                ui::TextUnformatted(o.getName());
 
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::TextUnformatted(o.getValueString(m_Model->getModel(), m_CachedReport.simulationReport).c_str());
+                ui::TableSetColumnIndex(column++);
+                ui::TextUnformatted(o.getValueString(m_Model->getModel(), m_CachedReport.simulationReport));
 
-                ImGui::PopID();
+                ui::PopID();
             }
 
-            ImGui::EndTable();
+            ui::EndTable();
         }
         else
         {
-            ImGui::TextWrapped("No outputs are being watched. You can watch outputs by right-clicking something in the model.");
+            ui::TextWrapped("No outputs are being watched. You can watch outputs by right-clicking something in the model.");
         }
     }
 

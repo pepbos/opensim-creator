@@ -15,6 +15,7 @@
 #include <OpenSim/Simulation/Model/Model.h>
 #include <oscar/Platform/os.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -72,35 +73,35 @@ public:
 
     void onDraw()
     {
-        ImGui::DockSpaceOverViewport(
-            ImGui::GetMainViewport(),
+        ui::DockSpaceOverViewport(
+            ui::GetMainViewport(),
             ImGuiDockNodeFlags_PassthruCentralNode
         );
 
-        ImGui::Begin("Inputs");
+        ui::Begin("Inputs");
 
-        ImGui::InputInt("parallelism", &m_Parallelism);
-        if (ImGui::Button("edit base params"))
+        ui::InputInt("parallelism", &m_Parallelism);
+        if (ui::Button("edit base params"))
         {
             m_ParamEditor.open();
         }
 
-        if (ImGui::Button("(re)start"))
+        if (ui::Button("(re)start"))
         {
             populateParamsFromParamBlock();
         }
 
-        ImGui::End();
+        ui::End();
 
-        ImGui::Begin("Outputs");
+        ui::Begin("Outputs");
 
-        if (!m_Sims.empty() && ImGui::BeginTable("simulations", 4))
+        if (!m_Sims.empty() && ui::BeginTable("simulations", 4))
         {
-            ImGui::TableSetupColumn("Integrator");
-            ImGui::TableSetupColumn("Progress");
-            ImGui::TableSetupColumn("Wall Time (sec)");
-            ImGui::TableSetupColumn("NumStepsTaken");
-            ImGui::TableHeadersRow();
+            ui::TableSetupColumn("Integrator");
+            ui::TableSetupColumn("Progress");
+            ui::TableSetupColumn("Wall Time (sec)");
+            ui::TableSetupColumn("NumStepsTaken");
+            ui::TableHeadersRow();
 
             for (ForwardDynamicSimulation const& sim : m_Sims)
             {
@@ -114,27 +115,27 @@ public:
                 float t = m_WalltimeExtractor.getValueFloat(*sim.getModel(), reports.back());
                 float steps = m_StepsTakenExtractor.getValueFloat(*sim.getModel(), reports.back());
 
-                ImGui::TableNextRow();
+                ui::TableNextRow();
                 int column = 0;
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::TextUnformatted(GetIntegratorMethodString(m).c_str());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::ProgressBar(sim.getProgress());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%f", t);
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%i", static_cast<int>(steps));
+                ui::TableSetColumnIndex(column++);
+                ui::TextUnformatted(GetIntegratorMethodString(m));
+                ui::TableSetColumnIndex(column++);
+                ui::ProgressBar(sim.getProgress());
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%f", t);
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%i", static_cast<int>(steps));
             }
 
-            ImGui::EndTable();
+            ui::EndTable();
 
-            if (ImGui::Button(ICON_FA_SAVE " Export to CSV"))
+            if (ui::Button(ICON_FA_SAVE " Export to CSV"))
             {
                 tryExportOutputs();
             }
         }
 
-        ImGui::End();
+        ui::End();
 
         if (m_ParamEditor.beginPopup())
         {
@@ -202,8 +203,8 @@ private:
     void startSimsIfNecessary()
     {
         int nAvail = static_cast<int>(m_Params.size()) - static_cast<int>(m_Sims.size());
-        int nActive = static_cast<int>(std::count_if(m_Sims.begin(), m_Sims.end(), [](auto const& sim) { return sim.getStatus() == SimulationStatus::Running || sim.getStatus() == SimulationStatus::Initializing; }));
-        int nToStart = std::min(nAvail, m_Parallelism - nActive);
+        int nActive = static_cast<int>(count_if(m_Sims, [](auto const& sim) { return sim.getStatus() == SimulationStatus::Running || sim.getStatus() == SimulationStatus::Initializing; }));
+        int nToStart = min(nAvail, m_Parallelism - nActive);
 
         if (nToStart <= 0)
         {

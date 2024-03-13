@@ -111,14 +111,14 @@ private:
         // let user select from a shorter sequence of analytical geometry that can be
         // generated without a mesh file
         {
-            ImGui::TextUnformatted("Generated geometry");
-            ImGui::SameLine();
-            DrawHelpMarker("This is geometry that OpenSim can generate without needing an external mesh file. Useful for basic geometry.");
-            ImGui::Separator();
-            ImGui::Dummy({0.0f, 2.0f});
+            ui::TextUnformatted("Generated geometry");
+            ui::SameLine();
+            ui::DrawHelpMarker("This is geometry that OpenSim can generate without needing an external mesh file. Useful for basic geometry.");
+            ui::Separator();
+            ui::Dummy({0.0f, 2.0f});
 
             int item = -1;
-            if (ImGui::Combo("##premade", &item, c_GeomNames.data(), static_cast<int>(c_GeomNames.size())))
+            if (ui::Combo("##premade", &item, c_GeomNames.data(), static_cast<int>(c_GeomNames.size())))
             {
                 auto const& ctor = c_GeomCtors.at(static_cast<size_t>(item));
                 m_Result = ctor();
@@ -128,26 +128,26 @@ private:
         // mesh file selection
         //
         // let the user select a mesh file that the implementation should load + use
-        ImGui::Dummy({0.0f, 3.0f});
-        ImGui::TextUnformatted("mesh file");
-        ImGui::SameLine();
-        DrawHelpMarker("This is geometry that OpenSim loads from external mesh files. Useful for custom geometry (usually, created in some other application, such as ParaView or Blender)");
-        ImGui::Separator();
-        ImGui::Dummy({0.0f, 2.0f});
+        ui::Dummy({0.0f, 3.0f});
+        ui::TextUnformatted("mesh file");
+        ui::SameLine();
+        ui::DrawHelpMarker("This is geometry that OpenSim loads from external mesh files. Useful for custom geometry (usually, created in some other application, such as ParaView or Blender)");
+        ui::Separator();
+        ui::Dummy({0.0f, 2.0f});
 
         // let the user search through mesh files in pre-established Geometry/ dirs
-        InputString("search", m_Search);
-        ImGui::Dummy({0.0f, 1.0f});
+        ui::InputString("search", m_Search);
+        ui::Dummy({0.0f, 1.0f});
 
-        ImGui::BeginChild(
+        ui::BeginChild(
             "mesh list",
-            ImVec2(ImGui::GetContentRegionAvail().x, 256),
+            Vec2{ui::GetContentRegionAvail().x, 256},
             ImGuiChildFlags_None,
             ImGuiWindowFlags_HorizontalScrollbar);
 
         if (!m_RecentUserChoices.empty())
         {
-            ImGui::TextDisabled("  (recent)");
+            ui::TextDisabled("  (recent)");
         }
 
         for (std::filesystem::path const& p : m_RecentUserChoices)
@@ -161,7 +161,7 @@ private:
 
         if (!m_RecentUserChoices.empty())
         {
-            ImGui::TextDisabled("  (from Geometry/ dir)");
+            ui::TextDisabled("  (from Geometry/ dir)");
         }
         for (std::filesystem::path const& p : m_GeometryFiles)
         {
@@ -172,20 +172,20 @@ private:
             }
         }
 
-        ImGui::EndChild();
+        ui::EndChild();
 
-        if (ImGui::Button("Open Mesh File"))
+        if (ui::Button("Open Mesh File"))
         {
             if (auto maybeMeshFile = PromptUserForGeometryFile())
             {
                 m_Result = onMeshFileChosen(std::move(maybeMeshFile).value());
             }
         }
-        DrawTooltipIfItemHovered("Open Mesh File", "Open a mesh file on the filesystem");
+        ui::DrawTooltipIfItemHovered("Open Mesh File", "Open a mesh file on the filesystem");
 
-        ImGui::Dummy({0.0f, 5.0f});
+        ui::Dummy({0.0f, 5.0f});
 
-        if (ImGui::Button("Cancel"))
+        if (ui::Button("Cancel"))
         {
             m_Search.clear();
             requestClose();
@@ -218,7 +218,7 @@ private:
     {
         if (p.filename().string().find(m_Search) != std::string::npos)
         {
-            if (ImGui::Selectable(p.filename().string().c_str()))
+            if (ui::Selectable(p.filename().string()))
             {
                 return onMeshFileChosen(p.filename());
             }

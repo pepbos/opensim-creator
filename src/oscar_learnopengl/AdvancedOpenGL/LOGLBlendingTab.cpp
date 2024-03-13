@@ -1,8 +1,5 @@
 #include "LOGLBlendingTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -119,7 +116,7 @@ private:
         m_Camera.onDraw();
 
         // clear screen and ensure camera has correct pixel rect
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         // cubes
         {
@@ -131,7 +128,7 @@ private:
         // floor
         {
             m_OpaqueMaterial.setTexture("uTexture", m_MetalTexture);
-            Graphics::DrawMesh(m_PlaneMesh, Identity<Transform>(), m_OpaqueMaterial, m_Camera);
+            Graphics::DrawMesh(m_PlaneMesh, identity<Transform>(), m_OpaqueMaterial, m_Camera);
         }
 
         // windows
@@ -155,7 +152,7 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedOpenGL/Blending.frag"),
     }};
     Material m_BlendingMaterial = m_OpaqueMaterial;
-    Mesh m_CubeMesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{};
     Mesh m_PlaneMesh = GeneratePlane();
     Mesh m_TransparentMesh = GenerateTransparent();
     MouseCapturingCamera m_Camera = CreateCameraThatMatchesLearnOpenGL();

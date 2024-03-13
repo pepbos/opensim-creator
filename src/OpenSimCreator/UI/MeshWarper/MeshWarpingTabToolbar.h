@@ -39,7 +39,7 @@ namespace osc
             {
                 drawContent();
             }
-            ImGui::End();
+            ui::End();
         }
 
     private:
@@ -47,39 +47,39 @@ namespace osc
         {
             // document-related stuff
             drawNewDocumentButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawOpenDocumentButton();
-            ImGui::SameLine();
+            ui::SameLine();
             drawSaveLandmarksButton();
-            ImGui::SameLine();
+            ui::SameLine();
 
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine();
+            ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ui::SameLine();
 
             // undo/redo-related stuff
             m_UndoButton.onDraw();
-            ImGui::SameLine();
+            ui::SameLine();
             m_RedoButton.onDraw();
-            ImGui::SameLine();
+            ui::SameLine();
 
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine();
+            ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ui::SameLine();
 
             // camera stuff
             drawCameraLockCheckbox();
-            ImGui::SameLine();
+            ui::SameLine();
 
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine();
+            ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ui::SameLine();
         }
 
         void drawNewDocumentButton()
         {
-            if (ImGui::Button(ICON_FA_FILE))
+            if (ui::Button(ICON_FA_FILE))
             {
                 ActionCreateNewDocument(m_State->updUndoable());
             }
-            DrawTooltipIfItemHovered(
+            ui::DrawTooltipIfItemHovered(
                 "Create New Document",
                 "Creates the default scene (undoable)"
             );
@@ -87,20 +87,20 @@ namespace osc
 
         void drawOpenDocumentButton()
         {
-            ImGui::Button(ICON_FA_FOLDER_OPEN);
-            if (ImGui::BeginPopupContextItem("##OpenFolder", ImGuiPopupFlags_MouseButtonLeft))
+            ui::Button(ICON_FA_FOLDER_OPEN);
+            if (ui::BeginPopupContextItem("##OpenFolder", ImGuiPopupFlags_MouseButtonLeft))
             {
-                if (ImGui::MenuItem("Load Source Mesh"))
+                if (ui::MenuItem("Load Source Mesh"))
                 {
                     ActionLoadMeshFile(m_State->updUndoable(), TPSDocumentInputIdentifier::Source);
                 }
-                if (ImGui::MenuItem("Load Destination Mesh"))
+                if (ui::MenuItem("Load Destination Mesh"))
                 {
                     ActionLoadMeshFile(m_State->updUndoable(), TPSDocumentInputIdentifier::Destination);
                 }
-                ImGui::EndPopup();
+                ui::EndPopup();
             }
-            DrawTooltipIfItemHovered(
+            ui::DrawTooltipIfItemHovered(
                 "Open File",
                 "Open Source/Destination data"
             );
@@ -108,11 +108,11 @@ namespace osc
 
         void drawSaveLandmarksButton()
         {
-            if (ImGui::Button(ICON_FA_SAVE))
+            if (ui::Button(ICON_FA_SAVE))
             {
                 ActionSavePairedLandmarksToCSV(m_State->getScratch(), LandmarkCSVFlags::NoNames);
             }
-            DrawTooltipIfItemHovered(
+            ui::DrawTooltipIfItemHovered(
                 "Save Landmarks to CSV (no names)",
                 "Saves all pair-able landmarks to a CSV file, for external processing\n\n(legacy behavior: does not export names: use 'File' menu if you want the names)"
             );
@@ -120,16 +120,16 @@ namespace osc
 
         void drawCameraLockCheckbox()
         {
-            ImGui::Checkbox("link cameras", &m_State->linkCameras);
-            ImGui::SameLine();
+            ui::Checkbox("link cameras", &m_State->linkCameras);
+            ui::SameLine();
             if (!m_State->linkCameras)
             {
-                ImGui::BeginDisabled();
+                ui::BeginDisabled();
             }
-            ImGui::Checkbox("only link rotation", &m_State->onlyLinkRotation);
+            ui::Checkbox("only link rotation", &m_State->onlyLinkRotation);
             if (!m_State->linkCameras)
             {
-                ImGui::EndDisabled();
+                ui::EndDisabled();
             }
         }
 

@@ -16,6 +16,15 @@ using namespace osc;
 
 namespace
 {
+    Mesh GenerateXYZToXYZLineMesh()
+    {
+        Mesh data;
+        data.setVerts({{0.0f, 0.0f, 0.0f}, {+1.0f, +1.0f, +1.0f}});
+        data.setNormals({{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}});
+        data.setIndices({0, 1});
+        data.setTopology(MeshTopology::Lines);
+        return data;
+    }
     Vec3 ToVec3(const Vector3& v)
     {
         return Vec3{
@@ -145,7 +154,7 @@ private:
             return true;
         } else if (
             e.type == SDL_MOUSEBUTTONDOWN
-            && IsMouseInMainViewportWorkspaceScreenRect()) {
+            && ui::IsMouseInMainViewportWorkspaceScreenRect()) {
             m_IsMouseCaptured = true;
             return true;
         }
@@ -170,8 +179,8 @@ private:
     {
         // handle mouse capturing
         if (m_IsMouseCaptured) {
-            UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
-            ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+            ui::UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
+            ui::SetMouseCursor(ImGuiMouseCursor_None);
             App::upd().setShowCursor(false);
         } else {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
@@ -269,7 +278,7 @@ private:
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
         }
 
-        Rect const viewport = GetMainViewportWorkspaceScreenRect();
+        Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
 
         // draw scene to screen
         m_Camera.setPixelRect(viewport);
@@ -290,9 +299,9 @@ private:
                }
     };
 
-    Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
-    Mesh m_CylinderMesh = GenerateCylinderMesh2(
-            1., 1., 10., 45, 45, false, Radians{0.}, Radians{2. * M_PI});
+    Mesh m_SphereMesh = SphereGeometry(1.0f, 12, 12);
+    Mesh m_CylinderMesh = CylinderGeometry(
+            1., 1., 10., 45, 1., false, Radians{0.}, Radians{2. * M_PI});
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
 
     MaterialPropertyBlock m_BlackColorMaterialProps =

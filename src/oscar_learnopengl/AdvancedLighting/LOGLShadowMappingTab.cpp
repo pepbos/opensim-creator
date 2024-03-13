@@ -1,7 +1,5 @@
 #include "LOGLShadowMappingTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -17,7 +15,7 @@ namespace
     constexpr CStringView c_TabStringID = "LearnOpenGL/ShadowMapping";
 
     // this matches the plane vertices used in the LearnOpenGL tutorial
-    Mesh GeneratePlaneMesh()
+    Mesh GeneratePlaneMeshLOGL()
     {
         Mesh rv;
         rv.setVerts({
@@ -101,7 +99,7 @@ private:
 
     void draw3DScene()
     {
-        Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
+        Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
 
         renderShadowsToDepthTexture();
 
@@ -125,7 +123,7 @@ private:
     void drawMeshesWithMaterial(Material const& material)
     {
         // floor
-        Graphics::DrawMesh(m_PlaneMesh, Identity<Transform>(), material, m_Camera);
+        Graphics::DrawMesh(m_PlaneMesh, identity<Transform>(), material, m_Camera);
 
         // cubes
         Graphics::DrawMesh(
@@ -175,8 +173,8 @@ private:
         m_Loader.open("oscar_learnopengl/textures/wood.png"),
         ColorSpace::sRGB
     );
-    Mesh m_CubeMesh = GenerateCubeMesh();
-    Mesh m_PlaneMesh = GeneratePlaneMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
+    Mesh m_PlaneMesh = GeneratePlaneMeshLOGL();
     Material m_SceneMaterial{Shader{
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedLighting/shadow_mapping/Scene.vert"),
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedLighting/shadow_mapping/Scene.frag"),
@@ -186,7 +184,7 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedLighting/shadow_mapping/MakeShadowMap.frag"),
     }};
     RenderTexture m_DepthTexture = CreateDepthTexture();
-    Mat4 m_LatestLightSpaceMatrix = Identity<Mat4>();
+    Mat4 m_LatestLightSpaceMatrix = identity<Mat4>();
     Vec3 m_LightPos = {-2.0f, 4.0f, -1.0f};
 };
 

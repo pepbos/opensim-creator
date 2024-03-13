@@ -26,6 +26,7 @@
 #include <oscar/Platform/Log.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/StringHelpers.h>
 #include <oscar/Utils/Typelist.h>
 #include <SimTKcommon/Constants.h>
@@ -64,21 +65,6 @@ namespace
             static_cast<float>(v[3]),
             static_cast<float>(v[4]),
             static_cast<float>(v[5]),
-        };
-    }
-
-    // returns an `Color` extracted from the given `OpenSim::Appearance`
-    Color ToColor(OpenSim::Appearance const& appearance)
-    {
-        SimTK::Vec3 const& rgb = appearance.get_color();
-        double const a = appearance.get_opacity();
-
-        return
-        {
-            static_cast<float>(rgb[0]),
-            static_cast<float>(rgb[1]),
-            static_cast<float>(rgb[2]),
-            static_cast<float>(a),
         };
     }
 
@@ -129,12 +115,12 @@ namespace
     // draws the property name and (optionally) comment tooltip
     void DrawPropertyName(OpenSim::AbstractProperty const& prop)
     {
-        ImGui::TextUnformatted(prop.getName().c_str());
+        ui::TextUnformatted(prop.getName());
 
         if (!prop.getComment().empty())
         {
-            ImGui::SameLine();
-            DrawHelpMarker(prop.getComment());
+            ui::SameLine();
+            ui::DrawHelpMarker(prop.getComment());
         }
     }
 
@@ -173,152 +159,152 @@ namespace
     // x/y/z to the user
     void DrawColoredDimensionHintVerticalLine(Color const& color)
     {
-        ImDrawList* const l = ImGui::GetWindowDrawList();
-        Vec2 const p = ImGui::GetCursorScreenPos();
-        float const h = ImGui::GetTextLineHeight() + 2.0f*ImGui::GetStyle().FramePadding.y + 2.0f*ImGui::GetStyle().FrameBorderSize;
+        ImDrawList* const l = ui::GetWindowDrawList();
+        Vec2 const p = ui::GetCursorScreenPos();
+        float const h = ui::GetTextLineHeight() + 2.0f*ui::GetStyle().FramePadding.y + 2.0f*ui::GetStyle().FrameBorderSize;
         Vec2 const dims = Vec2{4.0f, h};
-        l->AddRectFilled(p, p + dims, ToImU32(color));
-        ImGui::SetCursorScreenPos({p.x + 4.0f, p.y});
+        l->AddRectFilled(p, p + dims, ui::ToImU32(color));
+        ui::SetCursorScreenPos({p.x + 4.0f, p.y});
     }
 
     // draws a context menu that the user can use to change the step interval of the +/- buttons
     void DrawStepSizeEditor(float& stepSize)
     {
-        if (ImGui::BeginPopupContextItem("##valuecontextmenu"))
+        if (ui::BeginPopupContextItem("##valuecontextmenu"))
         {
-            ImGui::Text("Set Step Size");
-            ImGui::SameLine();
-            DrawHelpMarker("Sets the decrement/increment of the + and - buttons. Can be handy for tweaking property values");
-            ImGui::Dummy({0.0f, 0.1f*ImGui::GetTextLineHeight()});
-            ImGui::Separator();
-            ImGui::Dummy({0.0f, 0.2f*ImGui::GetTextLineHeight()});
+            ui::Text("Set Step Size");
+            ui::SameLine();
+            ui::DrawHelpMarker("Sets the decrement/increment of the + and - buttons. Can be handy for tweaking property values");
+            ui::Dummy({0.0f, 0.1f*ui::GetTextLineHeight()});
+            ui::Separator();
+            ui::Dummy({0.0f, 0.2f*ui::GetTextLineHeight()});
 
-            if (ImGui::BeginTable("CommonChoicesTable", 2, ImGuiTableFlags_SizingStretchProp))
+            if (ui::BeginTable("CommonChoicesTable", 2, ImGuiTableFlags_SizingStretchProp))
             {
-                ImGui::TableSetupColumn("Type");
-                ImGui::TableSetupColumn("Options");
+                ui::TableSetupColumn("Type");
+                ui::TableSetupColumn("Options");
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("Custom");
-                ImGui::TableSetColumnIndex(1);
-                ImGui::InputFloat("##stepsizeinput", &stepSize, 0.0f, 0.0f, "%.6f");
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("Custom");
+                ui::TableSetColumnIndex(1);
+                ui::InputFloat("##stepsizeinput", &stepSize, 0.0f, 0.0f, "%.6f");
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("Lengths");
-                ImGui::TableSetColumnIndex(1);
-                if (ImGui::Button("10 cm"))
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("Lengths");
+                ui::TableSetColumnIndex(1);
+                if (ui::Button("10 cm"))
                 {
                     stepSize = 0.1f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1 cm"))
+                ui::SameLine();
+                if (ui::Button("1 cm"))
                 {
                     stepSize = 0.01f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1 mm"))
+                ui::SameLine();
+                if (ui::Button("1 mm"))
                 {
                     stepSize = 0.001f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("0.1 mm"))
+                ui::SameLine();
+                if (ui::Button("0.1 mm"))
                 {
                     stepSize = 0.0001f;
                 }
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("Angles (Degrees)");
-                ImGui::TableSetColumnIndex(1);
-                if (ImGui::Button("180"))
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("Angles (Degrees)");
+                ui::TableSetColumnIndex(1);
+                if (ui::Button("180"))
                 {
                     stepSize = 180.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("90"))
+                ui::SameLine();
+                if (ui::Button("90"))
                 {
                     stepSize = 90.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("45"))
+                ui::SameLine();
+                if (ui::Button("45"))
                 {
                     stepSize = 45.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("10"))
+                ui::SameLine();
+                if (ui::Button("10"))
                 {
                     stepSize = 10.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1"))
+                ui::SameLine();
+                if (ui::Button("1"))
                 {
                     stepSize = 1.0f;
                 }
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("Angles (Radians)");
-                ImGui::TableSetColumnIndex(1);
-                if (ImGui::Button("1 pi"))
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("Angles (Radians)");
+                ui::TableSetColumnIndex(1);
+                if (ui::Button("1 pi"))
                 {
                     stepSize = pi_v<float>;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1/2 pi"))
+                ui::SameLine();
+                if (ui::Button("1/2 pi"))
                 {
                     stepSize = pi_v<float>/2.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1/4 pi"))
+                ui::SameLine();
+                if (ui::Button("1/4 pi"))
                 {
                     stepSize = pi_v<float>/4.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("10/180 pi"))
+                ui::SameLine();
+                if (ui::Button("10/180 pi"))
                 {
                     stepSize = (10.0f/180.0f) * pi_v<float>;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1/180 pi"))
+                ui::SameLine();
+                if (ui::Button("1/180 pi"))
                 {
                     stepSize = (1.0f/180.0f) * pi_v<float>;
                 }
 
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("Masses");
-                ImGui::TableSetColumnIndex(1);
-                if (ImGui::Button("1 kg"))
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(0);
+                ui::Text("Masses");
+                ui::TableSetColumnIndex(1);
+                if (ui::Button("1 kg"))
                 {
                     stepSize = 1.0f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("100 g"))
+                ui::SameLine();
+                if (ui::Button("100 g"))
                 {
                     stepSize = 0.1f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("10 g"))
+                ui::SameLine();
+                if (ui::Button("10 g"))
                 {
                     stepSize = 0.01f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("1 g"))
+                ui::SameLine();
+                if (ui::Button("1 g"))
                 {
                     stepSize = 0.001f;
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("100 mg"))
+                ui::SameLine();
+                if (ui::Button("100 mg"))
                 {
                     stepSize = 0.0001f;
                 }
 
-                ImGui::EndTable();
+                ui::EndTable();
             }
 
-            ImGui::EndPopup();
+            ui::EndPopup();
         }
     }
 
@@ -335,15 +321,15 @@ namespace
     {
         ScalarInputRv rv;
 
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, {1.0f, 0.0f});
-        if (ImGui::InputScalar(label.c_str(), ImGuiDataType_Float, &value, &stepSize, nullptr, "%.6f"))
+        ui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, {1.0f, 0.0f});
+        if (ui::InputScalar(label, ImGuiDataType_Float, &value, &stepSize, nullptr, "%.6f"))
         {
             rv.wasEdited = true;
         }
-        ImGui::PopStyleVar();
-        rv.shouldSave = ItemValueShouldBeSaved();
-        App::upd().addFrameAnnotation(frameAnnotationLabel, GetItemRect());
-        DrawTooltipIfItemHovered("Step Size", "You can right-click to adjust the step size of the buttons");
+        ui::PopStyleVar();
+        rv.shouldSave = ui::ItemValueShouldBeSaved();
+        App::upd().addFrameAnnotation(frameAnnotationLabel, ui::GetItemRect());
+        ui::DrawTooltipIfItemHovered("Step Size", "You can right-click to adjust the step size of the buttons");
         DrawStepSizeEditor(stepSize);
 
         return rv;
@@ -508,26 +494,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -540,11 +526,11 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<std::string>(idx);
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
 
             // read stored value from edited property
@@ -552,17 +538,17 @@ namespace
             // care: optional properties have size==0, so perform a range check
             std::string value = idx < m_EditedProperty.size() ? m_EditedProperty.getValue(idx) : std::string{};
 
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (InputString("##stringeditor", value))
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            if (ui::InputString("##stringeditor", value))
             {
                 // update the edited property - don't rely on ImGui to remember edits
                 m_EditedProperty.setValue(idx, value);
             }
 
             // globally annotate the editor rect, for downstream screenshot automation
-            App::upd().addFrameAnnotation("ObjectPropertiesEditor::StringEditor/" + m_EditedProperty.getName(), GetItemRect());
+            App::upd().addFrameAnnotation("ObjectPropertiesEditor::StringEditor/" + m_EditedProperty.getName(), ui::GetItemRect());
 
-            if (ItemValueShouldBeSaved())
+            if (ui::ItemValueShouldBeSaved())
             {
                 rv = MakePropValueSetter(idx, m_EditedProperty.getValue(idx));
             }
@@ -596,26 +582,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -627,14 +613,14 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<double>(idx);
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
 
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
 
             // draw an invisible vertical line, so that `double` properties are properly
             // aligned with `Vec3` properties (that have a non-invisible R/G/B line)
@@ -688,26 +674,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -719,11 +705,11 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<bool>(idx);
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
 
             // read stored value from edited property
@@ -732,8 +718,8 @@ namespace
             bool value = idx < m_EditedProperty.size() ? m_EditedProperty.getValue(idx) : false;
             bool edited = false;
 
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::Checkbox("##booleditor", &value))
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            if (ui::Checkbox("##booleditor", &value))
             {
                 // update the edited property - don't rely on ImGui to remember edits
                 m_EditedProperty.setValue(idx, value);
@@ -741,9 +727,9 @@ namespace
             }
 
             // globally annotate the editor rect, for downstream screenshot automation
-            App::upd().addFrameAnnotation("ObjectPropertiesEditor::BoolEditor/" + m_EditedProperty.getName(), GetItemRect());
+            App::upd().addFrameAnnotation("ObjectPropertiesEditor::BoolEditor/" + m_EditedProperty.getName(), ui::GetItemRect());
 
-            if (edited || ItemValueShouldBeSaved())
+            if (edited || ui::ItemValueShouldBeSaved())
             {
                 rv = MakePropValueSetter(idx, m_EditedProperty.getValue(idx));
             }
@@ -903,11 +889,11 @@ namespace
             // draw UI
 
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // top line of right column shows "reexpress in" editor (if applicable)
             drawReexpressionEditorIfApplicable();
@@ -917,18 +903,18 @@ namespace
 
             // draw `[0, 1]` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(valueConverter, idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -945,27 +931,27 @@ namespace
                 m_MaybeUserSelectedFrameAbsPath->getComponentName() :
                 std::string{defaultedLabel};
 
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::BeginCombo("##reexpressioneditor", preview.c_str()))
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            if (ui::BeginCombo("##reexpressioneditor", preview))
             {
-                ImGui::TextDisabled("Frame (editing)");
-                ImGui::SameLine();
-                DrawHelpMarker("Note: this only affects the values that the quantities are edited in. It does not change the frame that the component is attached to. You can change the frame attachment by using the component's context menu: Socket > $FRAME > (edit button) > (select new frame)");
-                ImGui::Dummy({0.0f, 0.25f*ImGui::GetTextLineHeight()});
+                ui::TextDisabled("Frame (editing)");
+                ui::SameLine();
+                ui::DrawHelpMarker("Note: this only affects the values that the quantities are edited in. It does not change the frame that the component is attached to. You can change the frame attachment by using the component's context menu: Socket > $FRAME > (edit button) > (select new frame)");
+                ui::Dummy({0.0f, 0.25f*ui::GetTextLineHeight()});
 
                 int imguiID = 0;
 
                 // draw "default" (reset) option
                 {
-                    ImGui::Separator();
-                    ImGui::PushID(imguiID++);
+                    ui::Separator();
+                    ui::PushID(imguiID++);
                     bool selected = !m_MaybeUserSelectedFrameAbsPath.has_value();
-                    if (ImGui::Selectable(defaultedLabel.c_str(), &selected))
+                    if (ui::Selectable(defaultedLabel, &selected))
                     {
                         m_MaybeUserSelectedFrameAbsPath.reset();
                     }
-                    ImGui::PopID();
-                    ImGui::Separator();
+                    ui::PopID();
+                    ui::Separator();
                 }
 
                 // draw selectable for each frame in the model
@@ -973,16 +959,16 @@ namespace
                 {
                     OpenSim::ComponentPath const frameAbsPath = GetAbsolutePath(frame);
 
-                    ImGui::PushID(imguiID++);
+                    ui::PushID(imguiID++);
                     bool selected = frameAbsPath == m_MaybeUserSelectedFrameAbsPath;
-                    if (ImGui::Selectable(frame.getName().c_str(), &selected))
+                    if (ui::Selectable(frame.getName(), &selected))
                     {
                         m_MaybeUserSelectedFrameAbsPath = frameAbsPath;
                     }
-                    ImGui::PopID();
+                    ui::PopID();
                 }
 
-                ImGui::EndCombo();
+                ui::EndCombo();
             }
         }
 
@@ -996,17 +982,17 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<SimTK::Vec3>(idx);
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
 
             // read stored value from edited property
             //
             // care: optional properties have size==0, so perform a range check
-            Vec3 const rawValue = ToVec3(idx < m_EditedProperty.size() ? m_EditedProperty.getValue(idx) : SimTK::Vec3{});
+            Vec3 const rawValue = ToVec3(idx < m_EditedProperty.size() ? m_EditedProperty.getValue(idx) : SimTK::Vec3{0.0});
             Vec3 const editedValue = valueConverter.modelValueToEditedValue(rawValue);
 
             // draw an editor for each component of the Vec3
@@ -1035,8 +1021,8 @@ namespace
             Vec3 editedValue,
             ValueConverter const& valueConverter)
         {
-            PushID(i);
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ui::PushID(i);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
 
             // draw dimension hint (color bar next to the input)
             DrawColoredDimensionHintVerticalLine(IthDimensionColor(i));
@@ -1052,7 +1038,7 @@ namespace
                 m_EditedProperty.setValue(idx, ToSimTKVec3(savedValue));
             }
 
-            ImGui::PopID();
+            ui::PopID();
 
             return drawRV.shouldSave ? ComponentEditorReturn::ShouldSave : ComponentEditorReturn::None;
         }
@@ -1067,21 +1053,21 @@ namespace
 
             if (m_OrientationValsAreInRadians)
             {
-                if (ImGui::Button("radians"))
+                if (ui::Button("radians"))
                 {
                     m_OrientationValsAreInRadians = !m_OrientationValsAreInRadians;
                 }
-                App::upd().addFrameAnnotation("ObjectPropertiesEditor::OrientationToggle/" + m_EditedProperty.getName(), GetItemRect());
-                DrawTooltipBodyOnlyIfItemHovered("This quantity is edited in radians (click to switch to degrees)");
+                App::upd().addFrameAnnotation("ObjectPropertiesEditor::OrientationToggle/" + m_EditedProperty.getName(), ui::GetItemRect());
+                ui::DrawTooltipBodyOnlyIfItemHovered("This quantity is edited in radians (click to switch to degrees)");
             }
             else
             {
-                if (ImGui::Button("degrees"))
+                if (ui::Button("degrees"))
                 {
                     m_OrientationValsAreInRadians = !m_OrientationValsAreInRadians;
                 }
-                App::upd().addFrameAnnotation("ObjectPropertiesEditor::OrientationToggle/" + m_EditedProperty.getName(), GetItemRect());
-                DrawTooltipBodyOnlyIfItemHovered("This quantity is edited in degrees (click to switch to radians)");
+                App::upd().addFrameAnnotation("ObjectPropertiesEditor::OrientationToggle/" + m_EditedProperty.getName(), ui::GetItemRect());
+                ui::DrawTooltipBodyOnlyIfItemHovered("This quantity is edited in degrees (click to switch to radians)");
             }
         }
 
@@ -1114,26 +1100,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -1145,7 +1131,7 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<SimTK::Vec6>(idx);
                 }
@@ -1161,19 +1147,19 @@ namespace
             bool shouldSave = false;
             for (int i = 0; i < 2; ++i)
             {
-                ImGui::PushID(i);
+                ui::PushID(i);
 
-                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                if (ImGui::InputFloat3("##vec6editor", rawValue.data() + static_cast<ptrdiff_t>(3*i), "%.6f"))
+                ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+                if (ui::InputFloat3("##vec6editor", rawValue.data() + static_cast<ptrdiff_t>(3*i), "%.6f"))
                 {
                     m_EditedProperty.updValue(idx)[3*i + 0] = static_cast<double>(rawValue[3*i + 0]);
                     m_EditedProperty.updValue(idx)[3*i + 1] = static_cast<double>(rawValue[3*i + 1]);
                     m_EditedProperty.updValue(idx)[3*i + 2] = static_cast<double>(rawValue[3*i + 2]);
                 }
-                shouldSave = shouldSave || ItemValueShouldBeSaved();
-                App::upd().addFrameAnnotation("ObjectPropertiesEditor::Vec6Editor/" + m_EditedProperty.getName(), osc::GetItemRect());
+                shouldSave = shouldSave || ui::ItemValueShouldBeSaved();
+                App::upd().addFrameAnnotation("ObjectPropertiesEditor::Vec6Editor/" + m_EditedProperty.getName(), ui::GetItemRect());
 
-                ImGui::PopID();
+                ui::PopID();
             }
 
             if (shouldSave)
@@ -1209,26 +1195,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -1240,11 +1226,11 @@ namespace
             // draw trash can that can delete an element from the property's list
             if (m_EditedProperty.isListProperty())
             {
-                if (ImGui::Button(ICON_FA_TRASH))
+                if (ui::Button(ICON_FA_TRASH))
                 {
                     rv = MakePropElementDeleter<int>(idx);
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
 
             // read stored value from edited property
@@ -1253,8 +1239,8 @@ namespace
             int value = idx < m_EditedProperty.size() ? m_EditedProperty.getValue(idx) : 0;
             bool edited = false;
 
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::InputInt("##inteditor", &value))
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            if (ui::InputInt("##inteditor", &value))
             {
                 // update the edited property - don't rely on ImGui to remember edits
                 m_EditedProperty.setValue(idx, value);
@@ -1262,9 +1248,9 @@ namespace
             }
 
             // globally annotate the editor rect, for downstream screenshot automation
-            App::upd().addFrameAnnotation("ObjectPropertiesEditor::IntEditor/" + m_EditedProperty.getName(), GetItemRect());
+            App::upd().addFrameAnnotation("ObjectPropertiesEditor::IntEditor/" + m_EditedProperty.getName(), ui::GetItemRect());
 
-            if (edited || ItemValueShouldBeSaved())
+            if (edited || ui::ItemValueShouldBeSaved())
             {
                 rv = MakePropValueSetter(idx, m_EditedProperty.getValue(idx));
             }
@@ -1302,26 +1288,26 @@ namespace
                 m_EditedProperty = prop;
             }
 
-            ImGui::Separator();
+            ui::Separator();
 
             // draw name of the property in left-hand column
             DrawPropertyName(m_EditedProperty);
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             // draw `n` editors in right-hand column
             std::optional<std::function<void(OpenSim::AbstractProperty&)>> rv;
-            for (int idx = 0; idx < std::max(m_EditedProperty.size(), 1); ++idx)
+            for (int idx = 0; idx < max(m_EditedProperty.size(), 1); ++idx)
             {
-                ImGui::PushID(idx);
+                ui::PushID(idx);
                 std::optional<std::function<void(OpenSim::AbstractProperty&)>> editorRv = drawIthEditor(idx);
-                ImGui::PopID();
+                ui::PopID();
 
                 if (!rv)
                 {
                     rv = std::move(editorRv);
                 }
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
             return rv;
         }
@@ -1343,9 +1329,9 @@ namespace
             bool shouldSave = false;
 
             Color color = ToColor(m_EditedProperty.getValue());
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
 
-            if (ImGui::ColorEdit4("##coloreditor", value_ptr(color)))
+            if (ui::ColorEditRGBA("##coloreditor", color))
             {
                 SimTK::Vec3 newColor;
                 newColor[0] = static_cast<double>(color[0]);
@@ -1355,14 +1341,14 @@ namespace
                 m_EditedProperty.updValue().set_color(newColor);
                 m_EditedProperty.updValue().set_opacity(static_cast<double>(color[3]));
             }
-            shouldSave = shouldSave || ItemValueShouldBeSaved();
+            shouldSave = shouldSave || ui::ItemValueShouldBeSaved();
 
             bool isVisible = m_EditedProperty.getValue().get_visible();
-            if (ImGui::Checkbox("is visible", &isVisible))
+            if (ui::Checkbox("is visible", &isVisible))
             {
                 m_EditedProperty.updValue().set_visible(isVisible);
             }
-            shouldSave = shouldSave || ItemValueShouldBeSaved();
+            shouldSave = shouldSave || ui::ItemValueShouldBeSaved();
 
             // DisplayPreference
             {
@@ -1379,7 +1365,7 @@ namespace
                     "Surface",
                 });
                 size_t index = clamp(static_cast<size_t>(m_EditedProperty.getValue().get_representation())+1, static_cast<size_t>(0), options.size());
-                if (osc::Combo("##DisplayPref", &index, options)) {
+                if (ui::Combo("##DisplayPref", &index, options)) {
                     m_EditedProperty.updValue().set_representation(static_cast<OpenSim::VisualRepresentation>(static_cast<int>(index)-1));
                     shouldSave = true;
                 }
@@ -1428,9 +1414,9 @@ namespace
             }
             ObjectPropertiesEditor& nestedEditor = *m_MaybeNestedEditor;
 
-            ImGui::Columns();
+            ui::Columns();
             auto resp = nestedEditor.onDraw();
-            ImGui::Columns(2);
+            ui::Columns(2);
 
             if (resp)
             {
@@ -1475,14 +1461,14 @@ namespace
             }
             property_type const& prop = *maybeProp;
 
-            ImGui::Separator();
+            ui::Separator();
             DrawPropertyName(prop);
-            ImGui::NextColumn();
-            if (ImGui::Button(ICON_FA_EDIT))
+            ui::NextColumn();
+            if (ui::Button(ICON_FA_EDIT))
             {
                 pushPopup(createGeometryPathEditorPopup());
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
 
             if (*m_ReturnValueHolder)
@@ -1600,9 +1586,8 @@ namespace
                 return nullptr;  // cannot access the property
             }
 
-            auto const it = std::find_if(
-                m_Entries.begin(),
-                m_Entries.end(),
+            auto const it = find_if(
+                m_Entries,
                 [&prop](auto const& entry) { return entry.isCompatibleWith(*prop); }
             );
             if (it == m_Entries.end())
@@ -1667,19 +1652,19 @@ private:
         // draw each editor and return the last property edit (or std::nullopt)
         std::optional<ObjectPropertyEdit> rv;
 
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (int i = 0; i < obj.getNumProperties(); ++i)
         {
-            ImGui::PushID(i);
+            ui::PushID(i);
             std::optional<ObjectPropertyEdit> maybeEdit = tryDrawPropertyEditor(obj, obj.getPropertyByIndex(i));
-            ImGui::PopID();
+            ui::PopID();
 
             if (maybeEdit)
             {
                 rv = std::move(maybeEdit);
             }
         }
-        ImGui::Columns();
+        ui::Columns();
 
         return rv;
     }
@@ -1713,9 +1698,9 @@ private:
         OpenSim::AbstractProperty const& prop,
         IPropertyEditor& editor)
     {
-        ImGui::PushID(prop.getName().c_str());
+        ui::PushID(prop.getName());
         std::optional<std::function<void(OpenSim::AbstractProperty&)>> maybeUpdater = editor.onDraw();
-        ImGui::PopID();
+        ui::PopID();
 
         if (maybeUpdater)
         {
@@ -1731,11 +1716,11 @@ private:
     void drawNonEditablePropertyDetails(
         OpenSim::AbstractProperty const& prop)
     {
-        ImGui::Separator();
+        ui::Separator();
         DrawPropertyName(prop);
-        ImGui::NextColumn();
-        ImGui::TextUnformatted(prop.toString().c_str());
-        ImGui::NextColumn();
+        ui::NextColumn();
+        ui::TextUnformatted(prop.toString());
+        ui::NextColumn();
     }
 
     // try get/construct a property editor for the given property

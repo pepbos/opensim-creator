@@ -27,6 +27,7 @@
 #include <oscar/Shims/Cpp20/bit.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/Concepts.h>
 #include <oscar/Utils/CStringView.h>
@@ -89,12 +90,12 @@ namespace
 
     UID ToUID(ImTextureID id)
     {
-        return UID::FromIntUnchecked(cpp20::bit_cast<int64_t>(id));
+        return UID::FromIntUnchecked(cpp20::bit_cast<UID::element_type>(id));
     }
 
     Texture2D CreateFontsTexture(UID textureID)
     {
-        ImGuiIO& io = ImGui::GetIO();
+        ImGuiIO& io = ui::GetIO();
 
         uint8_t* pixelData = nullptr;
         Vec2i dims{};
@@ -181,7 +182,7 @@ namespace
     {
         if (ImGui::GetCurrentContext())
         {
-            return std::launder(reinterpret_cast<OscarImguiBackendData*>(ImGui::GetIO().BackendRendererUserData));
+            return std::launder(reinterpret_cast<OscarImguiBackendData*>(ui::GetIO().BackendRendererUserData));
         }
         else
         {
@@ -218,10 +219,10 @@ namespace
         OSC_ASSERT(drawCommand.UserCallback == nullptr && "user callbacks are not supported in oscar's ImGui renderer impl");
 
         // Will project scissor/clipping rectangles into framebuffer space
-        ImVec2 clip_off = drawData.DisplayPos;         // (0,0) unless using multi-viewports
-        ImVec2 clip_scale = drawData.FramebufferScale; // (1,1) unless using retina display which are often (2,2)
-        ImVec2 clip_min((drawCommand.ClipRect.x - clip_off.x) * clip_scale.x, (drawCommand.ClipRect.y - clip_off.y) * clip_scale.y);
-        ImVec2 clip_max((drawCommand.ClipRect.z - clip_off.x) * clip_scale.x, (drawCommand.ClipRect.w - clip_off.y) * clip_scale.y);
+        Vec2 clip_off = drawData.DisplayPos;         // (0,0) unless using multi-viewports
+        Vec2 clip_scale = drawData.FramebufferScale; // (1,1) unless using retina display which are often (2,2)
+        Vec2 clip_min((drawCommand.ClipRect.x - clip_off.x) * clip_scale.x, (drawCommand.ClipRect.y - clip_off.y) * clip_scale.y);
+        Vec2 clip_max((drawCommand.ClipRect.z - clip_off.x) * clip_scale.x, (drawCommand.ClipRect.w - clip_off.y) * clip_scale.y);
 
         if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
         {
@@ -230,8 +231,8 @@ namespace
 
         // setup clipping rectangle
         bd.camera.setClearFlags(CameraClearFlags::Nothing);
-        Vec2 minflip{clip_min.x, drawData.DisplaySize.y - clip_max.y};
-        Vec2 maxflip{clip_max.x, drawData.DisplaySize.y - clip_min.y};
+        Vec2 minflip{clip_min.x, (drawData.FramebufferScale.y * drawData.DisplaySize.y) - clip_max.y};
+        Vec2 maxflip{clip_max.x, (drawData.FramebufferScale.y * drawData.DisplaySize.y) - clip_min.y};
         bd.camera.setScissorRect(Rect{minflip, maxflip});
 
         // setup submesh description
@@ -239,13 +240,13 @@ namespace
         size_t idx = mesh.getSubMeshCount();
         mesh.pushSubMeshDescriptor(d);
 
-        if (auto it = bd.texturesSubmittedThisFrame.find(ToUID(drawCommand.GetTexID())); it != bd.texturesSubmittedThisFrame.end())
+        if (auto const* texture = try_find(bd.texturesSubmittedThisFrame, ToUID(drawCommand.GetTexID())))
         {
             std::visit(Overload{
                 [&bd](Texture2D const& t) { bd.material.setTexture("uTexture", t); },
                 [&bd](RenderTexture const& t) { bd.material.setRenderTexture("uTexture", t); },
-            }, it->second);
-            Graphics::DrawMesh(mesh, Identity<Mat4>(), bd.material, bd.camera, std::nullopt, idx);
+            }, *texture);
+            Graphics::DrawMesh(mesh, identity<Mat4>(), bd.material, bd.camera, std::nullopt, idx);
             bd.camera.renderToScreen();
         }
     }
@@ -304,7 +305,7 @@ namespace
 
 bool osc::ui::graphics_backend::Init()
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ui::GetIO();
     OSC_ASSERT(io.BackendRendererUserData == nullptr && "an oscar ImGui renderer backend is already initialized - this is a developer error (double-initialization)");
 
     // init backend data
@@ -323,7 +324,7 @@ void osc::ui::graphics_backend::Shutdown()
     ImGui::DestroyPlatformWindows();
 
     // destroy backend data
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ui::GetIO();
     io.BackendRendererName = nullptr;
     io.BackendRendererUserData = nullptr;
     delete bd;  // NOLINT(cppcoreguidelines-owning-memory)

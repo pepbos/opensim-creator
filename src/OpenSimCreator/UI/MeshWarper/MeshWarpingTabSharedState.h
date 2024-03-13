@@ -8,11 +8,11 @@
 #include <OpenSimCreator/UI/MeshWarper/MeshWarpingTabHover.h>
 #include <OpenSimCreator/UI/MeshWarper/MeshWarpingTabUserSelection.h>
 
+#include <oscar/Graphics/Materials/MeshBasicMaterial.h>
 #include <oscar/Graphics/Color.h>
 #include <oscar/Graphics/Material.h>
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneHelpers.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/BVH.h>
 #include <oscar/Maths/PolarPerspectiveCamera.h>
 #include <oscar/Maths/Vec2.h>
@@ -177,12 +177,10 @@ namespace osc
         PolarPerspectiveCamera linkedCameraBase = CreateCameraFocusedOn(editedDocument->getScratch().sourceMesh.getBounds());
 
         // wireframe material, used to draw scene elements in a wireframe style
-        Material wireframeMaterial = CreateWireframeOverlayMaterial(
-            *App::singleton<ShaderCache>(App::resource_loader())
-        );
+        MeshBasicMaterial wireframeMaterial = App::singleton<SceneCache>(App::resource_loader())->wireframeMaterial();
 
         // shared sphere mesh (used by rendering code)
-        Mesh landmarkSphere = App::singleton<SceneCache>()->getSphereMesh();
+        Mesh landmarkSphere = App::singleton<SceneCache>(App::resource_loader())->getSphereMesh();
 
         // current user selection
         MeshWaringTabUserSelection userSelection;
@@ -194,7 +192,7 @@ namespace osc
         PopupManager popupManager;
 
         // shared mesh cache
-        std::shared_ptr<SceneCache> meshCache = App::singleton<SceneCache>();
+        std::shared_ptr<SceneCache> meshCache = App::singleton<SceneCache>(App::resource_loader());
 
         Vec2 overlayPadding = {10.0f, 10.0f};
         Color pairedLandmarkColor = Color::green();

@@ -3,6 +3,7 @@
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneRenderer.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <algorithm>
 #include <memory>
@@ -13,20 +14,15 @@ using namespace osc;
 
 class osc::CachedSceneRenderer::Impl final {
 public:
-    Impl(
-        SceneCache& meshCache,
-        ShaderCache& shaderCache) :
-
-        m_SceneRenderer{meshCache, shaderCache}
-    {
-    }
+    explicit Impl(SceneCache& cache) :
+        m_SceneRenderer{cache}
+    {}
 
     RenderTexture& render(
         std::span<SceneDecoration const> decorations,
         SceneRendererParams const& params)
     {
-        if (params != m_LastRenderingParams ||
-            !std::equal(decorations.begin(), decorations.end(), m_LastDecorationList.cbegin(), m_LastDecorationList.cend()))
+        if (params != m_LastRenderingParams || !equal(decorations, m_LastDecorationList))
         {
             // inputs have changed: cache the new ones and re-render
             m_LastRenderingParams = params;
@@ -46,12 +42,9 @@ private:
 
 // public API (PIMPL)
 
-osc::CachedSceneRenderer::CachedSceneRenderer(
-    SceneCache& meshCache,
-    ShaderCache& shaderCache) :
-    m_Impl{std::make_unique<Impl>(meshCache, shaderCache)}
-{
-}
+osc::CachedSceneRenderer::CachedSceneRenderer(SceneCache& cache) :
+    m_Impl{std::make_unique<Impl>(cache)}
+{}
 
 osc::CachedSceneRenderer::CachedSceneRenderer(CachedSceneRenderer&&) noexcept = default;
 osc::CachedSceneRenderer& osc::CachedSceneRenderer::operator=(CachedSceneRenderer&&) noexcept = default;

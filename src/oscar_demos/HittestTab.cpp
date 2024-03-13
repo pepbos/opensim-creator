@@ -78,13 +78,6 @@ namespace
         return rv;
     }
 
-    MaterialPropertyBlock GeneratePropertyBlock(Color const& color)
-    {
-        MaterialPropertyBlock p;
-        p.setColor("uColor", color);
-        return p;
-    }
-
     Line GetCameraRay(Camera const& camera)
     {
         return {
@@ -121,7 +114,7 @@ private:
             m_IsMouseCaptured = false;
             return true;
         }
-        else if (e.type == SDL_MOUSEBUTTONDOWN && IsMouseInMainViewportWorkspaceScreenRect()) {
+        else if (e.type == SDL_MOUSEBUTTONDOWN && ui::IsMouseInMainViewportWorkspaceScreenRect()) {
             m_IsMouseCaptured = true;
             return true;
         }
@@ -144,7 +137,7 @@ private:
                 m_SceneSphereBoundingSphere.radius
             };
 
-            std::optional<RayCollision> res = GetRayCollisionSphere(ray, s);
+            std::optional<RayCollision> res = find_collision(ray, s);
             if (res && res->distance >= 0.0f && res->distance < closestEl) {
                 closestEl = res->distance;
                 closestSceneSphere = &ss;
@@ -160,12 +153,12 @@ private:
     {
         // handle mouse capturing
         if (m_IsMouseCaptured) {
-            UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
-            ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+            ui::UpdateEulerCameraFromImGuiUserInput(m_Camera, m_CameraEulers);
+            ui::SetMouseCursor(ImGuiMouseCursor_None);
             App::upd().setShowCursor(false);
         }
         else {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
+            ui::SetMouseCursor(ImGuiMouseCursor_Arrow);
             App::upd().setShowCursor(true);
         }
 
@@ -185,7 +178,7 @@ private:
 
                 Graphics::DrawMesh(
                     m_WireframeCubeMesh,
-                    {.scale = HalfWidths(m_SceneSphereAABB), .position = sphere.pos},
+                    {.scale = half_widths(m_SceneSphereAABB), .position = sphere.pos},
                     m_Material,
                     m_Camera,
                     m_BlackColorMaterialProps
@@ -203,7 +196,7 @@ private:
                 .radius = 10.0f,
             };
 
-            std::optional<RayCollision> const maybeCollision = GetRayCollisionDisc(ray, sceneDisc);
+            std::optional<RayCollision> const maybeCollision = find_collision(ray, sceneDisc);
 
             Disc const meshDisc{
                 .origin = {0.0f, 0.0f, 0.0f},
@@ -223,21 +216,21 @@ private:
         // hittest + draw triangle
         {
             Line const ray = GetCameraRay(m_Camera);
-            std::optional<RayCollision> const maybeCollision = GetRayCollisionTriangle(
+            std::optional<RayCollision> const maybeCollision = find_collision(
                 ray,
                 Triangle{c_TriangleVerts.at(0), c_TriangleVerts.at(1), c_TriangleVerts.at(2)}
             );
 
             Graphics::DrawMesh(
                 m_TriangleMesh,
-                Identity<Transform>(),
+                identity<Transform>(),
                 m_Material,
                 m_Camera,
                 maybeCollision ? m_BlueColorMaterialProps : m_RedColorMaterialProps
             );
         }
 
-        Rect const viewport = GetMainViewportWorkspaceScreenRect();
+        Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
 
         // draw crosshair overlay
         Graphics::DrawMesh(
@@ -253,20 +246,16 @@ private:
         m_Camera.renderToScreen();
     }
 
-    ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
-    Material m_Material{Shader{
-        m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
-        m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
-    }};
-    Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
-    Mesh m_WireframeCubeMesh = GenerateCubeLinesMesh();
-    Mesh m_CircleMesh = GenerateCircleMesh(36);
+    MeshBasicMaterial m_Material;
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 12, 12};
+    Mesh m_WireframeCubeMesh = AABBGeometry{};
+    Mesh m_CircleMesh = CircleGeometry{1.0f, 36};
     Mesh m_CrosshairMesh = GenerateCrosshairMesh();
     Mesh m_TriangleMesh = GenerateTriangleMesh();
-    MaterialPropertyBlock m_BlackColorMaterialProps = GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
-    MaterialPropertyBlock m_BlueColorMaterialProps = GeneratePropertyBlock({0.0f, 0.0f, 1.0f, 1.0f});
-    MaterialPropertyBlock m_RedColorMaterialProps = GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
+    MeshBasicMaterial::PropertyBlock m_BlackColorMaterialProps{Color::black()};
+    MeshBasicMaterial::PropertyBlock m_BlueColorMaterialProps{Color::blue()};
+    MeshBasicMaterial::PropertyBlock m_RedColorMaterialProps{Color::red()};
 
     // scene state
     std::vector<SceneSphere> m_SceneSpheres = GenerateSceneSpheres();

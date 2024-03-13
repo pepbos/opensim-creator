@@ -22,17 +22,17 @@ private:
     {
         // ImGuizmo::BeginFrame();  already done by MainUIScreen
 
-        Mat4 view = m_SceneCamera.getViewMtx();
-        Rect viewportRect = GetMainViewportWorkspaceScreenRect();
-        Vec2 dims = Dimensions(viewportRect);
-        Mat4 projection = m_SceneCamera.getProjMtx(AspectRatio(dims));
+        Mat4 view = m_SceneCamera.view_matrix();
+        Rect viewportRect = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 dims = dimensions(viewportRect);
+        Mat4 projection = m_SceneCamera.projection_matrix(AspectRatio(dims));
 
         ImGuizmo::SetRect(viewportRect.p1.x, viewportRect.p1.y, dims.x, dims.y);
-        Mat4 identity = Identity<Mat4>();
-        ImGuizmo::DrawGrid(value_ptr(view), value_ptr(projection), value_ptr(identity), 100.f);
+        Mat4 identityMatrix = identity<Mat4>();
+        ImGuizmo::DrawGrid(value_ptr(view), value_ptr(projection), value_ptr(identityMatrix), 100.f);
         ImGuizmo::DrawCubes(value_ptr(view), value_ptr(projection), value_ptr(m_ModelMatrix), 1);
 
-        ImGui::Checkbox("translate", &m_IsInTranslateMode);
+        ui::Checkbox("translate", &m_IsInTranslateMode);
 
         ImGuizmo::Manipulate(
             value_ptr(view),
@@ -58,7 +58,7 @@ private:
     }();
 
     bool m_IsInTranslateMode = false;
-    Mat4 m_ModelMatrix = Identity<Mat4>();
+    Mat4 m_ModelMatrix = identity<Mat4>();
 };
 
 

@@ -16,6 +16,7 @@
 #include <oscar/Platform/Screenshot.h>
 #include <oscar/Platform/os.h>
 #include <oscar/Platform/Detail/SDL2Helpers.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/FilesystemHelpers.h>
 #include <oscar/Utils/Perf.h>
@@ -84,7 +85,7 @@ namespace
     }
 
     // initialize the main application window
-    sdl::Window CreateMainAppWindow(CStringView applicationName)
+    sdl::Window CreateMainAppWindow(AppConfig const& config, CStringView applicationName)
     {
         log_info("initializing main application window");
 
@@ -101,10 +102,15 @@ namespace
         constexpr int y = SDL_WINDOWPOS_CENTERED;
         constexpr int width = 800;
         constexpr int height = 600;
-        constexpr Uint32 flags =
-            SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED;
 
-        return sdl::CreateWindoww(applicationName.c_str(), x, y, width, height, flags);
+        Uint32 flags =
+            SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED;
+        if (auto v = config.getValue("experimental_feature_flags/high_dpi_mode"); v && v->toBool()) {
+            flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+            SetProcessHighDPIMode();
+        }
+
+        return sdl::CreateWindoww(applicationName, x, y, width, height, flags);
     }
 
     AppClock::duration ConvertPerfTicksToFClockDuration(Uint64 ticks, Uint64 frequency)
@@ -148,7 +154,7 @@ namespace
     struct AnnotatedScreenshotRequest final {
 
         AnnotatedScreenshotRequest(
-            uint64_t frameRequested_,
+            size_t frameRequested_,
             std::future<Texture2D> underlyingFuture_) :
 
             frameRequested{frameRequested_},
@@ -157,7 +163,7 @@ namespace
         }
 
         // the frame on which the screenshot was requested
-        uint64_t frameRequested;
+        size_t frameRequested;
 
         // underlying (to-be-waited-on) future for the screenshot
         std::future<Texture2D> underlyingScreenshotFuture;
@@ -260,7 +266,7 @@ public:
 
     Vec2 dims() const
     {
-        return Vec2{sdl::GetWindowSize(m_MainWindow.get())};
+        return Vec2{sdl::GetWindowSizeInPixels(m_MainWindow.get())};
     }
 
     void setShowCursor(bool v)
@@ -372,7 +378,7 @@ public:
         return m_GraphicsContext.getBackendShadingLanguageVersionString();
     }
 
-    uint64_t getFrameCount() const
+    size_t getFrameCount() const
     {
         return m_FrameCounter;
     }
@@ -590,7 +596,7 @@ private:
                 OSC_PERF("App/pumpEvents");
 
                 bool shouldWait = m_InWaitMode && m_NumFramesToPoll <= 0;
-                m_NumFramesToPoll = std::max(0, m_NumFramesToPoll - 1);
+                m_NumFramesToPoll = max(0, m_NumFramesToPoll - 1);
 
                 for (SDL_Event e; shouldWait ? SDL_WaitEventTimeout(&e, 1000) : SDL_PollEvent(&e);)
                 {
@@ -752,7 +758,7 @@ private:
     sdl::Context m_SDLContext{SDL_INIT_VIDEO};
 
     // init main application window
-    sdl::Window m_MainWindow = CreateMainAppWindow(GetBestHumanReadableApplicationName(m_Metadata));
+    sdl::Window m_MainWindow = CreateMainAppWindow(m_ApplicationConfig, GetBestHumanReadableApplicationName(m_Metadata));
 
     // init graphics context
     GraphicsContext m_GraphicsContext{*m_MainWindow};
@@ -764,7 +770,7 @@ private:
     Uint64 m_AppCounter = 0;
 
     // number of frames the application has drawn
-    uint64_t m_FrameCounter = 0;
+    size_t m_FrameCounter = 0;
 
     // when the application started up (set now)
     AppClock::time_point m_AppStartupTime = ConvertPerfCounterToFClock(SDL_GetPerformanceCounter(), m_AppCounterFq);
@@ -779,7 +785,7 @@ private:
     SynchronizedValue<std::unordered_map<TypeInfoReference, std::shared_ptr<void>>> m_Singletons;
 
     // how many antiAliasingLevel the implementation should actually use
-    AntiAliasingLevel m_CurrentMSXAASamples = std::min(m_GraphicsContext.getMaxAntialiasingLevel(), m_ApplicationConfig.getNumMSXAASamples());
+    AntiAliasingLevel m_CurrentMSXAASamples = min(m_GraphicsContext.getMaxAntialiasingLevel(), m_ApplicationConfig.getNumMSXAASamples());
 
     // set to true if the application should quit
     bool m_QuitRequested = false;
@@ -1001,7 +1007,7 @@ std::string osc::App::getGraphicsBackendShadingLanguageVersionString() const
     return m_Impl->getGraphicsBackendShadingLanguageVersionString();
 }
 
-uint64_t osc::App::getFrameCount() const
+size_t osc::App::getFrameCount() const
 {
     return m_Impl->getFrameCount();
 }

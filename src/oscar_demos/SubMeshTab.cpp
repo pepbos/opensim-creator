@@ -25,10 +25,10 @@ namespace
 
     Mesh GenerateMeshWithSubMeshes()
     {
-        auto const meshes = std::to_array({
-            GenerateCubeMesh(),
-            GenerateUVSphereMesh(16, 16),
-            GenerateCircleMesh(32),
+        auto const meshes = std::to_array<Mesh>({
+            BoxGeometry{2.0f, 2.0f, 2.0f},
+            SphereGeometry{1.0f, 16, 16},
+            CircleGeometry{1.0f, 32},
         });
 
         std::vector<Vec3> allVerts;
@@ -37,12 +37,13 @@ namespace
         std::vector<SubMeshDescriptor> allDescriptors;
 
         for (auto const& mesh : meshes) {
+            size_t firstVert = allVerts.size();
             Append(allVerts, mesh.getVerts());
             Append(allNormals, mesh.getNormals());
 
             size_t firstIndex = allIndices.size();
             for (auto index : mesh.getIndices()) {
-                allIndices.push_back(static_cast<uint32_t>(firstIndex + index));
+                allIndices.push_back(static_cast<uint32_t>(firstVert + index));
             }
             size_t nIndices = allIndices.size() - firstIndex;
 
@@ -68,7 +69,7 @@ public:
         m_Camera.setPosition({0.0f, 0.0f, -2.5f});
         m_Camera.setDirection({0.0f, 0.0f, 1.0f});
 
-        m_Material.setColor("uColor", Color::red());
+        m_Material.setColor(Color::red());
         m_Material.setWireframeMode(true);
     }
 
@@ -78,23 +79,20 @@ private:
         for (size_t subMeshIndex = 0; subMeshIndex < m_MeshWithSubmeshes.getSubMeshCount(); ++subMeshIndex) {
             Graphics::DrawMesh(
                 m_MeshWithSubmeshes,
-                Identity<Transform>(),
+                identity<Transform>(),
                 m_Material,
                 m_Camera,
                 std::nullopt,
                 subMeshIndex
             );
         }
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
         m_Camera.renderToScreen();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
-    Material m_Material{Shader{
-        m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
-        m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
-    }};
+    MeshBasicMaterial m_Material;
     Mesh m_MeshWithSubmeshes = GenerateMeshWithSubMeshes();
 };
 

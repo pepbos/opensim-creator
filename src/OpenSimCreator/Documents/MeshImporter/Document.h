@@ -55,6 +55,8 @@ namespace osc::mi
                 ObjectLookup::iterator
             >;
 
+            Iterator() = default;
+
             Iterator(InternalIterator pos_, InternalIterator end_) :
                 m_Pos{pos_},
                 m_End{end_}
@@ -90,6 +92,13 @@ namespace osc::mi
                 return *this;
             }
 
+            Iterator operator++(int)
+            {
+                Iterator copy{*this};
+                ++(*this);
+                return copy;
+            }
+
             reference operator*() const
             {
                 return dynamic_cast<reference>(*m_Pos->second);
@@ -108,8 +117,8 @@ namespace osc::mi
             }
 
         private:
-            InternalIterator m_Pos;
-            InternalIterator m_End;
+            InternalIterator m_Pos{};
+            InternalIterator m_End{};
         };
 
         // helper class for an iterable object with a beginning + end
@@ -241,9 +250,7 @@ namespace osc::mi
                 // move object into deletion set, rather than deleting it immediately,
                 // so that code that relies on references to the to-be-deleted object
                 // still works until an explicit `.GarbageCollect()` call
-
-                auto const it = m_Objects.find(deletedID);
-                if (it != m_Objects.end())
+                if (auto const it = m_Objects.find(deletedID); it != m_Objects.end())
                 {
                     m_DeletedObjects.push_back(std::move(it->second));
                     m_Objects.erase(it);
@@ -273,7 +280,7 @@ namespace osc::mi
 
         bool isSelected(UID id) const
         {
-            return m_SelectedObjectIDs.find(id) != m_SelectedObjectIDs.end();
+            return m_SelectedObjectIDs.contains(id);
         }
 
         bool isSelected(MIObject const& obj) const

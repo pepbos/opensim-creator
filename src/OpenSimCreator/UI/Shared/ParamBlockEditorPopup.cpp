@@ -27,7 +27,7 @@ namespace
         //       see: #553
 
         auto fv = static_cast<float>(v);
-        if (ImGui::InputFloat("##", &fv, 0.0f, 0.0f, "%.9f"))
+        if (ui::InputFloat("##", &fv, 0.0f, 0.0f, "%.9f"))
         {
             b.setValue(idx, static_cast<double>(fv));
             return true;
@@ -40,7 +40,7 @@ namespace
 
     bool DrawEditor(ParamBlock& b, int idx, int v)
     {
-        if (ImGui::InputInt("##", &v))
+        if (ui::InputInt("##", &v))
         {
             b.setValue(idx, v);
             return true;
@@ -57,7 +57,7 @@ namespace
             GetAllIntegratorMethodStrings();
         auto method = static_cast<size_t>(im);
 
-        if (Combo("##", &method, methodStrings))
+        if (ui::Combo("##", &method, methodStrings))
         {
             b.setValue(idx, static_cast<IntegratorMethod>(method));
             return true;
@@ -98,35 +98,35 @@ private:
     {
         m_WasEdited = false;
 
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (int i = 0, len = m_LocalCopy.size(); i < len; ++i)
         {
-            ImGui::PushID(i);
+            ui::PushID(i);
 
-            ImGui::TextUnformatted(m_LocalCopy.getName(i).c_str());
-            ImGui::SameLine();
-            DrawHelpMarker(m_LocalCopy.getName(i), m_LocalCopy.getDescription(i));
-            ImGui::NextColumn();
+            ui::TextUnformatted(m_LocalCopy.getName(i));
+            ui::SameLine();
+            ui::DrawHelpMarker(m_LocalCopy.getName(i), m_LocalCopy.getDescription(i));
+            ui::NextColumn();
 
             if (DrawEditor(m_LocalCopy, i))
             {
                 m_WasEdited = true;
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
 
-            ImGui::PopID();
+            ui::PopID();
         }
-        ImGui::Columns();
+        ui::Columns();
 
-        ImGui::Dummy({0.0f, 1.0f});
+        ui::Dummy({0.0f, 1.0f});
 
-        if (ImGui::Button("save"))
+        if (ui::Button("save"))
         {
             *m_OutputTarget = m_LocalCopy;
             requestClose();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("close"))
+        ui::SameLine();
+        if (ui::Button("close"))
         {
             requestClose();
         }

@@ -2,6 +2,7 @@
 
 #include <oscar/UI/Panels/IPanel.h>
 #include <oscar/UI/Panels/ToggleablePanelFlags.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/CStringView.h>
 #include <oscar/Utils/UID.h>
 
@@ -412,11 +413,11 @@ private:
             if (panel.getSpawnablePanelID() == spawnableID)
             {
                 size_t instanceNumber = panel.getInstanceNumber();
-                used.resize(std::max(instanceNumber, used.size()));
+                used.resize(max(instanceNumber, used.size()));
                 used[instanceNumber] = true;
             }
         }
-        return std::distance(used.begin(), std::find(used.begin(), used.end(), false));
+        return std::distance(used.begin(), find(used, false));
     }
 
     std::string calcPanelName(std::string_view baseName, size_t ithInstance)

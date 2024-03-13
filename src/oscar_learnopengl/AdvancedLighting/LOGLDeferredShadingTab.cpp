@@ -1,7 +1,5 @@
 #include "LOGLDeferredShadingTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -194,8 +192,8 @@ private:
 
     void draw3DScene()
     {
-        Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
-        Vec2 const viewportDims = Dimensions(viewportRect);
+        Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 const viewportDims = dimensions(viewportRect);
         AntiAliasingLevel const antiAliasingLevel = App::get().getCurrentAntiAliasingLevel();
 
         // ensure textures/buffers have correct dimensions
@@ -257,7 +255,7 @@ private:
         m_LightPass.material.setFloat("uLightQuadratic", 1.8f);
         m_LightPass.material.setVec3("uViewPos", m_Camera.getPosition());
 
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_LightPass.material, m_Camera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_LightPass.material, m_Camera);
 
         m_Camera.renderTo(m_OutputTexture);
 
@@ -299,8 +297,8 @@ private:
     std::vector<Vec3> m_LightPositions = GenerateNSceneLightPositions(c_NumLights);
     std::vector<Vec3> m_LightColors = GenerateNSceneLightColors(c_NumLights);
     MouseCapturingCamera m_Camera = CreateCameraThatMatchesLearnOpenGL();
-    Mesh m_CubeMesh = GenerateCubeMesh();
-    Mesh m_QuadMesh = GenerateTexturedQuadMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
+    Mesh m_QuadMesh = PlaneGeometry{2.0f, 2.0f};
     Texture2D m_DiffuseMap = LoadTexture2DFromImage(
         m_Loader.open("oscar_learnopengl/textures/container2.png"),
         ColorSpace::sRGB,

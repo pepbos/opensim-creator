@@ -5,6 +5,14 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Upcoming Release]
 
+- Right-clicking on a `PhysicalFrame`/`Body` in the model editor now shows an `Add` menu that includes
+  the ability to add geometry, offset frames, and wrap objects. Previously: was `Add Geometry` and
+  `Add Offset Frame` were shown, but now there's also the ability to add wrap objects. (#7)
+- Right-clicking a `GeometryPath` in the model now shows an `Add` menu that includes the ability to add
+  a `PathWrap` to the `GeometryPath`, which is handy in conjunction with the above
+
+## [0.5.10] - 2024/03/05
+
 - Updated `opensim-core` to a version which includes `StationDefinedFrame` support:
   - Upstream feature: https://github.com/opensim-org/opensim-core/pull/3694
   - They let you define an `OpenSim::PhysicalFrame` from stations/landmarks/markers. This more closely
@@ -15,12 +23,23 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
       outside of OpenSim Creator (yet).
     - OpenSim Creator's tooling support for the feature (visualization, documentation, etc.) is currently
       limited, but we plan to improve it over time
-- Fixes muscles not casting shadows after the surface rendering change
+- The `Calculate` menu for `Ellipsoid`s and `Frame`s now contain additional options, such as being able
+  to ask for the axis directions, so that users can get similar information out of shape-fitted geometry
+  as they would from external scripts
+- The warping algorithm used by the mesh warper and model warper (TPS) now `lerp`s between "not warped"
+  and "fully warped", rather than recomputing the warp kernel based on blended input data:
+
+  - Practically, this means that setting the blending factor to zero guarantees that the warped mesh is
+    exactly the same as the input mesh (previously, it would try to solve for the input positions and
+    sometimes produce a non-identity solution when given a small number of input landmarks)
+- Fixed mesh importer scrolling calculation for the new camera manipulator causing unnecessary scrolling
+- Fixed muscles not casting shadows after the surface rendering change
+- There is now a minor delay when mousing over entries in the `Add` menus in the model editor
 - Internal: google/benchmark, ocornut/imgui, sammycage/lunasvg, nothings/stb, marzer/tomlplusplus, and
   martinus/unordered_dense were all updated to their latest releases
 
 
-## [0.5.9] - 2023/02/27
+## [0.5.9] - 2024/02/27
 
 - The mesh loader now obeys the normals of shared vertices in provided mesh files:
   - Practically speaking, it means that the surface shading of meshes in OSC will more closely match what
@@ -55,7 +74,7 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Internal: glm was dropped as an external dependency by copying the bare-minimum parts used by `osc` in-tree
 
 
-## [0.5.8] - 2023/02/14
+## [0.5.8] - 2024/02/14
 
 0.5.8 makes moving `PhysicalOffsetFrame`s a little bit easier when they're the child of a `Joint`, and adds
 user-facing support for OSC-specific `OpenSim::Component`s (explained below). It also contains a few minor
@@ -85,7 +104,8 @@ bugfixes, plus a variety of internal engine changes.
   editor, etc.) tabs to ensure they are always working
 - Internal: all header files are now suffixed with `.h` to match most libraries etc. (previously: `.hpp`)
 
-## [0.5.7] - 2023/01/11
+
+## [0.5.7] - 2024/01/11
 
 0.5.7 is purely a bugfix release. The main fix is that the GeometryPath editor popup has
 now returned. It dissapeared because `opensim-core` now supports function-based muscle
@@ -102,6 +122,7 @@ paths.
   `ITab`, `IPanel`, etc.)
 - Internal: OpenSimCreator pure-virtual interface classes are now prefixed with `I`
   (e.g. `IOutputExtractor`, `ISimulation`, etc.)
+
 
 ## [0.5.6] - 2023/12/22
 
@@ -533,6 +554,7 @@ a user, these aren't important to you, but they make developers feel fuzzy insid
 - Internal: reorganized panel widgets from `Widgets/` to `Panels/` to (#564)
 - Internal: OpenSim-related rendering code is now centralized in `src/OpenSimBindings/Rendering` (#572)
 
+
 ## [0.3.2] - 2023/01/09
 
 0.3.2 is mostly a patch release with some minor quality-of-life improvements. It also includes all changes
@@ -585,6 +607,7 @@ full list of changes in both 0.3.2 and 0.3.1.
 - Deprecated (e.g. `Delp1990Muscle_Deprecated`), base (e.g. `PathActuator`), or illogical (e.g. `Ground`) components
   no longer appear in the `Add` menu (#512)
 
+
 ## [0.3.1] - UNRELEASED
 
 **Note**: `0.3.1` was tagged in the git repository but never released, because it contained a bug that
@@ -598,6 +621,7 @@ caused it to crash on certain systems when viewing high-vertex-count meshes (e.g
 - Socket reassignment failure now fully rolls back the model to a pre-assignment state (previously: would erroneously hold some changes, #382)
 - Hotfixed assigning a joint's `child_frame` socket to `/ground` to now cause an error message,
   rather than entirely crashing the application (#389 and opensim-org/opensim-core #3299)
+
 
 ## [0.3.0] - 2022/09/14
 
@@ -1161,6 +1185,7 @@ New muscle visualization options, experimental support for live muscle plots, an
 - Fixed a bug in the mesh importer where scaling a mesh element would cause its rotation to be
   broken in the imported OpenSim model (#153)
 - Fixed minor typo: renamed 'scale' to 'Scale' in mesh importer right-click context menu (#129)
+
 
 ## [0.1.1] - 2022/02/11
 

@@ -30,9 +30,9 @@ public:
 
     void onDraw()
     {
-        BeginMainViewportBottomBar("bottom");
+        ui::BeginMainViewportBottomBar("bottom");
         drawSelectionBreadcrumbs();
-        ImGui::End();
+        ui::End();
     }
 
 private:
@@ -45,42 +45,42 @@ private:
             std::vector<OpenSim::Component const*> const els = GetPathElements(*c);
             for (ptrdiff_t i = 0; i < std::ssize(els)-1; ++i)
             {
-                PushID(i);
+                ui::PushID(i);
                 std::string const label = Ellipsis(els[i]->getName(), 15);
-                if (ImGui::SmallButton(label.c_str()))
+                if (ui::SmallButton(label))
                 {
                     m_Model->setSelected(els[i]);
                 }
                 drawMouseInteractionStuff(*els[i]);
-                ImGui::SameLine();
-                ImGui::TextDisabled("/");
-                ImGui::SameLine();
-                PopID();
+                ui::SameLine();
+                ui::TextDisabled("/");
+                ui::SameLine();
+                ui::PopID();
             }
             if (!els.empty())
             {
                 std::string const label = Ellipsis(els.back()->getName(), 15);
-                ImGui::TextUnformatted(label.c_str());
+                ui::TextUnformatted(label);
                 drawMouseInteractionStuff(*els.back());
             }
         }
         else
         {
-            ImGui::TextDisabled("(nothing selected)");
+            ui::TextDisabled("(nothing selected)");
         }
     }
 
     void drawMouseInteractionStuff(OpenSim::Component const& c)
     {
-        if (ImGui::IsItemHovered())
+        if (ui::IsItemHovered())
         {
             m_Model->setHovered(&c);
 
-            BeginTooltip();
-            ImGui::TextDisabled("%s", c.getConcreteClassName().c_str());
-            EndTooltip();
+            ui::BeginTooltip();
+            ui::TextDisabled(c.getConcreteClassName());
+            ui::EndTooltip();
         }
-        if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+        if (ui::IsItemClicked(ImGuiMouseButton_Right))
         {
             auto menu = std::make_unique<ComponentContextMenu>(
                 "##hovermenu",

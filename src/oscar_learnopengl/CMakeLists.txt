@@ -56,13 +56,11 @@ add_library(oscar_learnopengl STATIC
     AdvancedLighting.h
     AdvancedOpenGL.h
     GettingStarted.h
-    LearnOpenGLHelpers.cpp
-    LearnOpenGLHelpers.h
+
     LearnOpenGLTabRegistry.cpp
     LearnOpenGLTabRegistry.h
     LearnOpenGLTabs.h
     Lighting.h
-    MouseCapturingCamera.h
     PBR.h
 )
 

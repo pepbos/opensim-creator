@@ -1,7 +1,5 @@
 #include "LOGLFaceCullingTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -16,9 +14,7 @@ namespace
 
     Mesh GenerateCubeSimilarlyToLOGL()
     {
-        Mesh m = GenerateCubeMesh();
-        m.transformVerts({.scale = Vec3{0.5f}});
-        return m;
+        return BoxGeometry{1.0f, 1.0f, 1.0f}.mesh();
     }
 
     Material GenerateUVTestingTextureMappedMaterial(IResourceLoader& rl)
@@ -80,24 +76,24 @@ private:
 
     void drawScene()
     {
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
-        Graphics::DrawMesh(m_Cube, Identity<Transform>(), m_Material, m_Camera);
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
+        Graphics::DrawMesh(m_Cube, identity<Transform>(), m_Material, m_Camera);
         m_Camera.renderToScreen();
     }
 
     void draw2DUI()
     {
-        ImGui::Begin("controls");
-        if (ImGui::Button("off")) {
+        ui::Begin("controls");
+        if (ui::Button("off")) {
             m_Material.setCullMode(CullMode::Off);
         }
-        if (ImGui::Button("back")) {
+        if (ui::Button("back")) {
             m_Material.setCullMode(CullMode::Back);
         }
-        if (ImGui::Button("front")) {
+        if (ui::Button("front")) {
             m_Material.setCullMode(CullMode::Front);
         }
-        ImGui::End();
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();

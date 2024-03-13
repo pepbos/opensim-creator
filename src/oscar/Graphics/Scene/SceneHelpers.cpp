@@ -8,7 +8,6 @@
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/AABB.h>
 #include <oscar/Maths/Angle.h>
 #include <oscar/Maths/BVH.h>
@@ -23,7 +22,7 @@
 #include <oscar/Maths/Transform.h>
 #include <oscar/Maths/Vec2.h>
 #include <oscar/Maths/Vec3.h>
-#include <oscar/Utils/At.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <functional>
 #include <optional>
@@ -60,8 +59,8 @@ void osc::DrawBVH(
         out({
             .mesh = cube,
             .transform = {
-                .scale = HalfWidths(node.getBounds()),
-                .position = Midpoint(node.getBounds()),
+                .scale = half_widths(node.getBounds()),
+                .position = centroid(node.getBounds()),
             },
             .color = Color::black(),
         });
@@ -87,8 +86,8 @@ void osc::DrawAABBs(
         out({
             .mesh = cube,
             .transform = {
-                .scale = HalfWidths(aabb),
-                .position = Midpoint(aabb),
+                .scale = half_widths(aabb),
+                .position = centroid(aabb),
             },
             .color = Color::black(),
         });
@@ -146,7 +145,7 @@ void osc::DrawXYGrid(
     SceneCache& cache,
     std::function<void(SceneDecoration&&)> const& out)
 {
-    DrawGrid(cache, Identity<Quat>(), out);
+    DrawGrid(cache, identity<Quat>(), out);
 }
 
 void osc::DrawYZGrid(
@@ -202,7 +201,7 @@ void osc::DrawLineSegment(
 
 AABB osc::GetWorldspaceAABB(SceneDecoration const& cd)
 {
-    return TransformAABB(cd.mesh.getBounds(), cd.transform);
+    return transform_aabb(cd.mesh.getBounds(), cd.transform);
 }
 
 void osc::UpdateSceneBVH(std::span<SceneDecoration const> sceneEls, BVH& bvh)
@@ -227,7 +226,7 @@ std::vector<SceneCollision> osc::GetAllSceneCollisions(
     bvh.forEachRayAABBCollision(ray, [&sceneCache, &decorations, &ray, &rv](BVHCollision sceneCollision)
     {
         // perform ray-triangle intersection tests on the scene collisions
-        SceneDecoration const& decoration = At(decorations, sceneCollision.id);
+        SceneDecoration const& decoration = at(decorations, sceneCollision.id);
         BVH const& decorationBVH = sceneCache.getBVH(decoration.mesh);
 
         std::optional<RayCollision> const maybeCollision = GetClosestWorldspaceRayCollision(
@@ -269,7 +268,7 @@ std::optional<RayCollision> osc::GetClosestWorldspaceRayCollision(
     triangleBVH.forEachRayAABBCollision(modelspaceRay, [&mesh, &transform, &worldspaceRay, &modelspaceRay, &rv](BVHCollision bvhCollision)
     {
         // then perform a ray-triangle collision
-        if (auto triangleCollision = GetRayCollisionTriangle(modelspaceRay, mesh.getTriangleAt(bvhCollision.id)))
+        if (auto triangleCollision = find_collision(modelspaceRay, mesh.getTriangleAt(bvhCollision.id)))
         {
             // map it back into worldspace and check if it's closer
             Vec3 const locationWorldspace = transform * triangleCollision->position;
@@ -293,13 +292,13 @@ std::optional<RayCollision> osc::GetClosestWorldspaceRayCollision(
 {
     Line const ray = camera.unprojectTopLeftPosToWorldRay(
         mouseScreenPos - renderScreenRect.p1,
-        Dimensions(renderScreenRect)
+        dimensions(renderScreenRect)
     );
 
     return GetClosestWorldspaceRayCollision(
         mesh,
         triangleBVH,
-        Identity<Transform>(),
+        identity<Transform>(),
         ray
     );
 }
@@ -314,22 +313,12 @@ SceneRendererParams osc::CalcStandardDarkSceneRenderParams(
     rv.antiAliasingLevel = antiAliasingLevel;
     rv.drawMeshNormals = false;
     rv.drawFloor = false;
-    rv.viewMatrix = camera.getViewMtx();
-    rv.projectionMatrix = camera.getProjMtx(AspectRatio(renderDims));
+    rv.viewMatrix = camera.view_matrix();
+    rv.projectionMatrix = camera.projection_matrix(AspectRatio(renderDims));
     rv.viewPos = camera.getPos();
     rv.lightDirection = RecommendedLightDirection(camera);
     rv.backgroundColor = {0.1f, 1.0f};
     return rv;
-}
-
-Material osc::CreateWireframeOverlayMaterial(
-    ShaderCache& cache)
-{
-    Material material{cache.load("oscar/shaders/SceneRenderer/SolidColor.vert", "oscar/shaders/SceneRenderer/SolidColor.frag")};
-    material.setColor("uDiffuseColor", {0.0f, 0.6f});
-    material.setWireframeMode(true);
-    material.setTransparent(true);
-    return material;
 }
 
 BVH osc::CreateTriangleBVHFromMesh(Mesh const& mesh)

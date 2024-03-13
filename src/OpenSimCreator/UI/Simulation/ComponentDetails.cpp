@@ -21,140 +21,140 @@ ComponentDetails::Response osc::ComponentDetails::onDraw(
 
     if (!comp)
     {
-        ImGui::Text("(nothing selected)");
+        ui::Text("(nothing selected)");
         return rv;
     }
 
     OpenSim::Component const& c = *comp;
 
-    ImGui::Text("selection information:");
-    ImGui::Dummy({0.0, 2.5f});
-    ImGui::Separator();
+    ui::Text("selection information:");
+    ui::Dummy({0.0, 2.5f});
+    ui::Separator();
 
     // top-level info
     {
-        ImGui::Columns(2);
+        ui::Columns(2);
 
-        ImGui::Text("getName()");
-        ImGui::NextColumn();
-        ImGui::Text("%s", c.getName().c_str());
-        ImGui::NextColumn();
+        ui::Text("getName()");
+        ui::NextColumn();
+        ui::Text(c.getName());
+        ui::NextColumn();
 
-        ImGui::Text("getAuthors()");
-        ImGui::NextColumn();
-        ImGui::Text("%s", c.getAuthors().c_str());
-        ImGui::NextColumn();
+        ui::Text("getAuthors()");
+        ui::NextColumn();
+        ui::Text(c.getAuthors());
+        ui::NextColumn();
 
-        ImGui::Text("getOwner().getName()");
-        ImGui::NextColumn();
-        ImGui::Text("%s", TryGetOwnerName(c).value_or("N/A (no owner)").c_str());
-        ImGui::NextColumn();
+        ui::Text("getOwner().getName()");
+        ui::NextColumn();
+        ui::Text(TryGetOwnerName(c).value_or("N/A (no owner)"));
+        ui::NextColumn();
 
-        ImGui::Text("getAbsolutePath()");
-        ImGui::NextColumn();
-        ImGui::Text("%s", GetAbsolutePathString(c).c_str());
-        ImGui::NextColumn();
+        ui::Text("getAbsolutePath()");
+        ui::NextColumn();
+        ui::Text(GetAbsolutePathString(c));
+        ui::NextColumn();
 
-        ImGui::Text("getConcreteClassName()");
-        ImGui::NextColumn();
-        ImGui::Text("%s", c.getConcreteClassName().c_str());
-        ImGui::NextColumn();
+        ui::Text("getConcreteClassName()");
+        ui::NextColumn();
+        ui::Text(c.getConcreteClassName());
+        ui::NextColumn();
 
-        ImGui::Text("getNumInputs()");
-        ImGui::NextColumn();
-        ImGui::Text("%i", c.getNumInputs());
-        ImGui::NextColumn();
+        ui::Text("getNumInputs()");
+        ui::NextColumn();
+        ui::Text("%i", c.getNumInputs());
+        ui::NextColumn();
 
-        ImGui::Text("getNumOutputs()");
-        ImGui::NextColumn();
-        ImGui::Text("%i", c.getNumOutputs());
-        ImGui::NextColumn();
+        ui::Text("getNumOutputs()");
+        ui::NextColumn();
+        ui::Text("%i", c.getNumOutputs());
+        ui::NextColumn();
 
-        ImGui::Text("getNumSockets()");
-        ImGui::NextColumn();
-        ImGui::Text("%i", c.getNumSockets());
-        ImGui::NextColumn();
+        ui::Text("getNumSockets()");
+        ui::NextColumn();
+        ui::Text("%i", c.getNumSockets());
+        ui::NextColumn();
 
-        ImGui::Text("getNumStateVariables()");
-        ImGui::NextColumn();
-        ImGui::Text("%i", c.getNumStateVariables());
-        ImGui::NextColumn();
+        ui::Text("getNumStateVariables()");
+        ui::NextColumn();
+        ui::Text("%i", c.getNumStateVariables());
+        ui::NextColumn();
 
-        ImGui::Text("getNumProperties()");
-        ImGui::NextColumn();
-        ImGui::Text("%i", c.getNumProperties());
-        ImGui::NextColumn();
+        ui::Text("getNumProperties()");
+        ui::NextColumn();
+        ui::Text("%i", c.getNumProperties());
+        ui::NextColumn();
 
-        ImGui::Columns();
+        ui::Columns();
     }
 
     // properties
-    if (ImGui::CollapsingHeader("properties"))
+    if (ui::CollapsingHeader("properties"))
     {
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (int i = 0; i < c.getNumProperties(); ++i)
         {
             OpenSim::AbstractProperty const& p = c.getPropertyByIndex(i);
-            ImGui::Text("%s", p.getName().c_str());
-            ImGui::NextColumn();
-            ImGui::Text("%s", p.toString().c_str());
-            ImGui::NextColumn();
+            ui::Text(p.getName());
+            ui::NextColumn();
+            ui::Text(p.toString());
+            ui::NextColumn();
         }
-        ImGui::Columns();
+        ui::Columns();
     }
 
     // state variables
-    if (ImGui::CollapsingHeader("state variables"))
+    if (ui::CollapsingHeader("state variables"))
     {
         OpenSim::Array<std::string> names = c.getStateVariableNames();
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (int i = 0; i < names.size(); ++i)
         {
             std::string const& name = names[i];
 
-            ImGui::Text("%s", name.c_str());
-            ImGui::NextColumn();
-            ImGui::Text("%f", c.getStateVariableValue(state, name));
-            ImGui::NextColumn();
+            ui::Text(name);
+            ui::NextColumn();
+            ui::Text("%f", c.getStateVariableValue(state, name));
+            ui::NextColumn();
 
-            ImGui::Text("%s (deriv)", name.c_str());
-            ImGui::NextColumn();
-            ImGui::Text("%f", c.getStateVariableDerivativeValue(state, name));
-            ImGui::NextColumn();
+            ui::Text("%s (deriv)", name.c_str());
+            ui::NextColumn();
+            ui::Text("%f", c.getStateVariableDerivativeValue(state, name));
+            ui::NextColumn();
         }
-        ImGui::Columns();
+        ui::Columns();
     }
 
     // inputs
-    if (ImGui::CollapsingHeader("inputs"))
+    if (ui::CollapsingHeader("inputs"))
     {
         std::vector<std::string> input_names = c.getInputNames();
         for (std::string const& inputName : input_names)
         {
-            ImGui::Text("%s", inputName.c_str());
+            ui::Text(inputName);
         }
     }
 
     // sockets
-    if (ImGui::CollapsingHeader("sockets"))
+    if (ui::CollapsingHeader("sockets"))
     {
         std::vector<std::string> socknames = GetSocketNames(c);
-        ImGui::Columns(2);
+        ui::Columns(2);
         for (std::string const& sn : socknames)
         {
-            ImGui::Text("%s", sn.c_str());
-            ImGui::NextColumn();
+            ui::Text(sn);
+            ui::NextColumn();
 
             std::string const& cp = c.getSocket(sn).getConnecteePath();
-            ImGui::Text("%s", cp.c_str());
-            if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+            ui::Text(cp);
+            if (ui::IsItemClicked(ImGuiMouseButton_Right))
             {
                 rv.type = ResponseType::SelectionChanged;
                 rv.ptr = &c.getComponent(cp);
             }
-            ImGui::NextColumn();
+            ui::NextColumn();
         }
-        ImGui::Columns();
+        ui::Columns();
     }
 
     return rv;

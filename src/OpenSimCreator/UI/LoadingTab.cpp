@@ -99,41 +99,41 @@ public:
     {
         constexpr Vec2 menuDims = {512.0f, 512.0f};
 
-        Rect const tabRect = GetMainViewportWorkspaceScreenRect();
-        Vec2 const windowDims = Dimensions(tabRect);
+        Rect const tabRect = ui::GetMainViewportWorkspaceScreenRect();
+        Vec2 const windowDims = dimensions(tabRect);
 
         // center the menu
         {
             Vec2 const menuTopLeft = (windowDims - menuDims) / 2.0f;
-            ImGui::SetNextWindowPos(menuTopLeft);
-            ImGui::SetNextWindowSize({menuDims.x, -1.0f});
+            ui::SetNextWindowPos(menuTopLeft);
+            ui::SetNextWindowSize({menuDims.x, -1.0f});
         }
 
         if (m_LoadingErrorMsg.empty())
         {
-            if (ImGui::Begin("Loading Message", nullptr, ImGuiWindowFlags_NoTitleBar))
+            if (ui::Begin("Loading Message", nullptr, ImGuiWindowFlags_NoTitleBar))
             {
-                ImGui::Text("loading: %s", m_OsimPath.string().c_str());
-                ImGui::ProgressBar(m_LoadingProgress);
+                ui::Text("loading: %s", m_OsimPath.string().c_str());
+                ui::ProgressBar(m_LoadingProgress);
             }
-            ImGui::End();
+            ui::End();
         }
         else
         {
-            if (ImGui::Begin("Error Message", nullptr, ImGuiWindowFlags_NoTitleBar))
+            if (ui::Begin("Error Message", nullptr, ImGuiWindowFlags_NoTitleBar))
             {
-                ImGui::TextWrapped("An error occurred while loading the file:");
-                ImGui::Dummy({0.0f, 5.0f});
-                ImGui::TextWrapped("%s", m_LoadingErrorMsg.c_str());
-                ImGui::Dummy({0.0f, 5.0f});
+                ui::TextWrapped("An error occurred while loading the file:");
+                ui::Dummy({0.0f, 5.0f});
+                ui::TextWrapped(m_LoadingErrorMsg);
+                ui::Dummy({0.0f, 5.0f});
 
-                if (ImGui::Button("try again"))
+                if (ui::Button("try again"))
                 {
                     m_Parent->addAndSelectTab<LoadingTab>(m_Parent, m_OsimPath);
                     m_Parent->closeTab(m_TabID);
                 }
             }
-            ImGui::End();
+            ui::End();
         }
     }
 

@@ -1,8 +1,5 @@
 #include "LOGLMultipleLightsTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -172,13 +169,13 @@ private:
         }
 
         // render to output (window)
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
         m_Camera.renderToScreen();
 
         // render auxiliary UI
-        ImGui::Begin("controls");
-        ImGui::InputFloat("uMaterialShininess", &m_MaterialShininess);
-        ImGui::End();
+        ui::Begin("controls");
+        ui::InputFloat("uMaterialShininess", &m_MaterialShininess);
+        ui::End();
 
         m_LogViewer.onDraw();
         m_PerfPanel.onDraw();
@@ -188,7 +185,7 @@ private:
 
     Material m_MultipleLightsMaterial = CreateMultipleLightsMaterial(m_Loader);
     Material m_LightCubeMaterial = CreateLightCubeMaterial(m_Loader);
-    Mesh m_Mesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_Mesh = BoxGeometry{};
 
     MouseCapturingCamera m_Camera = CreateCamera();
 

@@ -1,6 +1,7 @@
 #include "OpenSimDecorationGenerator.h"
 
 #include <OpenSimCreator/Documents/Model/IConstModelStatePair.h>
+#include <OpenSimCreator/Documents/ICustomDecorationGenerator.h>
 #include <OpenSimCreator/Graphics/OpenSimDecorationOptions.h>
 #include <OpenSimCreator/Graphics/SimTKDecorationGenerator.h>
 #include <OpenSimCreator/Utils/OpenSimHelpers.h>
@@ -32,6 +33,7 @@
 #include <oscar/Maths/Transform.h>
 #include <oscar/Maths/Vec3.h>
 #include <oscar/Platform/Log.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Perf.h>
 #include <SimTKcommon.h>
 
@@ -195,9 +197,9 @@ namespace
             return m_SphereMesh;
         }
 
-        Mesh const& getCylinderMesh() const
+        Mesh const& getUncappedCylinderMesh() const
         {
-            return m_CylinderMesh;
+            return m_UncappedCylinderMesh;
         }
 
         OpenSim::ModelDisplayHints const& getModelDisplayHints() const
@@ -301,7 +303,7 @@ namespace
     private:
         SceneCache& m_MeshCache;
         Mesh m_SphereMesh = m_MeshCache.getSphereMesh();
-        Mesh m_CylinderMesh = m_MeshCache.getCylinderMesh();
+        Mesh m_UncappedCylinderMesh = m_MeshCache.getUncappedCylinderMesh();
         OpenSim::Model const& m_Model;
         OpenSim::ModelDisplayHints const& m_ModelDisplayHints = m_Model.getDisplayHints();
         bool m_ShowPathPoints = m_ModelDisplayHints.get_show_path_points();
@@ -330,7 +332,7 @@ namespace
 
         rs.consume(p2p, SceneDecoration
         {
-            .mesh = rs.getCylinderMesh(),
+            .mesh = rs.updMeshCache().getCylinderMesh(),
             .transform = YToYCylinderToSegmentTransform({p1, p2}, radius),
             .color = {0.7f, 0.7f, 0.7f, 1.0f},
             .flags = SceneDecorationFlags::CastsShadows,
@@ -441,7 +443,7 @@ namespace
         };
         SceneDecoration const tendonCylinderPrototype =
         {
-            .mesh = rs.getCylinderMesh(),
+            .mesh = rs.getUncappedCylinderMesh(),
             .color = tendonColor,
             .flags = SceneDecorationFlags::CastsShadows,
         };
@@ -454,7 +456,7 @@ namespace
         };
         SceneDecoration const fiberCylinderPrototype =
         {
-            .mesh = rs.getCylinderMesh(),
+            .mesh = rs.getUncappedCylinderMesh(),
             .color = fiberColor,
             .flags = SceneDecorationFlags::CastsShadows,
         };
@@ -471,7 +473,7 @@ namespace
         auto const emitTendonCylinder = [&](Vec3 const& p1, Vec3 const& p2)
         {
             Transform const xform = YToYCylinderToSegmentTransform({p1, p2}, tendonUiRadius);
-            rs.consume(muscle, tendonCylinderPrototype.withTransform(xform));
+            rs.consume(muscle, tendonCylinderPrototype.with_transform(xform));
         };
         auto emitFiberSphere = [&](GeometryPathPoint const& p)
         {
@@ -485,7 +487,7 @@ namespace
         auto emitFiberCylinder = [&](Vec3 const& p1, Vec3 const& p2)
         {
             Transform const xform = YToYCylinderToSegmentTransform({p1, p2}, fiberUiRadius);
-            rs.consume(muscle, fiberCylinderPrototype.withTransform(xform));
+            rs.consume(muscle, fiberCylinderPrototype.with_transform(xform));
         };
 
         if (pps.size() == 1)
@@ -496,8 +498,8 @@ namespace
 
         // else: the path is >= 2 points, so it's possible to measure a traversal
         //       length along it
-        float const tendonLen = std::max(0.0f, static_cast<float>(muscle.getTendonLength(rs.getState()) * 0.5));
-        float const fiberLen = std::max(0.0f, static_cast<float>(muscle.getFiberLength(rs.getState())));
+        float const tendonLen = max(0.0f, static_cast<float>(muscle.getTendonLength(rs.getState()) * 0.5));
+        float const fiberLen = max(0.0f, static_cast<float>(muscle.getFiberLength(rs.getState())));
         float const fiberEnd = tendonLen + fiberLen;
         bool const hasTendonSpheres = tendonLen > 0.0f;
 
@@ -654,7 +656,7 @@ namespace
         {
             rs.consume(hittestTarget, SceneDecoration
             {
-                .mesh = rs.getCylinderMesh(),
+                .mesh = rs.getUncappedCylinderMesh(),
                 .transform = YToYCylinderToSegmentTransform({p1, p2}, radius),
                 .color  = color,
                 .flags = SceneDecorationFlags::CastsShadows,
@@ -979,6 +981,15 @@ void osc::GenerateSubcomponentDecorations(
         {
             return;
         }
+        else if (auto const* const custom = dynamic_cast<ICustomDecorationGenerator const*>(&c))
+        {
+            // edge-case: it's a component that has an OSC-specific `ICustomDecorationGenerator`
+            //            so we can skip the song-and-dance with caches, OpenSim, SimTK, etc.
+            custom->generateCustomDecorations(rendererState.getState(), [&c, &rendererState](SceneDecoration&& dec)
+            {
+                rendererState.consume(c, std::move(dec));
+            });
+        }
         else if (auto const* const gp = dynamic_cast<OpenSim::GeometryPath const*>(&c))
         {
             HandleGeometryPath(rendererState, *gp);
@@ -1106,8 +1117,7 @@ float osc::GetRecommendedScaleFactor(
         1.0f,
         [&aabb](OpenSim::Component const&, SceneDecoration&& dec)
         {
-            AABB const decorationAABB = GetWorldspaceAABB(dec);
-            aabb = aabb ? Union(*aabb, decorationAABB) : decorationAABB;
+            aabb = aabb_of(aabb, GetWorldspaceAABB(dec));
         }
     );
 
@@ -1120,7 +1130,7 @@ float osc::GetRecommendedScaleFactor(
     // what the smallest scale factor that would cause that dimension
     // to be >=1 cm (roughly the length of a frame leg in OSC's
     // decoration generator)
-    float longest = LongestDim(*aabb);
+    float longest = max(dimensions(*aabb));
     float rv = 1.0f;
     while (longest < 0.01)
     {

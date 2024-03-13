@@ -17,10 +17,10 @@ osc::WindowMenu::~WindowMenu() noexcept = default;
 
 void osc::WindowMenu::onDraw()
 {
-    if (ImGui::BeginMenu("Window"))
+    if (ui::BeginMenu("Window"))
     {
         drawContent();
-        ImGui::EndMenu();
+        ui::EndMenu();
     }
 }
 
@@ -35,7 +35,7 @@ void osc::WindowMenu::drawContent()
     {
         bool activated = manager.isToggleablePanelActivated(i);
         CStringView const name = manager.getToggleablePanelName(i);
-        if (ImGui::MenuItem(name.c_str(), nullptr, &activated))
+        if (ui::MenuItem(name, {}, &activated))
         {
             manager.setToggleablePanelActivated(i, activated);
         }
@@ -45,12 +45,12 @@ void osc::WindowMenu::drawContent()
     // dynamic panels
     if (manager.getNumDynamicPanels() > 0)
     {
-        ImGui::Separator();
+        ui::Separator();
         for (size_t i = 0; i < manager.getNumDynamicPanels(); ++i)
         {
             bool activated = true;
             CStringView const name = manager.getDynamicPanelName(i);
-            if (ImGui::MenuItem(name.c_str(), nullptr, &activated))
+            if (ui::MenuItem(name, {}, &activated))
             {
                 manager.deactivateDynamicPanel(i);
             }
@@ -61,25 +61,25 @@ void osc::WindowMenu::drawContent()
     // spawnable submenu
     if (manager.getNumSpawnablePanels() > 0)
     {
-        ImGui::Separator();
+        ui::Separator();
 
-        if (ImGui::BeginMenu("Add"))
+        if (ui::BeginMenu("Add"))
         {
             for (size_t i = 0; i < manager.getNumSpawnablePanels(); ++i)
             {
                 CStringView const name = manager.getSpawnablePanelBaseName(i);
-                if (ImGui::MenuItem(name.c_str()))
+                if (ui::MenuItem(name))
                 {
                     manager.createDynamicPanel(i);
                 }
             }
-            ImGui::EndMenu();
+            ui::EndMenu();
             ++numMenuItemsPrinted;
         }
     }
 
     if (numMenuItemsPrinted <= 0)
     {
-        ImGui::TextDisabled("(no windows available to be toggled)");
+        ui::TextDisabled("(no windows available to be toggled)");
     }
 }

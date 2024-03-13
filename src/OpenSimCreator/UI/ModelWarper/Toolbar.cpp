@@ -4,7 +4,6 @@
 #include <OpenSimCreator/UI/Shared/BasicWidgets.h>
 
 #include <IconsFontAwesome5.h>
-#include <imgui.h>
 #include <oscar/Graphics/Color.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
@@ -16,7 +15,7 @@ void osc::mow::Toolbar::onDraw()
     if (BeginToolbar(m_Label)) {
         drawContent();
     }
-    ImGui::End();
+    ui::End();
 }
 
 void osc::mow::Toolbar::drawContent()
@@ -26,7 +25,7 @@ void osc::mow::Toolbar::drawContent()
         m_State->actionOpenOsimOrPromptUser(std::move(maybeSelection));
     });
 
-    ImGui::SameLine();
+    ui::SameLine();
 
     drawWarpModelButton();
 }
@@ -34,35 +33,35 @@ void osc::mow::Toolbar::drawContent()
 void osc::mow::Toolbar::drawWarpModelButton()
 {
     if (!m_State->canWarpModel()) {
-        ImGui::BeginDisabled();
+        ui::BeginDisabled();
     }
-    PushStyleColor(ImGuiCol_Button, Color::darkGreen());
-    if (ImGui::Button(ICON_FA_PLAY " Warp Model")) {
+    ui::PushStyleColor(ImGuiCol_Button, Color::dark_green());
+    if (ui::Button(ICON_FA_PLAY " Warp Model")) {
         m_State->actionWarpModelAndOpenInModelEditor();
     }
-    PopStyleColor();
+    ui::PopStyleColor();
     if (!m_State->canWarpModel()) {
-        ImGui::EndDisabled();
+        ui::EndDisabled();
     }
 
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        BeginTooltip();
-        TooltipHeaderText("Warp Model");
-        TooltipDescriptionSpacer();
-        TooltipDescriptionText("Warp the model and open the warped model in the model editor");
+    if (ui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ui::BeginTooltip();
+        ui::TooltipHeaderText("Warp Model");
+        ui::TooltipDescriptionSpacer();
+        ui::TooltipDescriptionText("Warp the model and open the warped model in the model editor");
         if (!m_State->canWarpModel()) {
-            TooltipDescriptionSpacer();
-            PushStyleColor(ImGuiCol_Text, Color::mutedRed());
-            ImGui::Text("Cannot warp the model right now: there are errors that need to be fixed. See the checklist panel.");
-            PopStyleColor();
+            ui::TooltipDescriptionSpacer();
+            ui::PushStyleColor(ImGuiCol_Text, Color::muted_red());
+            ui::Text("Cannot warp the model right now: there are errors that need to be fixed. See the checklist panel.");
+            ui::PopStyleColor();
         }
-        EndTooltip();
+        ui::EndTooltip();
     }
 
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(ImGui::CalcTextSize("should be roughly this long incl label").x);
+    ui::SameLine();
+    ui::SetNextItemWidth(ui::CalcTextSize("should be roughly this long incl label").x);
     float blend = m_State->getWarpBlendingFactor();
-    if (ImGui::SliderFloat("blending", &blend, 0.0f, 1.0f)) {
+    if (ui::SliderFloat("blending", &blend, 0.0f, 1.0f)) {
         m_State->setWarpBlendingFactor(blend);
     }
 }

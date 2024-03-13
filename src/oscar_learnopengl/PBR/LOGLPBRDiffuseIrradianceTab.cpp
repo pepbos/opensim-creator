@@ -1,7 +1,5 @@
 #include "LOGLPBRDiffuseIrradianceTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -73,7 +71,7 @@ namespace
         material.setMat4Array("uShadowMatrices", CalcCubemapViewProjMatrices(projectionMatrix, Vec3{}));
 
         Camera camera;
-        Graphics::DrawMesh(GenerateCubeMesh(), Identity<Transform>(), material, camera);
+        Graphics::DrawMesh(BoxGeometry{2.0f, 2.0f, 2.0f}, identity<Transform>(), material, camera);
         camera.renderTo(cubemapRenderTarget);
 
         // TODO: some way of copying it into an `osc::Cubemap` would make sense
@@ -99,7 +97,7 @@ namespace
         material.setMat4Array("uShadowMatrices", CalcCubemapViewProjMatrices(captureProjection, Vec3{}));
 
         Camera camera;
-        Graphics::DrawMesh(GenerateCubeMesh(), Identity<Transform>(), material, camera);
+        Graphics::DrawMesh(BoxGeometry{2.0f, 2.0f, 2.0f}, identity<Transform>(), material, camera);
         camera.renderTo(irradianceCubemap);
 
         // TODO: some way of copying it into an `osc::Cubemap` would make sense
@@ -150,7 +148,7 @@ private:
 
     void draw3DRender()
     {
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         m_PBRMaterial.setVec3("uCameraWorldPos", m_Camera.getPosition());
         m_PBRMaterial.setVec3Array("uLightPositions", c_LightPositions);
@@ -195,8 +193,8 @@ private:
     {
         m_BackgroundMaterial.setRenderTexture("uEnvironmentMap", m_ProjectedMap);
         m_BackgroundMaterial.setDepthFunction(DepthFunction::LessOrEqual);  // for skybox depth trick
-        Graphics::DrawMesh(m_CubeMesh, Identity<Transform>(), m_BackgroundMaterial, m_Camera);
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        Graphics::DrawMesh(m_CubeMesh, identity<Transform>(), m_BackgroundMaterial, m_Camera);
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
         m_Camera.setClearFlags(CameraClearFlags::Nothing);
         m_Camera.renderToScreen();
         m_Camera.setClearFlags(CameraClearFlags::Default);
@@ -204,13 +202,13 @@ private:
 
     void draw2DUI()
     {
-        if (ImGui::Begin("Controls")) {
+        if (ui::Begin("Controls")) {
             float ao = m_PBRMaterial.getFloat("uAO").value_or(1.0f);
-            if (ImGui::SliderFloat("ao", &ao, 0.0f, 1.0f)) {
+            if (ui::SliderFloat("ao", &ao, 0.0f, 1.0f)) {
                 m_PBRMaterial.setFloat("uAO", ao);
             }
         }
-        ImGui::End();
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -229,9 +227,9 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/PBR/diffuse_irradiance/Background.frag"),
     }};
 
-    Mesh m_CubeMesh = GenerateCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
     Material m_PBRMaterial = CreateMaterial(m_Loader);
-    Mesh m_SphereMesh = GenerateUVSphereMesh(64, 64);
+    Mesh m_SphereMesh = SphereGeometry{1.0f, 64, 64};
     MouseCapturingCamera m_Camera = CreateCamera();
 };
 

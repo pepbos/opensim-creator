@@ -1,6 +1,7 @@
 #pragma once
 
 #include <oscar/Maths/AABB.h>
+#include <oscar/Maths/CommonFunctions.h>
 #include <oscar/Maths/Mat4.h>
 #include <oscar/Maths/Rect.h>
 #include <oscar/Maths/Transform.h>
@@ -9,73 +10,166 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <iterator>
 #include <optional>
-#include <span>
+#include <ranges>
 
 namespace osc
 {
-    // returns an AABB that is "inverted", such that it's minimum is the largest
-    // possible value and its maximum is the smallest possible value
+    // returns the average centroid of `aabb`
+    constexpr Vec3 centroid(AABB const& aabb)
+    {
+        return 0.5f * (aabb.min + aabb.max);
+    }
+
+    // returns the widths of the edges of `aabb`
+    constexpr Vec3 dimensions(AABB const& aabb)
+    {
+        return aabb.max - aabb.min;
+    }
+
+    // returns the half-widths of the edges of `aabb`
+    constexpr Vec3 half_widths(AABB const& aabb)
+    {
+        return 0.5f * dimensions(aabb);
+    }
+
+    // returns the volume of `aabb`
+    constexpr float volume(AABB const& aabb)
+    {
+        Vec3 const dims = dimensions(aabb);
+        return dims.x * dims.y * dims.z;
+    }
+
+    // tests if `aabb` has zero width along all of its edges (i.e. min == max)
+    constexpr bool is_point(AABB const& aabb)
+    {
+        return aabb.min == aabb.max;
+    }
+
+    // tests if `aabb` has zero width along any of its edges
+    constexpr bool has_zero_volume(AABB const& aabb)
+    {
+        return volume(aabb) == 0.0f;
+    }
+
+    // returns the eight corner vertices of `aabb`
+    std::array<Vec3, 8> corner_vertices(AABB const& aabb);
+
+    // returns an `AABB` computed by transforming `aabb` with `m`
+    AABB transform_aabb(AABB const& aabb, Mat4 const& m);
+
+    // returns an `AABB` computed by transforming `aabb` with `t`
+    AABB transform_aabb(AABB const& aabb, Transform const& t);
+
+    // returns an `AABB` that tightly bounds `x`
+    constexpr AABB aabb_of(Vec3 const& x)
+    {
+        return AABB{.min = x, .max = x};
+    }
+
+    // returns an `AABB` that tightly bounds the union of `x` and `y`
+    constexpr AABB aabb_of(AABB const& x, AABB const& y)
+    {
+        return AABB{elementwise_min(x.min, y.min), elementwise_max(x.max, y.max)};
+    }
+
+    // returns an `AABB` that tightly bounds the union of `x` and `y`, or only `y` if `x` is `std::nullopt`
+    constexpr AABB aabb_of(std::optional<AABB> const& x, AABB const& y)
+    {
+        return x ? aabb_of(*x, y) : y;
+    }
+
+    // returns an `AABB` that tightly bounds the `Vec3`s projected from `r`
+    template<
+        std::ranges::input_range R,
+        class Proj = std::identity
+    >
+    constexpr AABB aabb_of(R&& r, Proj proj = {})
+        requires std::convertible_to<typename std::projected<std::ranges::iterator_t<R>, Proj>::value_type, Vec3 const&>
+    {
+        auto it = std::ranges::begin(r);
+        auto const last = std::ranges::end(r);
+        if (it == last) {
+            return AABB{};  // empty range
+        }
+
+        AABB rv = aabb_of(std::invoke(proj, *it));
+        while (++it != last) {
+            rv = aabb_of(rv, aabb_of(std::invoke(proj, *it)));
+        }
+        return rv;
+    }
+
+    // returns an `AABB` that tightly bounds the `AABB`s projected from `r`
+    template<std::ranges::input_range Range, class Proj = std::identity>
+    constexpr AABB aabb_of(Range&& r, Proj proj = {})
+        requires std::convertible_to<typename std::projected<std::ranges::iterator_t<Range>, Proj>::value_type, AABB const&>
+    {
+        auto it = std::ranges::begin(r);
+        auto const last = std::ranges::end(r);
+        if (it == last) {
+            return AABB{};  // empty range
+        }
+
+        AABB rv = std::invoke(proj, *it);
+        while (++it != last) {
+            rv = aabb_of(rv, std::invoke(proj, *it));
+        }
+        return rv;
+    }
+
+    // returns an `AABB` that tightly bounds any non-`std::nullopt` `AABB`s in `x` or `y`
     //
-    // handy as a "seed" when union-ing many AABBs, because it won't
-    AABB InvertedAABB();
+    // if both `x` and `y` are `std::nullopt`, returns `std::nullopt`
+    constexpr std::optional<AABB> maybe_aabb_of(std::optional<AABB> x, std::optional<AABB> y)
+    {
+        if (x && y) {
+            return aabb_of(*x, *y);
+        }
+        else if (x) {
+            return *x;
+        }
+        else if (y) {
+            return *y;
+        }
+        else {
+            return std::nullopt;
+        }
+    }
 
-    // returns the centerpoint of an AABB
-    Vec3 Midpoint(AABB const&);
+    // returns an `AABB` that tightly bounds any non-`std::nullopt` `AABB`s projected from `r`
+    //
+    // if no element in `r` projects an `AABB`, returns `std::nullopt`
+    template<std::ranges::input_range Range, class Proj = std::identity>
+    constexpr std::optional<AABB> maybe_aabb_of(Range&& r, Proj proj = {})
+        requires std::convertible_to<typename std::projected<std::ranges::iterator_t<Range>, Proj>::value_type, std::optional<AABB> const&>
+    {
+        auto it = std::ranges::begin(r);
+        auto const last = std::ranges::end(r);
 
-    // returns the dimensions of an AABB
-    Vec3 Dimensions(AABB const&);
+        // find first non-nullopt AABB (or the end)
+        std::optional<AABB> rv;
+        while (!rv && it != last) {
+            rv = std::invoke(proj, *it++);
+        }
 
-    // returns the half-widths of an AABB (effectively, Dimensions(aabb)/2.0)
-    Vec3 HalfWidths(AABB const&);
+        // combine with remainder of range
+        for (; it != last; ++it) {
+            rv = aabb_of(std::invoke(proj, *it), *rv);
+        }
 
-    // returns the volume of the AABB
-    float Volume(AABB const&);
+        return rv;
+    }
 
-    // returns the smallest AABB that spans both of the provided AABBs
-    AABB Union(AABB const&, AABB const&);
-
-    // returns true if the AABB has no extents in any dimension
-    bool IsAPoint(AABB const&);
-
-    // returns true if the AABB is an extent in any dimension is zero
-    bool IsZeroVolume(AABB const&);
-
-    // returns the *index* of the longest dimension of an AABB
-    Vec3::size_type LongestDimIndex(AABB const&);
-
-    // returns the length of the longest dimension of an AABB
-    float LongestDim(AABB const&);
-
-    // returns the eight corner points of the cuboid representation of the AABB
-    std::array<Vec3, 8> ToCubeVerts(AABB const&);
-
-    // returns an AABB that has been transformed by the given matrix
-    AABB TransformAABB(AABB const&, Mat4 const&);
-
-    // returns an AABB that has been transformed by the given transform
-    AABB TransformAABB(AABB const&, Transform const&);
-
-    // returns an AAB that tightly bounds the provided triangle
-    AABB AABBFromTriangle(Triangle const&);
-
-    // returns an AABB that tightly bounds the provided points
-    AABB AABBFromVerts(std::span<Vec3 const>);
-
-    // returns an AABB that tightly bounds the provided points (alias that matches BoundingSphereOf, etc.)
-    inline AABB BoundingAABBOf(std::span<Vec3 const> vs) { return AABBFromVerts(vs); }
-
-    // returns an AABB that tightly bounds the points indexed by the provided 32-bit indices
-    AABB AABBFromIndexedVerts(std::span<Vec3 const> verts, std::span<uint32_t const> indices);
-
-    // returns an AABB that tightly bounds the points indexed by the provided 16-bit indices
-    AABB AABBFromIndexedVerts(std::span<Vec3 const> verts, std::span<uint16_t const> indices);
-
-    // (tries to) return a Normalized Device Coordinate (NDC) rectangle, clamped to the NDC clipping
-    // bounds ((-1,-1) to (1, 1)), where the rectangle loosely bounds the given worldspace AABB after
-    // projecting it into NDC
-    std::optional<Rect> AABBToScreenNDCRect(
-        AABB const&,
+    // returns a `Rect` in normalized device coordinate (NDC) space that loosely
+    // bounds the worldspace-located `aabb`
+    //
+    // if the AABB does not lie within the NDC clipping bounds (i.e. between (-1, -1)
+    // and (1, 1)), returns `std::nullopt`
+    std::optional<Rect> loosely_project_into_ndc(
+        AABB const& aabb,
         Mat4 const& viewMat,
         Mat4 const& projMat,
         float znear,

@@ -1,74 +1,63 @@
 #pragma once
 
 #include <oscar/Maths/Vec.h>
+#include <oscar/Utils/Algorithms.h>
 
-#include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <functional>
 
 namespace osc
 {
+    // returns a vector containing `op(xv)` for each `xv` in `x`
     template<size_t N, typename T, std::invocable<T const&> UnaryOperation>
-    constexpr auto map(Vec<N, T> const& v, UnaryOperation op) -> Vec<N, decltype(op(v[0]))>
+    constexpr auto map(Vec<N, T> const& x, UnaryOperation op) -> Vec<N, decltype(std::invoke(op, x[0]))>
     {
-        Vec<N, decltype(op(v[0]))> rv;
+        Vec<N, decltype(std::invoke(op, x[0]))> rv{};
         for (size_t i = 0; i < N; ++i) {
-            rv[i] = op(v[i]);
+            rv[i] = std::invoke(op, x[i]);
         }
         return rv;
     }
 
+    // returns a vector containing `op(xv, yv)` for each `(xv, yv)` in `x` and `y`
     template<size_t N, typename T, std::invocable<T const&, T const&> BinaryOperation>
-    constexpr auto map(Vec<N, T> const& v1, Vec<N, T> const& v2, BinaryOperation op) -> Vec<N, decltype(op(v1[0], v2[0]))>
+    constexpr auto map(Vec<N, T> const& x, Vec<N, T> const& y, BinaryOperation op) -> Vec<N, decltype(std::invoke(op, x[0], y[0]))>
     {
-        Vec<N, decltype(op(v1[0], v2[0]))> rv;
+        Vec<N, decltype(std::invoke(op, x[0], y[0]))> rv{};
         for (size_t i = 0; i < N; ++i) {
-            rv[i] = op(v1[i], v2[i]);
+            rv[i] = std::invoke(op, x[i], y[i]);
         }
         return rv;
     }
 
+    // returns a vector containing `op(xv, yv, zv)` for each `(xv, yv, zv)` in `x`, `y`, and `z`
     template<size_t N, typename T, std::invocable<T const&, T const&, T const&> TernaryOperation>
-    constexpr auto map(Vec<N, T> const& v1, Vec<N, T> const& v2, Vec<N, T> const& v3, TernaryOperation op) -> Vec<N, decltype(op(v1[0], v2[0], v3[0]))>
+    constexpr auto map(Vec<N, T> const& x, Vec<N, T> const& y, Vec<N, T> const& z, TernaryOperation op)
+        -> Vec<N, decltype(std::invoke(op, x[0], y[0], z[0]))>
     {
-        Vec<N, decltype(op(v1[0], v2[0], v3[0]))> rv;
+        Vec<N, decltype(std::invoke(op, x[0], y[0], z[0]))> rv{};
         for (size_t i = 0; i < N; ++i) {
-            rv[i] = op(v1[i], v2[i], v3[i]);
+            rv[i] = std::invoke(op, x[i], y[i], z[i]);
         }
         return rv;
     }
 
-    template<size_t N, typename T, std::predicate<T const&> UnaryPredicate>
-    constexpr bool all_of(Vec<N, T> const& v, UnaryPredicate p)
-    {
-        return std::all_of(v.begin(), v.end(), p);
-    }
-
+    // tests if all elements in `v` are `true`
     template<size_t N>
     constexpr bool all_of(Vec<N, bool> const& v)
     {
         return all_of(v, std::identity{});
     }
 
-    template<size_t N, typename T, std::predicate<T const&> UnaryPredicate>
-    constexpr bool any_of(Vec<N, T> const& v, UnaryPredicate p)
-    {
-        return std::any_of(v.begin(), v.end(), p);
-    }
-
+    // tests if any element in `v` is `true`
     template<size_t N>
     constexpr bool any_of(Vec<N, bool> const& v)
     {
         return any_of(v, std::identity{});
     }
 
-    template<size_t N, typename T, std::predicate<T const&> UnaryPredicate>
-    constexpr bool none_of(Vec<N, T> const& v, UnaryPredicate p)
-    {
-        return std::none_of(v.begin(), v.end(), p);
-    }
-
+    // tests if no elements in `v` are `true`
     template<size_t N>
     constexpr bool none_of(Vec<N, bool> const& v)
     {

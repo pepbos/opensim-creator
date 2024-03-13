@@ -1,6 +1,7 @@
 #pragma once
 
 #include <OpenSimCreator/UI/Experimental/MeshHittestTab.h>
+#include <OpenSimCreator/UI/Experimental/PreviewExperimentalDataTab.h>
 #include <OpenSimCreator/UI/Experimental/RendererGeometryShaderTab.h>
 #include <OpenSimCreator/UI/Experimental/TPS2DTab.h>
 #include <OpenSimCreator/UI/Experimental/GeodesicTab.h>
@@ -16,6 +17,7 @@ namespace osc
     using OpenSimCreatorTabs = Typelist<
         GeodesicTab,
         MeshHittestTab,
+        PreviewExperimentalDataTab,
         RendererGeometryShaderTab,
         TPS2DTab,
         WrappingTab,

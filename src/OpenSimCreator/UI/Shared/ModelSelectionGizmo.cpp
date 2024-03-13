@@ -149,7 +149,7 @@ namespace
             TComponent const* maybeSelected = findSelection();
             if (!maybeSelected)
             {
-                return Identity<Mat4>();  // selection of that type does not exist in the model
+                return identity<Mat4>();  // selection of that type does not exist in the model
             }
             return implGetCurrentModelMatrix(*maybeSelected);
         }
@@ -554,17 +554,17 @@ namespace
         // else: it's a supported operation and the gizmo should be drawn
 
         // important: necessary for multi-viewport gizmos
-        // also important: don't use ImGui::GetID(), because it uses an ID stack and we might want to know if "isover" etc. is true outside of a window
+        // also important: don't use ui::GetID(), because it uses an ID stack and we might want to know if "isover" etc. is true outside of a window
         ImGuizmo::SetID(static_cast<int>(std::hash<void*>{}(gizmoID)));
         ScopeGuard const g{[]() { ImGuizmo::SetID(-1); }};
 
         ImGuizmo::SetRect(
             viewportRect.p1.x,
             viewportRect.p1.y,
-            Dimensions(viewportRect).x,
-            Dimensions(viewportRect).y
+            dimensions(viewportRect).x,
+            dimensions(viewportRect).y
         );
-        ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
+        ImGuizmo::SetDrawlist(ui::GetWindowDrawList());
         ImGuizmo::AllowAxisFlip(false);
 
         // use rotation from the parent, translation from station
@@ -573,8 +573,8 @@ namespace
 
         SetImguizmoStyleToOSCStandard();
         bool const gizmoWasManipulatedByUser = ImGuizmo::Manipulate(
-            value_ptr(camera.getViewMtx()),
-            value_ptr(camera.getProjMtx(AspectRatio(viewportRect))),
+            value_ptr(camera.view_matrix()),
+            value_ptr(camera.projection_matrix(AspectRatio(viewportRect))),
             operation,
             mode,
             value_ptr(currentXformInGround),

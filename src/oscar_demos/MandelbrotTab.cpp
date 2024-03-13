@@ -15,8 +15,8 @@ namespace
     Camera CreateIdentityCamera()
     {
         Camera camera;
-        camera.setViewMatrixOverride(Identity<Mat4>());
-        camera.setProjectionMatrixOverride(Identity<Mat4>());
+        camera.setViewMatrixOverride(identity<Mat4>());
+        camera.setProjectionMatrixOverride(identity<Mat4>());
         return camera;
     }
 }
@@ -40,7 +40,7 @@ private:
         if (e.type == SDL_MOUSEWHEEL) {
             float const factor = e.wheel.y > 0 ? 0.9f : 1.11111111f;
 
-            applyZoom(ImGui::GetIO().MousePos, factor);
+            applyZoom(ui::GetIO().MousePos, factor);
             return true;
         }
         if (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK) != 0) {
@@ -53,12 +53,12 @@ private:
 
     void implOnDraw() final
     {
-        m_MainViewportWorkspaceScreenRect = GetMainViewportWorkspaceScreenRect();
+        m_MainViewportWorkspaceScreenRect = ui::GetMainViewportWorkspaceScreenRect();
 
         m_Material.setVec2("uRescale", {1.0f, 1.0f});
         m_Material.setVec2("uOffset", {});
         m_Material.setInt("uNumIterations", m_NumIterations);
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_Material, m_Camera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_Material, m_Camera);
         m_Camera.setPixelRect(m_MainViewportWorkspaceScreenRect);
         m_Camera.renderToScreen();
     }
@@ -77,7 +77,7 @@ private:
     int m_NumIterations = 16;
     Rect m_NormalizedMandelbrotViewport = {{}, {1.0f, 1.0f}};
     Rect m_MainViewportWorkspaceScreenRect = {};
-    Mesh m_QuadMesh = GenerateTexturedQuadMesh();
+    Mesh m_QuadMesh = PlaneGeometry{2.0f, 2.0f, 1, 1};
     Material m_Material{Shader{
         m_Loader.slurp("oscar_demos/shaders/Mandelbrot.vert"),
         m_Loader.slurp("oscar_demos/shaders/Mandelbrot.frag"),

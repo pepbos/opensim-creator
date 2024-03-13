@@ -46,9 +46,11 @@ namespace OpenSim { class Muscle; }
 namespace OpenSim { class Object; }
 namespace OpenSim { template<typename> class Property; }
 namespace OpenSim { template<typename> class ObjectProperty; }
+namespace OpenSim { class PhysicalFrame; }
 namespace OpenSim { class PhysicalOffsetFrame; }
 namespace OpenSim { template<typename, typename> class Set; }
 namespace OpenSim { template<typename> class SimpleProperty; }
+namespace OpenSim { class WrapObject; }
 namespace osc { class UndoableModelStatePair; }
 namespace SimTK { class State; }
 
@@ -524,6 +526,9 @@ namespace osc
     // returns `true` if any modification was made to the model
     bool ActivateAllWrapObjectsIn(OpenSim::Model&);
 
+    // returns pointers to all wrap objects that are referenced by the given `GeometryPath`
+    std::vector<OpenSim::WrapObject const*> GetAllWrapObjectsReferencedBy(OpenSim::GeometryPath const&);
+
     // load an .osim file into an OpenSim model
     std::unique_ptr<UndoableModelStatePair> LoadOsimIntoUndoableModel(std::filesystem::path const&);
 
@@ -569,6 +574,9 @@ namespace osc
     // returns `false` if the component doesn't have an appearance property, `true` if it does (and
     // the value was set)
     bool TrySetAppearancePropertyIsVisibleTo(OpenSim::Component&, bool);
+
+    // returns the color part of the `OpenSim::Appearance` as an `osc::Color`
+    Color ToColor(OpenSim::Appearance const&);
 
     Color GetSuggestedBoneColor();  // best guess, based on shaders etc.
 
@@ -712,6 +720,13 @@ namespace osc
         return static_cast<T&>(AddComponent(c, static_cast<std::unique_ptr<OpenSim::Component>&&>(std::move(p))));
     }
 
+    template<std::derived_from<OpenSim::Component> T, typename... Args>
+    T& AddComponent(OpenSim::Component& host, Args&&...args)
+        requires std::constructible_from<T, Args&&...>
+    {
+        return AddComponent(host, std::make_unique<T>(std::forward<Args>(args)...));
+    }
+
     OpenSim::Body& AddBody(OpenSim::Model&, std::unique_ptr<OpenSim::Body>);
 
     template<typename... Args>
@@ -753,6 +768,15 @@ namespace osc
     }
 
     OpenSim::PhysicalOffsetFrame& AddFrame(OpenSim::Joint&, std::unique_ptr<OpenSim::PhysicalOffsetFrame>);
+
+    OpenSim::WrapObject& AddWrapObject(OpenSim::PhysicalFrame&, std::unique_ptr<OpenSim::WrapObject>);
+
+    template<std::derived_from<OpenSim::WrapObject> T, typename... Args>
+    T& AddWrapObject(OpenSim::PhysicalFrame& physFrame, Args&&... args)
+        requires std::constructible_from<T, Args&&...>
+    {
+        return static_cast<T&>(AddWrapObject(physFrame, std::make_unique<T>(std::forward<Args>(args)...)));
+    }
 
     template<ClonesToRawPtr T>
     std::unique_ptr<T> Clone(T const& obj)
@@ -820,6 +844,10 @@ namespace osc
     // e.g. the orientational property of an `OpenSim::PhysicalOffsetFrame` is "orientation",
     //      whereas `OpenSim::Station` has no orientation, so this returns `std::nullopt`
     std::optional<std::string> TryGetOrientationalPropertyName(OpenSim::Component const&);
+
+    // tries to return the "parent" of the given frame, if applicable (e.g. if the frame is an
+    // `OffsetFrame<T>` that has a logical parent
+    OpenSim::Frame const* TryGetParentFrame(OpenSim::Frame const&);
 
     // packages up the various useful parts that describe how a component is spatially represented
     //

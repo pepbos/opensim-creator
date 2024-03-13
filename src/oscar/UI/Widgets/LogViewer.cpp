@@ -1,5 +1,6 @@
 #include "LogViewer.h"
 
+#include <oscar/Graphics/Color.h>
 #include <oscar/Platform/App.h>
 #include <oscar/Platform/Log.h>
 #include <oscar/Platform/os.h>
@@ -16,24 +17,24 @@ using namespace osc;
 
 namespace
 {
-    ImVec4 ToColor(LogLevel lvl)
+    Color ToColor(LogLevel lvl)
     {
         switch (lvl)
         {
         case LogLevel::trace:
-            return ImVec4{0.5f, 0.5f, 0.5f, 1.0f};
+            return {0.5f, 0.5f, 0.5f, 1.0f};
         case LogLevel::debug:
-            return ImVec4{0.8f, 0.8f, 0.8f, 1.0f};
+            return {0.8f, 0.8f, 0.8f, 1.0f};
         case LogLevel::info:
-            return ImVec4{0.5f, 0.5f, 1.0f, 1.0f};
+            return {0.5f, 0.5f, 1.0f, 1.0f};
         case LogLevel::warn:
-            return ImVec4{1.0f, 1.0f, 0.0f, 1.0f};
+            return {1.0f, 1.0f, 0.0f, 1.0f};
         case LogLevel::err:
-            return ImVec4{1.0f, 0.0f, 0.0f, 1.0f};
+            return {1.0f, 0.0f, 0.0f, 1.0f};
         case LogLevel::critical:
-            return ImVec4{1.0f, 0.0f, 0.0f, 1.0f};
+            return {1.0f, 0.0f, 0.0f, 1.0f};
         default:
-            return ImVec4{1.0f, 1.0f, 1.0f, 1.0f};
+            return {1.0f, 1.0f, 1.0f, 1.0f};
         }
     }
 
@@ -52,7 +53,7 @@ namespace
 
         std::string full_log_content = std::move(ss).str();
 
-        SetClipboardText(full_log_content.c_str());
+        SetClipboardText(full_log_content);
     }
 }
 
@@ -67,51 +68,51 @@ public:
         }
 
         // draw top menu bar
-        if (ImGui::BeginMenuBar())
+        if (ui::BeginMenuBar())
         {
             // draw level selector
             {
                 LogLevel currentLevel = logger->get_level();
-                ImGui::SetNextItemWidth(200.0f);
-                if (ImGui::BeginCombo("level", ToCStringView(currentLevel).c_str()))
+                ui::SetNextItemWidth(200.0f);
+                if (ui::BeginCombo("level", ToCStringView(currentLevel)))
                 {
                     for (LogLevel l = FirstLogLevel(); l <= LastLogLevel(); l = Next(l))
                     {
                         bool active = l == currentLevel;
-                        if (ImGui::Selectable(ToCStringView(l).c_str(), &active))
+                        if (ui::Selectable(ToCStringView(l), &active))
                         {
                             logger->set_level(l);
                         }
                     }
-                    ImGui::EndCombo();
+                    ui::EndCombo();
                 }
             }
 
-            ImGui::SameLine();
-            ImGui::Checkbox("autoscroll", &autoscroll);
+            ui::SameLine();
+            ui::Checkbox("autoscroll", &autoscroll);
 
-            ImGui::SameLine();
-            if (ImGui::Button("clear"))
+            ui::SameLine();
+            if (ui::Button("clear"))
             {
                 getTracebackLog().lock()->clear();
             }
-            App::upd().addFrameAnnotation("LogClearButton", GetItemRect());
+            App::upd().addFrameAnnotation("LogClearButton", ui::GetItemRect());
 
-            ImGui::SameLine();
-            if (ImGui::Button("turn off"))
+            ui::SameLine();
+            if (ui::Button("turn off"))
             {
                 logger->set_level(LogLevel::off);
             }
 
-            ImGui::SameLine();
-            if (ImGui::Button("copy to clipboard"))
+            ui::SameLine();
+            if (ui::Button("copy to clipboard"))
             {
                 copyTracebackLogToClipboard();
             }
 
-            ImGui::Dummy({0.0f, 10.0f});
+            ui::Dummy({0.0f, 10.0f});
 
-            ImGui::EndMenuBar();
+            ui::EndMenuBar();
         }
 
         // draw log content lines
@@ -119,15 +120,15 @@ public:
         auto const& contentGuard = guardedContent.lock();
         for (LogMessage const& msg : *contentGuard)
         {
-            ImGui::PushStyleColor(ImGuiCol_Text, ::ToColor(msg.level));
-            ImGui::Text("[%s]", ToCStringView(msg.level).c_str());
-            ImGui::PopStyleColor();
-            ImGui::SameLine();
-            ImGui::TextWrapped("%s", msg.payload.c_str());
+            ui::PushStyleColor(ImGuiCol_Text, ::ToColor(msg.level));
+            ui::Text("[%s]", ToCStringView(msg.level).c_str());
+            ui::PopStyleColor();
+            ui::SameLine();
+            ui::TextWrapped(msg.payload);
 
             if (autoscroll)
             {
-                ImGui::SetScrollHereY();
+                ui::SetScrollHereY();
             }
         }
     }

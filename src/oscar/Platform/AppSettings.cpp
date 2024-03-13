@@ -3,6 +3,7 @@
 #include <oscar/Platform/AppSettingValue.h>
 #include <oscar/Platform/Log.h>
 #include <oscar/Platform/os.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/EnumHelpers.h>
 #include <oscar/Utils/HashHelpers.h>
 #include <oscar/Utils/SynchronizedValue.h>
@@ -127,14 +128,7 @@ R"(# configuration options
     private:
         AppSettingsLookupValue const* lookup(std::string_view key) const
         {
-            if (auto const it = m_Data.find(key); it != m_Data.cend())
-            {
-                return &it->second;
-            }
-            else
-            {
-                return nullptr;
-            }
+            return try_find(m_Data, key);
         }
 
         // see: ankerl/unordered_dense documentation for heterogeneous lookups
@@ -346,7 +340,7 @@ R"(# configuration options
         }
 
         // iterate through each part of the given path (e.g. a/b/c)
-        size_t const depth = std::count(tablePath.begin(), tablePath.end(), '/') + 1;
+        size_t const depth = count(tablePath, '/') + 1;
         toml::table* currentTable = &root;
         std::string_view currentPath = tablePath.substr(0, tablePath.find('/'));
 

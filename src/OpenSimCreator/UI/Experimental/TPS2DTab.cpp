@@ -2,13 +2,13 @@
 
 #include <IconsFontAwesome5.h>
 #include <oscar/Formats/Image.h>
+#include <oscar/Graphics/Geometries/PlaneGeometry.h>
+#include <oscar/Graphics/Materials/MeshBasicMaterial.h>
 #include <oscar/Graphics/Camera.h>
 #include <oscar/Graphics/ColorSpace.h>
 #include <oscar/Graphics/Graphics.h>
 #include <oscar/Graphics/Material.h>
 #include <oscar/Graphics/Mesh.h>
-#include <oscar/Graphics/MeshGenerators.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/MatFunctions.h>
 #include <oscar/Maths/Mat4.h>
 #include <oscar/Maths/MathHelpers.h>
@@ -19,6 +19,7 @@
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
 #include <oscar/UI/Panels/LogViewerPanel.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/StdVariantHelpers.h>
 #include <Simbody.h>
@@ -314,12 +315,12 @@ public:
     Impl()
     {
         m_Material.setTexture("uTextureSampler", m_BoxTexture);
-        m_WireframeMaterial.setColor("uColor", {0.0f, 0.0f, 0.0f, 0.15f});
+        m_WireframeMaterial.setColor({0.0f, 0.0f, 0.0f, 0.15f});
         m_WireframeMaterial.setTransparent(true);
         m_WireframeMaterial.setWireframeMode(true);
         m_WireframeMaterial.setDepthTested(false);
-        m_Camera.setViewMatrixOverride(Identity<Mat4>());
-        m_Camera.setProjectionMatrixOverride(Identity<Mat4>());
+        m_Camera.setViewMatrixOverride(identity<Mat4>());
+        m_Camera.setProjectionMatrixOverride(identity<Mat4>());
         m_Camera.setBackgroundColor(Color::white());
     }
 
@@ -335,19 +336,19 @@ public:
 
     void onDraw()
     {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+        ui::DockSpaceOverViewport(ui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
-        ImGui::Begin("Input");
+        ui::Begin("Input");
         {
-            Vec2 const windowDims = ImGui::GetContentRegionAvail();
-            float const minDim = std::min(windowDims.x, windowDims.y);
+            Vec2 const windowDims = ui::GetContentRegionAvail();
+            float const minDim = min(windowDims.x, windowDims.y);
             Vec2i const texDims = Vec2i{minDim, minDim};
 
             renderMesh(m_InputGrid, texDims, m_InputRender);
 
             // draw rendered texture via ImGui
-            DrawTextureAsImGuiImage(*m_InputRender, texDims);
-            ImGuiItemHittestResult const ht = HittestLastImguiItem();
+            ui::DrawTextureAsImGuiImage(*m_InputRender, texDims);
+            ui::ImGuiItemHittestResult const ht = ui::HittestLastImguiItem();
 
             // draw any 2D overlays etc.
             renderOverlayElements(ht);
@@ -357,15 +358,15 @@ public:
             }
         }
 
-        ImGui::End();
+        ui::End();
 
         Vec2 outputWindowPos;
         Vec2 outputWindowDims;
-        ImGui::Begin("Output");
+        ui::Begin("Output");
         {
-            outputWindowPos = ImGui::GetCursorScreenPos();
-            outputWindowDims = ImGui::GetContentRegionAvail();
-            float const minDim = std::min(outputWindowDims.x, outputWindowDims.y);
+            outputWindowPos = ui::GetCursorScreenPos();
+            outputWindowDims = ui::GetContentRegionAvail();
+            float const minDim = min(outputWindowDims.x, outputWindowDims.y);
             Vec2i const texDims = Vec2i{minDim, minDim};
 
             {
@@ -374,7 +375,7 @@ public:
                 std::vector<LandmarkPair2D> pairs = m_LandmarkPairs;
                 for (LandmarkPair2D& p : pairs)
                 {
-                    p.dest = mix(p.src, p.dest, m_BlendingFactor);
+                    p.dest = lerp(p.src, p.dest, m_BlendingFactor);
                 }
                 ThinPlateWarper2D warper{pairs};
                 m_OutputGrid = ApplyThinPlateWarpToMesh(warper, m_InputGrid);
@@ -383,21 +384,21 @@ public:
             renderMesh(m_OutputGrid, texDims, m_OutputRender);
 
             // draw rendered texture via ImGui
-            DrawTextureAsImGuiImage(*m_OutputRender, texDims);
+            ui::DrawTextureAsImGuiImage(*m_OutputRender, texDims);
         }
-        ImGui::End();
+        ui::End();
 
         // draw scubber overlay
         {
             float leftPadding = 10.0f;
             float bottomPadding = 10.0f;
             float panelHeight = 50.0f;
-            ImGui::SetNextWindowPos({ outputWindowPos.x + leftPadding, outputWindowPos.y + outputWindowDims.y - panelHeight - bottomPadding });
-            ImGui::SetNextWindowSize({ outputWindowDims.x - leftPadding, panelHeight });
-            ImGui::Begin("##scrubber", nullptr, GetMinimalWindowFlags() & ~ImGuiWindowFlags_NoInputs);
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::SliderFloat("##blend", &m_BlendingFactor, 0.0f, 1.0f);
-            ImGui::End();
+            ui::SetNextWindowPos({ outputWindowPos.x + leftPadding, outputWindowPos.y + outputWindowDims.y - panelHeight - bottomPadding });
+            ui::SetNextWindowSize({ outputWindowDims.x - leftPadding, panelHeight });
+            ui::Begin("##scrubber", nullptr, ui::GetMinimalWindowFlags() & ~ImGuiWindowFlags_NoInputs);
+            ui::SetNextItemWidth(ui::GetContentRegionAvail().x);
+            ui::SliderFloat("##blend", &m_BlendingFactor, 0.0f, 1.0f);
+            ui::End();
         }
 
         // draw log panel (debugging)
@@ -413,8 +414,8 @@ private:
         RenderTextureDescriptor desc{dims};
         desc.setAntialiasingLevel(App::get().getCurrentAntiAliasingLevel());
         out.emplace(desc);
-        Graphics::DrawMesh(mesh, Identity<Transform>(), m_Material, m_Camera);
-        Graphics::DrawMesh(mesh, Identity<Transform>(), m_WireframeMaterial, m_Camera);
+        Graphics::DrawMesh(mesh, identity<Transform>(), m_Material, m_Camera);
+        Graphics::DrawMesh(mesh, identity<Transform>(), m_WireframeMaterial, m_Camera);
 
         OSC_ASSERT(out.has_value());
         m_Camera.renderTo(*out);
@@ -423,15 +424,15 @@ private:
     }
 
     // render any 2D overlays
-    void renderOverlayElements(ImGuiItemHittestResult const& ht)
+    void renderOverlayElements(ui::ImGuiItemHittestResult const& ht)
     {
-        ImDrawList* const drawlist = ImGui::GetWindowDrawList();
+        ImDrawList* const drawlist = ui::GetWindowDrawList();
 
         // render all fully-established landmark pairs
         for (LandmarkPair2D const& p : m_LandmarkPairs)
         {
-            Vec2 const p1 = ht.rect.p1 + (Dimensions(ht.rect) * NDCPointToTopLeftRelPos(p.src));
-            Vec2 const p2 = ht.rect.p1 + (Dimensions(ht.rect) * NDCPointToTopLeftRelPos(p.dest));
+            Vec2 const p1 = ht.rect.p1 + (dimensions(ht.rect) * NDCPointToTopLeftRelPos(p.src));
+            Vec2 const p2 = ht.rect.p1 + (dimensions(ht.rect) * NDCPointToTopLeftRelPos(p.dest));
 
             drawlist->AddLine(p1, p2, m_ConnectionLineColor, 5.0f);
             drawlist->AddRectFilled(p1 - 12.0f, p1 + 12.0f, m_SrcSquareColor);
@@ -443,8 +444,8 @@ private:
         {
             GUIFirstClickMouseState const& st = std::get<GUIFirstClickMouseState>(m_MouseState);
 
-            Vec2 const p1 = ht.rect.p1 + (Dimensions(ht.rect) * NDCPointToTopLeftRelPos(st.srcNDCPos));
-            Vec2 const p2 = ImGui::GetMousePos();
+            Vec2 const p1 = ht.rect.p1 + (dimensions(ht.rect) * NDCPointToTopLeftRelPos(st.srcNDCPos));
+            Vec2 const p2 = ui::GetMousePos();
 
             drawlist->AddLine(p1, p2, m_ConnectionLineColor, 5.0f);
             drawlist->AddRectFilled(p1 - 12.0f, p1 + 12.0f, m_SrcSquareColor);
@@ -453,7 +454,7 @@ private:
     }
 
     // render any mouse-related overlays
-    void renderMouseUIElements(ImGuiItemHittestResult const& ht)
+    void renderMouseUIElements(ui::ImGuiItemHittestResult const& ht)
     {
         std::visit(Overload
         {
@@ -463,32 +464,32 @@ private:
     }
 
     // render any mouse-related overlays for when the user hasn't clicked yet
-    void renderMouseUIElements(ImGuiItemHittestResult const& ht, GUIInitialMouseState)
+    void renderMouseUIElements(ui::ImGuiItemHittestResult const& ht, GUIInitialMouseState)
     {
-        Vec2 const mouseScreenPos = ImGui::GetMousePos();
+        Vec2 const mouseScreenPos = ui::GetMousePos();
         Vec2 const mouseImagePos = mouseScreenPos - ht.rect.p1;
-        Vec2 const mouseImageRelPos = mouseImagePos / Dimensions(ht.rect);
+        Vec2 const mouseImageRelPos = mouseImagePos / dimensions(ht.rect);
         Vec2 const mouseImageNDCPos = TopleftRelPosToNDCPoint(mouseImageRelPos);
 
-        DrawTooltipBodyOnly(to_string(mouseImageNDCPos));
+        ui::DrawTooltipBodyOnly(to_string(mouseImageNDCPos));
 
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        if (ui::IsMouseClicked(ImGuiMouseButton_Left))
         {
             m_MouseState = GUIFirstClickMouseState{mouseImageNDCPos};
         }
     }
 
     // render any mouse-related overlays for when the user has clicked once
-    void renderMouseUIElements(ImGuiItemHittestResult const& ht, GUIFirstClickMouseState st)
+    void renderMouseUIElements(ui::ImGuiItemHittestResult const& ht, GUIFirstClickMouseState st)
     {
-        Vec2 const mouseScreenPos = ImGui::GetMousePos();
+        Vec2 const mouseScreenPos = ui::GetMousePos();
         Vec2 const mouseImagePos = mouseScreenPos - ht.rect.p1;
-        Vec2 const mouseImageRelPos = mouseImagePos / Dimensions(ht.rect);
+        Vec2 const mouseImageRelPos = mouseImagePos / dimensions(ht.rect);
         Vec2 const mouseImageNDCPos = TopleftRelPosToNDCPoint(mouseImageRelPos);
 
-        DrawTooltipBodyOnly(to_string(mouseImageNDCPos) + "*");
+        ui::DrawTooltipBodyOnly(to_string(mouseImageNDCPos) + "*");
 
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        if (ui::IsMouseClicked(ImGuiMouseButton_Left))
         {
             m_LandmarkPairs.push_back({st.srcNDCPos, mouseImageNDCPos});
             m_MouseState = GUIInitialMouseState{};
@@ -498,7 +499,6 @@ private:
     // tab data
     UID m_TabID;
     ResourceLoader m_Loader = App::resource_loader();
-    std::shared_ptr<ShaderCache> m_ShaderCache = App::singleton<ShaderCache>(m_Loader);
 
     // TPS algorithm state
     GUIMouseState m_MouseState = GUIInitialMouseState{};
@@ -510,17 +510,17 @@ private:
         m_Loader.open("textures/container.jpg"),
         ColorSpace::sRGB
     );
-    Mesh m_InputGrid = GenerateNxMTriangleQuadGridMesh({50, 50});
+    Mesh m_InputGrid = PlaneGeometry{2.0f, 2.0f, 50, 50};
     Mesh m_OutputGrid = m_InputGrid;
-    Material m_Material{m_ShaderCache->load("shaders/TPS2D/Textured.vert", "shaders/TPS2D/Textured.frag")};
-    Material m_WireframeMaterial{m_ShaderCache->load("shaders/SolidColor.vert", "shaders/SolidColor.frag")};
+    Material m_Material{Shader{m_Loader.slurp("shaders/TPS2D/Textured.vert"), m_Loader.slurp("shaders/TPS2D/Textured.frag")}};
+    MeshBasicMaterial m_WireframeMaterial;
 
     Camera m_Camera;
     std::optional<RenderTexture> m_InputRender;
     std::optional<RenderTexture> m_OutputRender;
-    ImU32 m_SrcSquareColor = ToImU32(Color::red());
-    ImU32 m_DestCircleColor = ToImU32(Color::green());
-    ImU32 m_ConnectionLineColor = ToImU32(Color::white());
+    ImU32 m_SrcSquareColor = ui::ToImU32(Color::red());
+    ImU32 m_DestCircleColor = ui::ToImU32(Color::green());
+    ImU32 m_ConnectionLineColor = ui::ToImU32(Color::white());
 
     // log panel (handy for debugging)
     LogViewerPanel m_LogViewerPanel{"Log"};

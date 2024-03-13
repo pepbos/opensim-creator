@@ -3,6 +3,7 @@
 #include <oscar/Graphics/Color.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/CStringView.h>
 
 #include <IconsFontAwesome5.h>
@@ -17,18 +18,18 @@ bool osc::DrawGizmoModeSelector(ImGuizmo::MODE& mode)
     constexpr auto modes = std::to_array<ImGuizmo::MODE, 2>({ ImGuizmo::LOCAL, ImGuizmo::WORLD });
 
     bool rv = false;
-    int currentMode = static_cast<int>(std::distance(std::begin(modes), std::find(std::begin(modes), std::end(modes), mode)));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
-    ImGui::SetNextItemWidth(ImGui::CalcTextSize(modeLabels[0]).x + 40.0f);
-    if (ImGui::Combo("##modeselect", &currentMode, modeLabels.data(), static_cast<int>(modeLabels.size())))
+    int currentMode = static_cast<int>(std::distance(std::begin(modes), find(modes, mode)));
+    ui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+    ui::SetNextItemWidth(ui::CalcTextSize(modeLabels[0]).x + 40.0f);
+    if (ui::Combo("##modeselect", &currentMode, modeLabels.data(), static_cast<int>(modeLabels.size())))
     {
         mode = modes.at(static_cast<size_t>(currentMode));
         rv = true;
     }
-    ImGui::PopStyleVar();
+    ui::PopStyleVar();
     constexpr CStringView tooltipTitle = "Manipulation coordinate system";
     constexpr CStringView tooltipDesc = "This affects whether manipulations (such as the arrow gizmos that you can use to translate things) are performed relative to the global coordinate system or the selection's (local) one. Local manipulations can be handy when translating/rotating something that's already rotated.";
-    DrawTooltipIfItemHovered(tooltipTitle, tooltipDesc);
+    ui::DrawTooltipIfItemHovered(tooltipTitle, tooltipDesc);
 
     return rv;
 }
@@ -41,18 +42,18 @@ bool osc::DrawGizmoOpSelector(
 {
     bool rv = false;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0f, 0.0f});
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+    ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
+    ui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
     int colorsPushed = 0;
 
     if (canTranslate)
     {
         if (op == ImGuizmo::TRANSLATE)
         {
-            PushStyleColor(ImGuiCol_Button, Color::mutedBlue());
+            ui::PushStyleColor(ImGuiCol_Button, Color::muted_blue());
             ++colorsPushed;
         }
-        if (ImGui::Button(ICON_FA_ARROWS_ALT))
+        if (ui::Button(ICON_FA_ARROWS_ALT))
         {
             if (op != ImGuizmo::TRANSLATE)
             {
@@ -60,19 +61,19 @@ bool osc::DrawGizmoOpSelector(
                 rv = true;
             }
         }
-        DrawTooltipIfItemHovered("Translate", "Make the 3D manipulation gizmos translate things (hotkey: G)");
-        ImGui::PopStyleColor(std::exchange(colorsPushed, 0));
-        ImGui::SameLine();
+        ui::DrawTooltipIfItemHovered("Translate", "Make the 3D manipulation gizmos translate things (hotkey: G)");
+        ui::PopStyleColor(std::exchange(colorsPushed, 0));
+        ui::SameLine();
     }
 
     if (canRotate)
     {
         if (op == ImGuizmo::ROTATE)
         {
-            PushStyleColor(ImGuiCol_Button, Color::mutedBlue());
+            ui::PushStyleColor(ImGuiCol_Button, Color::muted_blue());
             ++colorsPushed;
         }
-        if (ImGui::Button(ICON_FA_REDO))
+        if (ui::Button(ICON_FA_REDO))
         {
             if (op != ImGuizmo::ROTATE)
             {
@@ -80,19 +81,19 @@ bool osc::DrawGizmoOpSelector(
                 rv = true;
             }
         }
-        DrawTooltipIfItemHovered("Rotate", "Make the 3D manipulation gizmos rotate things (hotkey: R)");
-        ImGui::PopStyleColor(std::exchange(colorsPushed, 0));
-        ImGui::SameLine();
+        ui::DrawTooltipIfItemHovered("Rotate", "Make the 3D manipulation gizmos rotate things (hotkey: R)");
+        ui::PopStyleColor(std::exchange(colorsPushed, 0));
+        ui::SameLine();
     }
 
     if (canScale)
     {
         if (op == ImGuizmo::SCALE)
         {
-            PushStyleColor(ImGuiCol_Button, Color::mutedBlue());
+            ui::PushStyleColor(ImGuiCol_Button, Color::muted_blue());
             ++colorsPushed;
         }
-        if (ImGui::Button(ICON_FA_EXPAND_ARROWS_ALT))
+        if (ui::Button(ICON_FA_EXPAND_ARROWS_ALT))
         {
             if (op != ImGuizmo::SCALE)
             {
@@ -100,12 +101,12 @@ bool osc::DrawGizmoOpSelector(
                 rv = true;
             }
         }
-        DrawTooltipIfItemHovered("Scale", "Make the 3D manipulation gizmos scale things (hotkey: S)");
-        ImGui::PopStyleColor(std::exchange(colorsPushed, 0));
-        ImGui::SameLine();
+        ui::DrawTooltipIfItemHovered("Scale", "Make the 3D manipulation gizmos scale things (hotkey: S)");
+        ui::PopStyleColor(std::exchange(colorsPushed, 0));
+        ui::SameLine();
     }
 
-    ImGui::PopStyleVar(2);
+    ui::PopStyleVar(2);
 
     return rv;
 }
@@ -114,14 +115,14 @@ bool osc::UpdateImguizmoStateFromKeyboard(
     ImGuizmo::OPERATION& op,
     ImGuizmo::MODE& mode)
 {
-    bool const shiftDown = IsShiftDown();
-    bool const ctrlOrSuperDown = IsCtrlOrSuperDown();
+    bool const shiftDown = ui::IsShiftDown();
+    bool const ctrlOrSuperDown = ui::IsCtrlOrSuperDown();
 
     if (shiftDown || ctrlOrSuperDown)
     {
         return false;  // assume the user is doing some other action
     }
-    else if (ImGui::IsKeyPressed(ImGuiKey_R))
+    else if (ui::IsKeyPressed(ImGuiKey_R))
     {
         // R: set manipulation mode to "rotate"
         if (op == ImGuizmo::ROTATE)
@@ -131,7 +132,7 @@ bool osc::UpdateImguizmoStateFromKeyboard(
         op = ImGuizmo::ROTATE;
         return true;
     }
-    else if (ImGui::IsKeyPressed(ImGuiKey_G))
+    else if (ui::IsKeyPressed(ImGuiKey_G))
     {
         // G: set manipulation mode to "grab" (translate)
         if (op == ImGuizmo::TRANSLATE)
@@ -141,7 +142,7 @@ bool osc::UpdateImguizmoStateFromKeyboard(
         op = ImGuizmo::TRANSLATE;
         return true;
 }
-    else if (ImGui::IsKeyPressed(ImGuiKey_S))
+    else if (ui::IsKeyPressed(ImGuiKey_S))
     {
         // S: set manipulation mode to "scale"
         if (op == ImGuizmo::SCALE)

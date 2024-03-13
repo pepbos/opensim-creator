@@ -33,32 +33,32 @@ public:
 private:
     void implDrawContent() final
     {
-        ImGui::Columns(2);
-        ImGui::TextUnformatted("FPS");
-        ImGui::NextColumn();
-        ImGui::Text("%.0f", static_cast<double>(ImGui::GetIO().Framerate));
-        ImGui::NextColumn();
-        ImGui::Columns();
+        ui::Columns(2);
+        ui::TextUnformatted("FPS");
+        ui::NextColumn();
+        ui::Text("%.0f", static_cast<double>(ui::GetIO().Framerate));
+        ui::NextColumn();
+        ui::Columns();
 
         {
             bool waiting = App::get().isMainLoopWaiting();
-            if (ImGui::Checkbox("waiting", &waiting))
+            if (ui::Checkbox("waiting", &waiting))
             {
                 App::upd().setMainLoopWaiting(waiting);
             }
         }
         {
             bool vsync = App::get().isVsyncEnabled();
-            if (ImGui::Checkbox("VSYNC", &vsync))
+            if (ui::Checkbox("VSYNC", &vsync))
             {
                 App::upd().setVsync(vsync);
             }
         }
-        if (ImGui::Button("clear measurements"))
+        if (ui::Button("clear measurements"))
         {
             ClearAllPerfMeasurements();
         }
-        ImGui::Checkbox("pause", &m_IsPaused);
+        ui::Checkbox("pause", &m_IsPaused);
 
         std::vector<PerfMeasurement> measurements;
         if (!m_IsPaused)
@@ -71,15 +71,15 @@ private:
             ImGuiTableFlags_NoSavedSettings |
             ImGuiTableFlags_Resizable |
             ImGuiTableFlags_BordersInner;
-        if (ImGui::BeginTable("measurements", 6, flags))
+        if (ui::BeginTable("measurements", 6, flags))
         {
-            ImGui::TableSetupColumn("Label");
-            ImGui::TableSetupColumn("Source File");
-            ImGui::TableSetupColumn("Num Calls");
-            ImGui::TableSetupColumn("Last Duration");
-            ImGui::TableSetupColumn("Average Duration");
-            ImGui::TableSetupColumn("Total Duration");
-            ImGui::TableHeadersRow();
+            ui::TableSetupColumn("Label");
+            ui::TableSetupColumn("Source File");
+            ui::TableSetupColumn("Num Calls");
+            ui::TableSetupColumn("Last Duration");
+            ui::TableSetupColumn("Average Duration");
+            ui::TableSetupColumn("Total Duration");
+            ui::TableHeadersRow();
 
             for (PerfMeasurement const& pm : measurements)
             {
@@ -89,22 +89,22 @@ private:
                 }
 
                 int column = 0;
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::TextUnformatted(pm.getLabel().c_str());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%s:%u", pm.getFilename().c_str(), pm.getLine());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%" PRId64, pm.getCallCount());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%ld us", static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getLastDuration()).count()));
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%ld us", static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getAvgDuration()).count()));
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%ld us", static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getTotalDuration()).count()));
+                ui::TableNextRow();
+                ui::TableSetColumnIndex(column++);
+                ui::TextUnformatted(pm.getLabel());
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%s:%u", pm.getFilename().c_str(), pm.getLine());
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%zu", pm.getCallCount());
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%" PRId64 " us", static_cast<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getLastDuration()).count()));
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%" PRId64 " us", static_cast<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getAvgDuration()).count()));
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%" PRId64 " us", static_cast<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(pm.getTotalDuration()).count()));
             }
 
-            ImGui::EndTable();
+            ui::EndTable();
         }
     }
 

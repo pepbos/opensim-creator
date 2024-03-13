@@ -3,7 +3,6 @@
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneRenderer.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Platform/App.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
@@ -21,10 +20,10 @@ public:
         m_Renderer.render(els, params);
 
         // emit the texture to ImGui
-        DrawTextureAsImGuiImage(m_Renderer.updRenderTexture(), m_Renderer.getDimensions());
-        m_IsHovered = ImGui::IsItemHovered();
-        m_IsLeftClicked = ImGui::IsItemHovered() && IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
-        m_IsRightClicked = ImGui::IsItemHovered() && IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
+        ui::DrawTextureAsImGuiImage(m_Renderer.updRenderTexture(), m_Renderer.getDimensions());
+        m_IsHovered = ui::IsItemHovered();
+        m_IsLeftClicked = ui::IsItemHovered() && ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
+        m_IsRightClicked = ui::IsItemHovered() && ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
     }
 
     bool isHovered() const
@@ -45,8 +44,7 @@ public:
 private:
     SceneRenderer m_Renderer
     {
-        *App::singleton<SceneCache>(),
-        *App::singleton<ShaderCache>(App::resource_loader()),
+        *App::singleton<SceneCache>(App::resource_loader()),
     };
     bool m_IsHovered = false;
     bool m_IsLeftClicked = false;

@@ -6,6 +6,7 @@
 
 #include <oscar/Graphics/Mesh.h>
 #include <oscar/Maths/Vec3.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <algorithm>
 #include <span>
@@ -38,38 +39,26 @@ namespace osc
             bool const updatedCoefficients = updateCoefficients(doc);
             bool const updatedNonParticipatingLandmarks = updateSourceNonParticipatingLandmarks(doc);
             bool const updatedMesh = updateInputMesh(doc);
+            bool const updatedBlendingFactor = updateBlendingFactor(doc);
 
-            if (updatedCoefficients || updatedNonParticipatingLandmarks || updatedMesh)
+            if (updatedCoefficients || updatedNonParticipatingLandmarks || updatedMesh || updatedBlendingFactor)
             {
-                m_CachedResultMesh = ApplyThinPlateWarpToMesh(m_CachedCoefficients, m_CachedSourceMesh);
-                m_CachedResultNonParticipatingLandmarks = ApplyThinPlateWarpToPoints(m_CachedCoefficients, m_CachedSourceNonParticipatingLandmarks);
+                m_CachedResultMesh = ApplyThinPlateWarpToMesh(m_CachedCoefficients, m_CachedSourceMesh, m_CachedBlendingFactor);
+                m_CachedResultNonParticipatingLandmarks = ApplyThinPlateWarpToPoints(m_CachedCoefficients, m_CachedSourceNonParticipatingLandmarks, m_CachedBlendingFactor);
             }
         }
 
-        bool updateSourceNonParticipatingLandmarks(TPSDocument const& doc)
+        // returns `true` if cached inputs were updated; otherwise, returns the cached inputs
+        bool updateInputs(TPSDocument const& doc)
         {
-            auto const& docLandmarks = doc.nonParticipatingLandmarks;
-
-            bool const samePositions = std::equal(
-                docLandmarks.begin(),
-                docLandmarks.end(),
-                m_CachedSourceNonParticipatingLandmarks.begin(),
-                m_CachedSourceNonParticipatingLandmarks.end(),
-                [](TPSDocumentNonParticipatingLandmark const& lm, Vec3 const& pos)
-                {
-                    return lm.location == pos;
-                }
-            );
-
-            if (!samePositions)
+            TPSCoefficientSolverInputs3D newInputs
             {
-                m_CachedSourceNonParticipatingLandmarks.clear();
-                std::transform(
-                    docLandmarks.begin(),
-                    docLandmarks.end(),
-                    std::back_inserter(m_CachedSourceNonParticipatingLandmarks),
-                    [](auto const& lm) { return lm.location; }
-                );
+                GetLandmarkPairs(doc),
+            };
+
+            if (newInputs != m_CachedInputs)
+            {
+                m_CachedInputs = std::move(newInputs);
                 return true;
             }
             else
@@ -100,6 +89,37 @@ namespace osc
             }
         }
 
+
+        bool updateSourceNonParticipatingLandmarks(TPSDocument const& doc)
+        {
+            auto const& docLandmarks = doc.nonParticipatingLandmarks;
+
+            bool const samePositions = equal(
+                docLandmarks,
+                m_CachedSourceNonParticipatingLandmarks,
+                [](TPSDocumentNonParticipatingLandmark const& lm, Vec3 const& pos)
+                {
+                    return lm.location == pos;
+                }
+            );
+
+            if (!samePositions)
+            {
+                m_CachedSourceNonParticipatingLandmarks.clear();
+                std::transform(
+                    docLandmarks.begin(),
+                    docLandmarks.end(),
+                    std::back_inserter(m_CachedSourceNonParticipatingLandmarks),
+                    [](auto const& lm) { return lm.location; }
+                );
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         // returns `true` if `m_CachedSourceMesh` is updated
         bool updateInputMesh(TPSDocument const& doc)
         {
@@ -114,22 +134,13 @@ namespace osc
             }
         }
 
-        // returns `true` if cached inputs were updated; otherwise, returns the cached inputs
-        bool updateInputs(TPSDocument const& doc)
+        bool updateBlendingFactor(TPSDocument const& doc)
         {
-            TPSCoefficientSolverInputs3D newInputs
-            {
-                GetLandmarkPairs(doc),
-                doc.blendingFactor,
-            };
-
-            if (newInputs != m_CachedInputs)
-            {
-                m_CachedInputs = std::move(newInputs);
+            if (m_CachedBlendingFactor != doc.blendingFactor) {
+                m_CachedBlendingFactor = doc.blendingFactor;
                 return true;
             }
-            else
-            {
+            else {
                 return false;
             }
         }
@@ -137,6 +148,7 @@ namespace osc
         TPSCoefficientSolverInputs3D m_CachedInputs;
         TPSCoefficients3D m_CachedCoefficients;
         Mesh m_CachedSourceMesh;
+        float m_CachedBlendingFactor = 1.0f;
         Mesh m_CachedResultMesh;
         std::vector<Vec3> m_CachedSourceNonParticipatingLandmarks;
         std::vector<Vec3> m_CachedResultNonParticipatingLandmarks;

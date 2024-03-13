@@ -43,7 +43,6 @@ add_library(OpenSimCreator STATIC
     Documents/MeshImporter/CrossrefDescriptor.h
     Documents/MeshImporter/CrossrefDirection.h
     Documents/MeshImporter/Document.cpp
-    Documents/MeshImporter/Document.h
     Documents/MeshImporter/DocumentHelpers.cpp
     Documents/MeshImporter/DocumentHelpers.h
     Documents/MeshImporter/Ground.cpp
@@ -106,25 +105,33 @@ add_library(OpenSimCreator STATIC
 
     Documents/ModelWarper/CachedModelWarper.cpp
     Documents/ModelWarper/CachedModelWarper.h
-    Documents/ModelWarper/Document.cpp
-    Documents/ModelWarper/Document.h
-    Documents/ModelWarper/FrameWarpLookup.cpp
-    Documents/ModelWarper/FrameWarpLookup.h
+    Documents/ModelWarper/FrameWarperFactories.cpp
+    Documents/ModelWarper/FrameWarperFactories.h
     Documents/ModelWarper/ICloneable.h
-    Documents/ModelWarper/IDetailListable.h
-    Documents/ModelWarper/IFrameWarp.h
-    Documents/ModelWarper/IMeshWarp.h
+    Documents/ModelWarper/IdentityFrameWarperFactory.cpp
+    Documents/ModelWarper/IdentityFrameWarperFactory.h
+    Documents/ModelWarper/IFrameWarper.h
+    Documents/ModelWarper/IFrameWarperFactory.h
+    Documents/ModelWarper/InMemoryMesh.cpp
+    Documents/ModelWarper/InMemoryMesh.h
+    Documents/ModelWarper/IPointWarper.h
+    Documents/ModelWarper/IPointWarperFactory.h
     Documents/ModelWarper/IValidateable.cpp
     Documents/ModelWarper/IValidateable.h
-    Documents/ModelWarper/LandmarkPairing.h
-    Documents/ModelWarper/MeshWarpLookup.cpp
-    Documents/ModelWarper/MeshWarpLookup.h
+    Documents/ModelWarper/IWarpDetailProvider.h
+    Documents/ModelWarper/MaybePairedLandmark.h
     Documents/ModelWarper/ModelWarpConfiguration.cpp
     Documents/ModelWarper/ModelWarpConfiguration.h
-    Documents/ModelWarper/ThinPlateSplineMeshWarp.cpp
-    Documents/ModelWarper/ThinPlateSplineMeshWarp.h
-    Documents/ModelWarper/ValidationCheck.h
-    Documents/ModelWarper/ValidationState.h
+    Documents/ModelWarper/ModelWarpDocument.cpp
+    Documents/ModelWarper/ModelWarpDocument.h
+    Documents/ModelWarper/PointWarperFactories.cpp
+    Documents/ModelWarper/PointWarperFactories.h
+    Documents/ModelWarper/StationDefinedFrameWarperFactory.cpp
+    Documents/ModelWarper/StationDefinedFrameWarperFactory.h
+    Documents/ModelWarper/TPSLandmarkPairWarperFactory.cpp
+    Documents/ModelWarper/TPSLandmarkPairWarperFactory.h
+    Documents/ModelWarper/ValidationCheckResult.h
+    Documents/ModelWarper/ValidationCheckState.h
     Documents/ModelWarper/WarpableOpenSimComponent.h
     Documents/ModelWarper/WarpDetail.h
 
@@ -149,6 +156,8 @@ add_library(OpenSimCreator STATIC
     Documents/Simulation/SingleStateSimulation.h
     Documents/Simulation/StoFileSimulation.h
     Documents/Simulation/StoFileSimulation.cpp
+
+    Documents/ICustomDecorationGenerator.h
 
     Graphics/CachedModelRenderer.cpp
     Graphics/CachedModelRenderer.h
@@ -207,6 +216,8 @@ add_library(OpenSimCreator STATIC
     UI/Experimental/GeodesicTab.h
     UI/Experimental/MeshHittestTab.cpp
     UI/Experimental/MeshHittestTab.h
+    UI/Experimental/PreviewExperimentalDataTab.cpp
+    UI/Experimental/PreviewExperimentalDataTab.h
     UI/Experimental/RendererGeometryShaderTab.cpp
     UI/Experimental/RendererGeometryShaderTab.h
     UI/Experimental/TPS2DTab.cpp

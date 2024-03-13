@@ -37,52 +37,52 @@ private:
     void implDrawContent() final
     {
         drawHelpText();
-        ImGui::Dummy({0.0f, 0.25f*ImGui::GetTextLineHeight()});
+        ui::Dummy({0.0f, 0.25f*ui::GetTextLineHeight()});
 
         if (!m_MaybeImportPath)
         {
             drawSelectInitialFileState();
-            ImGui::Dummy({0.0f, 0.75f*ImGui::GetTextLineHeight()});
+            ui::Dummy({0.0f, 0.75f*ui::GetTextLineHeight()});
         }
         else
         {
-            ImGui::Separator();
+            ui::Separator();
             drawLandmarkEntries();
             drawWarnings();
 
-            ImGui::Dummy({0.0f, 0.25f*ImGui::GetTextLineHeight()});
-            ImGui::Separator();
-            ImGui::Dummy({0.0f, 0.5f*ImGui::GetTextLineHeight()});
+            ui::Dummy({0.0f, 0.25f*ui::GetTextLineHeight()});
+            ui::Separator();
+            ui::Dummy({0.0f, 0.5f*ui::GetTextLineHeight()});
 
         }
         drawPossiblyDisabledOkOrCancelButtons();
-        ImGui::Dummy({0.0f, 0.5f*ImGui::GetTextLineHeight()});
+        ui::Dummy({0.0f, 0.5f*ui::GetTextLineHeight()});
     }
 
     void drawHelpText()
     {
-        ImGui::TextWrapped("Use this tool to import CSV data containing 3D locations as stations into the document. The CSV file should contain:");
-        ImGui::Bullet();
-        ImGui::TextWrapped("(optional) A header row of four columns, ideally labelled 'name', 'x', 'y', and 'z'");
-        ImGui::Bullet();
-        ImGui::TextWrapped("Data rows containing four columns: name (optional, string), x (number), y (number), and z (number)");
-        ImGui::Dummy({0.0f, 0.5f*ImGui::GetTextLineHeight()});
+        ui::TextWrapped("Use this tool to import CSV data containing 3D locations as stations into the document. The CSV file should contain:");
+        ui::Bullet();
+        ui::TextWrapped("(optional) A header row of four columns, ideally labelled 'name', 'x', 'y', and 'z'");
+        ui::Bullet();
+        ui::TextWrapped("Data rows containing four columns: name (optional, string), x (number), y (number), and z (number)");
+        ui::Dummy({0.0f, 0.5f*ui::GetTextLineHeight()});
         constexpr CStringView c_ExampleInputText = "name,x,y,z\nstationatground,0,0,0\nstation2,1.53,0.2,1.7\nstation3,3.0,2.0,0.0\n";
-        ImGui::TextWrapped("Example Input: ");
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_COPY))
+        ui::TextWrapped("Example Input: ");
+        ui::SameLine();
+        if (ui::Button(ICON_FA_COPY))
         {
             SetClipboardText(c_ExampleInputText);
         }
-        DrawTooltipBodyOnlyIfItemHovered("Copy example input to clipboard");
-        ImGui::Indent();
-        ImGui::TextWrapped("%s", c_ExampleInputText.c_str());
-        ImGui::Unindent();
+        ui::DrawTooltipBodyOnlyIfItemHovered("Copy example input to clipboard");
+        ui::Indent();
+        ui::TextWrapped(c_ExampleInputText);
+        ui::Unindent();
     }
 
     void drawSelectInitialFileState()
     {
-        if (ButtonCentered(ICON_FA_FILE " Select File"))
+        if (ui::ButtonCentered(ICON_FA_FILE " Select File"))
         {
             actionTryPromptingUserForCSVFile();
         }
@@ -95,45 +95,45 @@ private:
             return;
         }
 
-        TextCentered(m_MaybeImportPath->string());
-        TextCentered(std::string{"("} + std::to_string(m_ImportedLandmarks.size()) + " data rows)");
+        ui::TextCentered(m_MaybeImportPath->string());
+        ui::TextCentered(std::string{"("} + std::to_string(m_ImportedLandmarks.size()) + " data rows)");
 
-        ImGui::Dummy({0.0f, 0.2f*ImGui::GetTextLineHeight()});
-        if (ImGui::BeginTable("##importtable", 4, ImGuiTableFlags_ScrollY, {0.0f, 10.0f*ImGui::GetTextLineHeight()}))
+        ui::Dummy({0.0f, 0.2f*ui::GetTextLineHeight()});
+        if (ui::BeginTable("##importtable", 4, ImGuiTableFlags_ScrollY, {0.0f, 10.0f*ui::GetTextLineHeight()}))
         {
-            ImGui::TableSetupColumn("Name");
-            ImGui::TableSetupColumn("X");
-            ImGui::TableSetupColumn("Y");
-            ImGui::TableSetupColumn("Z");
-            ImGui::TableHeadersRow();
+            ui::TableSetupColumn("Name");
+            ui::TableSetupColumn("X");
+            ui::TableSetupColumn("Y");
+            ui::TableSetupColumn("Z");
+            ui::TableHeadersRow();
 
             int id = 0;
             for (auto const& station : m_ImportedLandmarks)
             {
-                ImGui::PushID(id++);
-                ImGui::TableNextRow();
+                ui::PushID(id++);
+                ui::TableNextRow();
                 int column = 0;
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::TextUnformatted(station.name.c_str());
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%f", station.position.x);
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%f", station.position.y);
-                ImGui::TableSetColumnIndex(column++);
-                ImGui::Text("%f", station.position.z);
-                ImGui::PopID();
+                ui::TableSetColumnIndex(column++);
+                ui::TextUnformatted(station.name);
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%f", station.position.x);
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%f", station.position.y);
+                ui::TableSetColumnIndex(column++);
+                ui::Text("%f", station.position.z);
+                ui::PopID();
             }
 
-            ImGui::EndTable();
+            ui::EndTable();
         }
-        ImGui::Dummy({0.0f, 0.2f*ImGui::GetTextLineHeight()});
+        ui::Dummy({0.0f, 0.2f*ui::GetTextLineHeight()});
 
-        if (ImGui::Button(ICON_FA_FILE " Select Different File"))
+        if (ui::Button(ICON_FA_FILE " Select Different File"))
         {
             actionTryPromptingUserForCSVFile();
         }
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_RECYCLE " Reload Same File"))
+        ui::SameLine();
+        if (ui::Button(ICON_FA_RECYCLE " Reload Same File"))
         {
             actionLoadCSVFile(*m_MaybeImportPath);
         }
@@ -146,22 +146,22 @@ private:
             return;
         }
 
-        PushStyleColor(ImGuiCol_Text, Color::orange());
-        ImGui::Text(ICON_FA_EXCLAMATION " input file contains issues");
-        PopStyleColor();
+        ui::PushStyleColor(ImGuiCol_Text, Color::orange());
+        ui::Text(ICON_FA_EXCLAMATION " input file contains issues");
+        ui::PopStyleColor();
 
-        if (ImGui::IsItemHovered())
+        if (ui::IsItemHovered())
         {
-            BeginTooltip();
-            ImGui::Indent();
+            ui::BeginTooltip();
+            ui::Indent();
             int id = 0;
             for (auto const& warning : m_ImportWarnings)
             {
-                ImGui::PushID(id++);
-                TextUnformatted(warning);
-                ImGui::PopID();
+                ui::PushID(id++);
+                ui::TextUnformatted(warning);
+                ui::PopID();
             }
-            EndTooltip();
+            ui::EndTooltip();
         }
     }
 
@@ -179,23 +179,23 @@ private:
 
         if (disabledReason)
         {
-            ImGui::BeginDisabled();
+            ui::BeginDisabled();
         }
-        if (ImGui::Button("OK"))
+        if (ui::Button("OK"))
         {
             actionAttachResultToModelGraph();
             close();
         }
         if (disabledReason)
         {
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ui::EndDisabled();
+            if (ui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
-                DrawTooltipBodyOnly(*disabledReason);
+                ui::DrawTooltipBodyOnly(*disabledReason);
             }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        ui::SameLine();
+        if (ui::Button("Cancel"))
         {
             close();
         }

@@ -24,6 +24,7 @@
 #include <oscar/UI/Panels/StandardPanelImpl.h>
 #include <oscar/UI/Widgets/GuiRuler.h>
 #include <oscar/UI/Widgets/IconWithoutMenu.h>
+#include <oscar/Utils/Algorithms.h>
 
 #include <memory>
 #include <optional>
@@ -184,9 +185,9 @@ namespace
                 edited = true;
             }
 
-            ImGui::SameLine();
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine();
+            ui::SameLine();
+            ui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ui::SameLine();
 
             // draw translate/rotate/scale selector
             {
@@ -198,9 +199,9 @@ namespace
                 }
             }
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0f, 0.0f});
-            ImGui::SameLine();
-            ImGui::PopStyleVar();
+            ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
+            ui::SameLine();
+            ui::PopStyleVar();
 
             // draw global/world selector
             {
@@ -217,7 +218,7 @@ namespace
 
         std::shared_ptr<IconCache> m_IconCache = App::singleton<IconCache>(
             App::resource_loader().withPrefix("icons/"),
-            ImGui::GetTextLineHeight()/128.0f
+            ui::GetTextLineHeight()/128.0f
         );
         std::string m_PanelName;
         ModelSelectionGizmo m_Gizmo;
@@ -237,7 +238,7 @@ namespace
             ModelEditorViewerPanelParameters& params,
             ModelEditorViewerPanelState& state) final
         {
-            return UpdatePolarCameraFromImGuiKeyboardInputs(
+            return ui::UpdatePolarCameraFromImGuiKeyboardInputs(
                 params.updRenderParams().camera,
                 state.viewportRect,
                 state.maybeSceneAABB
@@ -251,12 +252,12 @@ namespace
             m_IsHandlingMouseInputs = true;
 
             // try updating the camera (mouse panning, etc.)
-            bool rv = UpdatePolarCameraFromImGuiMouseInputs(
+            bool rv = ui::UpdatePolarCameraFromImGuiMouseInputs(
                 params.updRenderParams().camera,
-                Dimensions(state.viewportRect)
+                dimensions(state.viewportRect)
             );
 
-            if (IsDraggingWithAnyMouseButtonDown())
+            if (ui::IsDraggingWithAnyMouseButtonDown())
             {
                 params.getModelSharedPtr()->setHovered(nullptr);
             }
@@ -290,7 +291,7 @@ namespace
             // hover, but not panning: show tooltip
             if (!state.maybeHoveredComponentAbsPath.toString().empty() &&
                 m_IsHandlingMouseInputs &&
-                !IsDraggingWithAnyMouseButtonDown())
+                !ui::IsDraggingWithAnyMouseButtonDown())
             {
                 if (OpenSim::Component const* c = FindComponent(params.getModelSharedPtr()->getModel(), state.maybeHoveredComponentAbsPath))
                 {
@@ -361,12 +362,12 @@ public:
 private:
     void implBeforeImGuiBegin() final
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
+        ui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
     }
 
     void implAfterImGuiBegin() final
     {
-        ImGui::PopStyleVar();
+        ui::PopStyleVar();
     }
 
     void implDrawContent() final
@@ -376,9 +377,9 @@ private:
         // because GCing destroyed them before they were rendered
         layersGarbageCollect();
 
-        m_State.viewportRect = ContentRegionAvailScreenRect();
-        m_State.isLeftClickReleasedWithoutDragging = IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
-        m_State.isRightClickReleasedWithoutDragging = IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
+        m_State.viewportRect = ui::ContentRegionAvailScreenRect();
+        m_State.isLeftClickReleasedWithoutDragging = ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
+        m_State.isRightClickReleasedWithoutDragging = ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
 
         // if necessary, auto-focus the camera on the first frame
         if (m_IsFirstFrame)
@@ -398,26 +399,26 @@ private:
         {
             layersHandleMouseInputs();
 
-            if (!ImGui::GetIO().WantCaptureKeyboard)
+            if (!ui::GetIO().WantCaptureKeyboard)
             {
                 layersHandleKeyboardInputs();
             }
         }
 
-        // render the 3D scene to a texture and present it via an ImGui::Image
+        // render the 3D scene to a texture and present it via a ui::Image
         {
             RenderTexture& sceneTexture = m_State.updRenderer().onDraw(
                 *m_Parameters.getModelSharedPtr(),
                 m_Parameters.getRenderParams(),
-                Dimensions(m_State.viewportRect),
+                dimensions(m_State.viewportRect),
                 App::get().getCurrentAntiAliasingLevel()
             );
-            DrawTextureAsImGuiImage(
+            ui::DrawTextureAsImGuiImage(
                 sceneTexture,
-                Dimensions(m_State.viewportRect)
+                dimensions(m_State.viewportRect)
             );
 
-            // care: hittesting is done here, rather than using ImGui::IsWindowHovered, because
+            // care: hittesting is done here, rather than using ui::IsWindowHovered, because
             // we care about whether the _render_ is hovered, not any part of the window (which
             // may include things like the title bar, etc.
             //
@@ -427,11 +428,11 @@ private:
             // check if the window is conditionally hovered: this returns true if no other window is
             // overlapping the editor panel, _but_ it also returns true if the user is only hovering
             // the title bar of the window, rather than specifically the render
-            bool const windowHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+            bool const windowHovered = ui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
 
             // check if the 3D render is hovered - ignore blocking and overlapping because the layer
             // stack might be screwing with this
-            bool const renderHoveredIgnoringOverlap = ImGui::IsItemHovered(
+            bool const renderHoveredIgnoringOverlap = ui::IsItemHovered(
                 ImGuiHoveredFlags_AllowWhenBlockedByActiveItem |
                 ImGuiHoveredFlags_AllowWhenOverlapped
             );
@@ -447,7 +448,7 @@ private:
         {
             m_State.maybeBaseLayerHittest = m_State.getRenderer().getClosestCollision(
                 m_Parameters.getRenderParams(),
-                ImGui::GetMousePos(),
+                ui::GetMousePos(),
                 m_State.viewportRect
             );
         }
@@ -507,27 +508,27 @@ private:
         {
             ModelEditorViewerPanelLayer& layer = **it;
 
-            ImGuiWindowFlags windowFlags = GetMinimalWindowFlags() & ~ImGuiWindowFlags_NoInputs;
+            ImGuiWindowFlags windowFlags = ui::GetMinimalWindowFlags() & ~ImGuiWindowFlags_NoInputs;
 
             // if any layer above this one captures mouse inputs then disable this layer's inputs
-            if (std::find_if(it+1, m_Layers.end(), [](auto const& layerPtr) -> bool { return layerPtr->getFlags() & ModelEditorViewerPanelLayerFlags::CapturesMouseInputs; }) != m_Layers.end())
+            if (find_if(it+1, m_Layers.end(), [](auto const& layerPtr) -> bool { return layerPtr->getFlags() & ModelEditorViewerPanelLayerFlags::CapturesMouseInputs; }) != m_Layers.end())
             {
                 windowFlags |= ImGuiWindowFlags_NoInputs;
             }
 
             // layers always have a background (although, it can be entirely invisible)
             windowFlags &= ~ImGuiWindowFlags_NoBackground;
-            ImGui::SetNextWindowBgAlpha(layer.getBackgroundAlpha());
+            ui::SetNextWindowBgAlpha(layer.getBackgroundAlpha());
 
             // draw the layer in a child window, so that ImGui understands that hittests
             // should happen window-by-window (otherwise, you'll have problems with overlapping
             // buttons, widgets, etc.)
-            ImGui::SetNextWindowPos(m_State.viewportRect.p1);
+            ui::SetNextWindowPos(m_State.viewportRect.p1);
             std::string const childID = std::to_string(std::distance(it, m_Layers.end()));
-            if (ImGui::BeginChild(childID.c_str(), Dimensions(m_State.viewportRect), ImGuiChildFlags_None, windowFlags))
+            if (ui::BeginChild(childID, dimensions(m_State.viewportRect), ImGuiChildFlags_None, windowFlags))
             {
                 layer.onDraw(m_Parameters, m_State);
-                ImGui::EndChild();
+                ui::EndChild();
             }
         }
     }

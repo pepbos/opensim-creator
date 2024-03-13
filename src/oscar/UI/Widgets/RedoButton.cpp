@@ -18,43 +18,43 @@ void osc::RedoButton::onDraw()
 {
     int imguiID = 0;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
+    ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.0f, 0.0f});
 
     bool wasDisabled = false;
     if (!m_UndoRedo->canRedo())
     {
-        ImGui::BeginDisabled();
+        ui::BeginDisabled();
         wasDisabled = true;
     }
-    if (ImGui::Button(ICON_FA_REDO))
+    if (ui::Button(ICON_FA_REDO))
     {
         m_UndoRedo->redo();
     }
 
-    ImGui::SameLine();
+    ui::SameLine();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0.0f, ImGui::GetStyle().FramePadding.y});
-    ImGui::Button(ICON_FA_CARET_DOWN);
-    ImGui::PopStyleVar();
+    ui::PushStyleVar(ImGuiStyleVar_FramePadding, {0.0f, ui::GetStyle().FramePadding.y});
+    ui::Button(ICON_FA_CARET_DOWN);
+    ui::PopStyleVar();
 
     if (wasDisabled)
     {
-        ImGui::EndDisabled();
+        ui::EndDisabled();
     }
 
-    if (ImGui::BeginPopupContextItem("##OpenRedoMenu", ImGuiPopupFlags_MouseButtonLeft))
+    if (ui::BeginPopupContextItem("##OpenRedoMenu", ImGuiPopupFlags_MouseButtonLeft))
     {
         for (ptrdiff_t i = 0; i < m_UndoRedo->getNumRedoEntriesi(); ++i)
         {
-            ImGui::PushID(imguiID++);
-            if (ImGui::Selectable(m_UndoRedo->getRedoEntry(i).message().c_str()))
+            ui::PushID(imguiID++);
+            if (ui::Selectable(m_UndoRedo->getRedoEntry(i).message()))
             {
                 m_UndoRedo->redoTo(i);
             }
-            ImGui::PopID();
+            ui::PopID();
         }
-        ImGui::EndPopup();
+        ui::EndPopup();
     }
 
-    ImGui::PopStyleVar();
+    ui::PopStyleVar();
 }

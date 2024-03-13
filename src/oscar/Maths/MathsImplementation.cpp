@@ -1,7 +1,7 @@
 #include <oscar/Maths.h>
 #include <oscar/Platform/Log.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
-#include <oscar/Utils/At.h>
 #include <oscar/Utils/EnumHelpers.h>
 
 #include <cmath>
@@ -40,16 +40,6 @@ std::ostream& osc::operator<<(std::ostream& o, AABB const& aabb)
 // BVH helpers
 namespace
 {
-    AABB Union(std::span<BVHPrim const> prims)
-    {
-        AABB rv = prims.front().getBounds();
-        for (auto it = prims.begin() + 1; it != prims.end(); ++it)
-        {
-            rv = Union(rv, it->getBounds());
-        }
-        return rv;
-    }
-
     bool HasAVolume(Triangle const& t)
     {
         return !(t.p0 == t.p1 || t.p0 == t.p2 || t.p1 == t.p2);
@@ -80,10 +70,13 @@ namespace
             // allocate an appropriate internal node
 
             // compute bounding box of remaining (children) prims
-            AABB const aabb = Union({prims.begin() + begin, static_cast<size_t>(n)});
+            AABB const aabb = aabb_of(
+                std::span<BVHPrim const>{prims.begin() + begin, static_cast<size_t>(n)},
+                &BVHPrim::getBounds
+            );
 
             // compute slicing position along the longest dimension
-            auto const longestDimIdx = LongestDimIndex(aabb);
+            auto const longestDimIdx = max_element_index(dimensions(aabb));
             float const midpointX2 = aabb.min[longestDimIdx] + aabb.max[longestDimIdx];
 
             // returns true if a given primitive is below the midpoint along the dim
@@ -139,7 +132,7 @@ namespace
         BVHNode const& node = nodes[nodeidx];
 
         // check ray-AABB intersection with the BVH node
-        std::optional<RayCollision> res = GetRayCollisionAABB(ray, node.getBounds());
+        std::optional<RayCollision> res = find_collision(ray, node.getBounds());
 
         if (!res)
         {
@@ -174,7 +167,7 @@ namespace
         ptrdiff_t nodeidx)
     {
         BVHNode const& node = nodes[nodeidx];
-        std::optional<RayCollision> const res = GetRayCollisionAABB(ray, node.getBounds());
+        std::optional<RayCollision> const res = find_collision(ray, node.getBounds());
 
         if (!res)
         {
@@ -190,16 +183,16 @@ namespace
         {
             // leaf node: check ray-triangle intersection
 
-            BVHPrim const& p = At(prims, node.getFirstPrimOffset());
+            BVHPrim const& p = at(prims, node.getFirstPrimOffset());
 
             Triangle const triangle =
             {
-                At(verts, At(indices, p.getID())),
-                At(verts, At(indices, p.getID()+1)),
-                At(verts, At(indices, p.getID()+2)),
+                at(verts, at(indices, p.getID())),
+                at(verts, at(indices, p.getID()+1)),
+                at(verts, at(indices, p.getID()+2)),
             };
 
-            std::optional<RayCollision> const rayTriangleColl = GetRayCollisionTriangle(ray, triangle);
+            std::optional<RayCollision> const rayTriangleColl = find_collision(ray, triangle);
 
             if (rayTriangleColl && rayTriangleColl->distance < closest)
             {
@@ -251,14 +244,14 @@ namespace
         {
             Triangle const t
             {
-                At(verts, indices[i]),
-                At(verts, indices[i+1]),
-                At(verts, indices[i+2]),
+                at(verts, indices[i]),
+                at(verts, indices[i+1]),
+                at(verts, indices[i+2]),
             };
 
             if (HasAVolume(t))
             {
-                prims.emplace_back(static_cast<ptrdiff_t>(i), AABBFromTriangle(t));
+                prims.emplace_back(static_cast<ptrdiff_t>(i), aabb_of(t));
             }
         }
 
@@ -283,6 +276,27 @@ namespace
 
         float closest = std::numeric_limits<float>::max();
         return BVH_GetClosestRayIndexedTriangleCollisionRecursive(nodes, prims, verts, indices, ray, closest, 0);
+    }
+
+    // describes the direction of each cube face and which direction is "up"
+    // from the perspective of looking at that face from the center of the cube
+    struct CubemapFaceDetails final {
+        Vec3 direction;
+        Vec3 up;
+    };
+    constexpr auto c_CubemapFacesDetails = std::to_array<CubemapFaceDetails>(
+        {
+            {{ 1.0f,  0.0f,  0.0f}, {0.0f, -1.0f,  0.0f}},
+        {{-1.0f,  0.0f,  0.0f}, {0.0f, -1.0f,  0.0f}},
+        {{ 0.0f,  1.0f,  0.0f}, {0.0f,  0.0f,  1.0f}},
+        {{ 0.0f, -1.0f,  0.0f}, {0.0f,  0.0f, -1.0f}},
+        {{ 0.0f,  0.0f,  1.0f}, {0.0f, -1.0f,  0.0f}},
+        {{ 0.0f,  0.0f, -1.0f}, {0.0f, -1.0f,  0.0f}},
+        });
+
+    Mat4 CalcCubemapViewMatrix(CubemapFaceDetails const& faceDetails, Vec3 const& cubeCenter)
+    {
+        return look_at(cubeCenter, cubeCenter + faceDetails.direction, faceDetails.up);
     }
 }
 
@@ -349,7 +363,7 @@ void osc::BVH::buildFromAABBs(std::span<AABB const> aabbs)
     m_Prims.reserve(aabbs.size());  // good guess
     for (ptrdiff_t i = 0; i < std::ssize(aabbs); ++i)
     {
-        if (!IsAPoint(aabbs[i]))
+        if (!is_point(aabbs[i]))
         {
             m_Prims.emplace_back(static_cast<ptrdiff_t>(i), aabbs[i]);
         }
@@ -401,7 +415,7 @@ size_t osc::BVH::getMaxDepth() const
         {
             // leaf node: compute its depth and continue traversal (if applicable)
 
-            maxdepth = std::max(maxdepth, stack.size() + 1);
+            maxdepth = max(maxdepth, stack.size() + 1);
 
             if (stack.empty())
             {
@@ -462,7 +476,7 @@ std::ostream& osc::operator<<(std::ostream& o, Disc const& d)
 
 // `EulerPerspectiveCamera` implementation
 
-Vec3 osc::EulerPerspectiveCamera::getFront() const
+Vec3 osc::EulerPerspectiveCamera::front() const
 {
     return normalize(Vec3
     {
@@ -472,24 +486,24 @@ Vec3 osc::EulerPerspectiveCamera::getFront() const
     });
 }
 
-Vec3 osc::EulerPerspectiveCamera::getUp() const
+Vec3 osc::EulerPerspectiveCamera::up() const
 {
     return Vec3{0.0f, 1.0f, 0.0f};
 }
 
-Vec3 osc::EulerPerspectiveCamera::getRight() const
+Vec3 osc::EulerPerspectiveCamera::right() const
 {
-    return normalize(cross(getFront(), getUp()));
+    return normalize(cross(front(), up()));
 }
 
-Mat4 osc::EulerPerspectiveCamera::getViewMtx() const
+Mat4 osc::EulerPerspectiveCamera::view_matrix() const
 {
-    return look_at(origin, origin + getFront(), getUp());
+    return look_at(origin, origin + front(), up());
 }
 
-Mat4 osc::EulerPerspectiveCamera::getProjMtx(float aspectRatio) const
+Mat4 osc::EulerPerspectiveCamera::projection_matrix(float aspectRatio) const
 {
-    return perspective(verticalFOV, aspectRatio, znear, zfar);
+    return perspective(vertical_fov, aspectRatio, znear, zfar);
 }
 
 
@@ -528,7 +542,7 @@ osc::PolarPerspectiveCamera::PolarPerspectiveCamera() :
     theta{45_deg},
     phi{45_deg},
     focusPoint{0.0f, 0.0f, 0.0f},
-    verticalFOV{35_deg},
+    vertical_fov{35_deg},
     znear{0.1f},
     zfar{100.0f}
 {
@@ -541,20 +555,20 @@ void osc::PolarPerspectiveCamera::reset()
 
 void osc::PolarPerspectiveCamera::pan(float aspectRatio, Vec2 delta)
 {
-    auto horizontalFOV = VerticalToHorizontalFOV(verticalFOV, aspectRatio);
+    auto horizontalFOV = VerticalToHorizontalFOV(vertical_fov, aspectRatio);
 
     // how much panning is done depends on how far the camera is from the
     // origin (easy, with polar coordinates) *and* the FoV of the camera.
     float xAmt = delta.x * (2.0f * tan(horizontalFOV / 2.0f) * radius);
-    float yAmt = -delta.y * (2.0f * tan(verticalFOV / 2.0f) * radius);
+    float yAmt = -delta.y * (2.0f * tan(vertical_fov / 2.0f) * radius);
 
     // this assumes the scene is not rotated, so we need to rotate these
     // axes to match the scene's rotation
     Vec4 defaultPanningAx = {xAmt, yAmt, 0.0f, 1.0f};
-    auto rotTheta = rotate(Identity<Mat4>(), theta, UnitVec3{0.0f, 1.0f, 0.0f});
+    auto rotTheta = rotate(identity<Mat4>(), theta, UnitVec3{0.0f, 1.0f, 0.0f});
     auto thetaVec = UnitVec3{sin(theta), 0.0f, cos(theta)};
     auto phiAxis = cross(thetaVec, UnitVec3{0.0, 1.0f, 0.0f});
-    auto rotPhi = rotate(Identity<Mat4>(), phi, phiAxis);
+    auto rotPhi = rotate(identity<Mat4>(), phi, phiAxis);
 
     Vec4 panningAxes = rotPhi * rotTheta * defaultPanningAx;
     focusPoint += Vec3{panningAxes};
@@ -575,7 +589,7 @@ void osc::PolarPerspectiveCamera::rescaleZNearAndZFarBasedOnRadius()
     zfar = 20.0f * radius;
 }
 
-Mat4 osc::PolarPerspectiveCamera::getViewMtx() const
+Mat4 osc::PolarPerspectiveCamera::view_matrix() const
 {
     // camera: at a fixed position pointing at a fixed origin. The "camera"
     // works by translating + rotating all objects around that origin. Rotation
@@ -585,20 +599,20 @@ Mat4 osc::PolarPerspectiveCamera::getViewMtx() const
     // this maths is a complete shitshow and I apologize. It just happens to work for now. It's a polar coordinate
     // system that shifts the world based on the camera pan
 
-    auto rotTheta = rotate(Identity<Mat4>(), -theta, Vec3{0.0f, 1.0f, 0.0f});
+    auto rotTheta = rotate(identity<Mat4>(), -theta, Vec3{0.0f, 1.0f, 0.0f});
     auto thetaVec = normalize(Vec3{sin(theta), 0.0f, cos(theta)});
     auto phiAxis = cross(thetaVec, Vec3{0.0, 1.0f, 0.0f});
-    auto rotPhi = rotate(Identity<Mat4>(), -phi, phiAxis);
-    auto panTranslate = translate(Identity<Mat4>(), focusPoint);
+    auto rotPhi = rotate(identity<Mat4>(), -phi, phiAxis);
+    auto panTranslate = translate(identity<Mat4>(), focusPoint);
     return look_at(
         Vec3(0.0f, 0.0f, radius),
         Vec3(0.0f, 0.0f, 0.0f),
         Vec3{0.0f, 1.0f, 0.0f}) * rotTheta * rotPhi * panTranslate;
 }
 
-Mat4 osc::PolarPerspectiveCamera::getProjMtx(float aspectRatio) const
+Mat4 osc::PolarPerspectiveCamera::projection_matrix(float aspectRatio) const
 {
-    return perspective(verticalFOV, aspectRatio, znear, zfar);
+    return perspective(vertical_fov, aspectRatio, znear, zfar);
 }
 
 Vec3 osc::PolarPerspectiveCamera::getPos() const
@@ -608,8 +622,8 @@ Vec3 osc::PolarPerspectiveCamera::getPos() const
 
 Vec2 osc::PolarPerspectiveCamera::projectOntoScreenRect(Vec3 const& worldspaceLoc, Rect const& screenRect) const
 {
-    Vec2 dims = Dimensions(screenRect);
-    Mat4 MV = getProjMtx(dims.x/dims.y) * getViewMtx();
+    Vec2 dims = dimensions(screenRect);
+    Mat4 MV = projection_matrix(dims.x/dims.y) * view_matrix();
 
     Vec4 ndc = MV * Vec4{worldspaceLoc, 1.0f};
     ndc /= ndc.w;  // perspective divide
@@ -626,8 +640,8 @@ Vec2 osc::PolarPerspectiveCamera::projectOntoScreenRect(Vec3 const& worldspaceLo
 
 Line osc::PolarPerspectiveCamera::unprojectTopLeftPosToWorldRay(Vec2 pos, Vec2 dims) const
 {
-    Mat4 const viewMatrix = getViewMtx();
-    Mat4 const projectionMatrix = getProjMtx(dims.x/dims.y);
+    Mat4 const viewMatrix = view_matrix();
+    Mat4 const projectionMatrix = projection_matrix(dims.x/dims.y);
 
     return PerspectiveUnprojectTopLeftScreenPosToWorldRay(
         pos / dims,
@@ -750,7 +764,7 @@ void osc::Reset(PolarPerspectiveCamera& camera)
 void osc::AutoFocus(PolarPerspectiveCamera& camera, AABB const& elementAABB, float aspectRatio)
 {
     Sphere const s = ToSphere(elementAABB);
-    Radians const smallestFOV = aspectRatio > 1.0f ? camera.verticalFOV : VerticalToHorizontalFOV(camera.verticalFOV, aspectRatio);
+    Radians const smallestFOV = aspectRatio > 1.0f ? camera.vertical_fov : VerticalToHorizontalFOV(camera.vertical_fov, aspectRatio);
 
     // auto-focus the camera with a minimum radius of 1m
     //
@@ -758,7 +772,7 @@ void osc::AutoFocus(PolarPerspectiveCamera& camera, AABB const& elementAABB, flo
     // handles the edge-case of autofocusing an empty model (#552), which is a
     // more common use-case (e.g. for new users and users making human-sized models)
     camera.focusPoint = -s.origin;
-    camera.radius = std::max(s.radius / tan(smallestFOV/2.0), 1.0f);
+    camera.radius = max(s.radius / tan(smallestFOV/2.0), 1.0f);
     camera.rescaleZNearAndZFarBasedOnRadius();
 }
 
@@ -790,7 +804,7 @@ std::ostream& osc::operator<<(std::ostream& o, Sphere const& s)
 // `Tetrahedron` implementatioon
 
 // returns the volume of a given tetrahedron, defined as 4 points in space
-float osc::Volume(Tetrahedron const& t)
+float osc::volume(Tetrahedron const& t)
 {
     // sources:
     //
@@ -806,13 +820,6 @@ float osc::Volume(Tetrahedron const& t)
     };
 
     return determinant(m) / 6.0f;
-}
-
-// returns spatial centerpoint of a given tetrahedron
-Vec3 osc::Center(Tetrahedron const& t)
-{
-    // arithmetic mean of tetrahedron vertices
-    return std::reduce(t.begin(), t.end()) / static_cast<float>(t.size());
 }
 
 
@@ -951,11 +958,11 @@ namespace
 
 // MathHelpers
 
-Radians osc::VerticalToHorizontalFOV(Radians verticalFOV, float aspectRatio)
+Radians osc::VerticalToHorizontalFOV(Radians vertical_fov, float aspectRatio)
 {
     // https://en.wikipedia.org/wiki/Field_of_view_in_video_games#Field_of_view_calculations
 
-    return 2.0f * atan(tan(verticalFOV / 2.0f) * aspectRatio);
+    return 2.0f * atan(tan(vertical_fov / 2.0f) * aspectRatio);
 }
 
 float osc::AspectRatio(Vec2i v)
@@ -978,7 +985,7 @@ Mat4 osc::Dir1ToDir2Xform(Vec3 const& dir1, Vec3 const& dir2)
     if(cosTheta >= static_cast<float>(1.0f) - epsilon_v<float>)
     {
         // `a` and `b` point in the same direction: return identity transform
-        return Identity<Mat4>();
+        return identity<Mat4>();
     }
 
     Radians theta{};
@@ -1006,7 +1013,7 @@ Mat4 osc::Dir1ToDir2Xform(Vec3 const& dir1, Vec3 const& dir2)
         rotationAxis = normalize(cross(dir1, dir2));
     }
 
-    return rotate(Identity<Mat4>(), theta, rotationAxis);
+    return rotate(identity<Mat4>(), theta, rotationAxis);
 }
 
 Eulers osc::extract_eulers_xyz(Quat const& q)
@@ -1058,11 +1065,11 @@ Line osc::PerspectiveUnprojectTopLeftScreenPosToWorldRay(
 
 float osc::Area(Rect const& r)
 {
-    auto d = Dimensions(r);
+    auto d = dimensions(r);
     return d.x * d.y;
 }
 
-Vec2 osc::Dimensions(Rect const& r)
+Vec2 osc::dimensions(Rect const& r)
 {
     return abs(r.p2 - r.p1);
 }
@@ -1074,11 +1081,11 @@ Vec2 osc::BottomLeft(Rect const& r)
 
 float osc::AspectRatio(Rect const& r)
 {
-    Vec2 dims = Dimensions(r);
+    Vec2 dims = dimensions(r);
     return dims.x/dims.y;
 }
 
-Vec2 osc::Midpoint(Rect const& r)
+Vec2 osc::centroid(Rect const& r)
 {
     return 0.5f * (r.p1 + r.p2);
 }
@@ -1101,7 +1108,7 @@ Rect osc::BoundingRectOf(std::span<Vec2 const> vs)
 
 Rect osc::BoundingRectOf(Circle const& c)
 {
-    float const hypot = sqrt(c.radius * c.radius);
+    float const hypot = sqrt(2.0f * c.radius * c.radius);
     return {c.origin - hypot, c.origin + hypot};
 }
 
@@ -1144,7 +1151,7 @@ Rect osc::Clamp(Rect const& r, Vec2 const& min, Vec2 const& max)
 
 Rect osc::NdcRectToScreenspaceViewportRect(Rect const& ndcRect, Rect const& viewport)
 {
-    Vec2 const viewportDims = Dimensions(viewport);
+    Vec2 const viewportDims = dimensions(viewport);
 
     // remap [-1, 1] into [0, viewportDims]
     Rect rv
@@ -1168,7 +1175,7 @@ Sphere osc::BoundingSphereOf(std::span<Vec3 const> points)
         return Sphere{.radius = 0.0f};
     }
 
-    Vec3 const origin = Midpoint(AABBFromVerts(points));
+    Vec3 const origin = centroid(aabb_of(points));
 
     float r2 = 0.0f;
     for (Vec3 const& pos : points)
@@ -1181,19 +1188,19 @@ Sphere osc::BoundingSphereOf(std::span<Vec3 const> points)
 
 Sphere osc::ToSphere(AABB const& aabb)
 {
-    return BoundingSphereOf(ToCubeVerts(aabb));
+    return BoundingSphereOf(corner_vertices(aabb));
 }
 
 Mat4 osc::FromUnitSphereMat4(Sphere const& s)
 {
-    return translate(Identity<Mat4>(), s.origin) * scale(Identity<Mat4>(), {s.radius, s.radius, s.radius});
+    return translate(identity<Mat4>(), s.origin) * scale(identity<Mat4>(), {s.radius, s.radius, s.radius});
 }
 
 Mat4 osc::SphereToSphereMat4(Sphere const& a, Sphere const& b)
 {
     float s = b.radius/a.radius;
-    Mat4 scaler = scale(Identity<Mat4>(), Vec3{s});
-    Mat4 mover = translate(Identity<Mat4>(), b.origin - a.origin);
+    Mat4 scaler = scale(identity<Mat4>(), Vec3{s});
+    Mat4 mover = translate(identity<Mat4>(), b.origin - a.origin);
     return mover * scaler;
 }
 
@@ -1247,96 +1254,29 @@ Mat4 osc::DiscToDiscMat4(Disc const& a, Disc const& b)
     // - LERP is 1.0f + (s - 1.0f)*V, where V is how perpendiular each axis is
 
     Vec3 scalers = 1.0f + ((s - 1.0f) * abs(1.0f - a.normal));
-    Mat4 scaler = scale(Identity<Mat4>(), scalers);
+    Mat4 scaler = scale(identity<Mat4>(), scalers);
 
     float cosTheta = dot(a.normal, b.normal);
     Mat4 rotator;
     if (cosTheta > 0.9999f)
     {
-        rotator = Identity<Mat4>();
+        rotator = identity<Mat4>();
     }
     else
     {
         Radians theta = acos(cosTheta);
         Vec3 axis = cross(a.normal, b.normal);
-        rotator = rotate(Identity<Mat4>(), theta, axis);
+        rotator = rotate(identity<Mat4>(), theta, axis);
     }
 
-    Mat4 translator = translate(Identity<Mat4>(), b.origin-a.origin);
+    Mat4 translator = translate(identity<Mat4>(), b.origin-a.origin);
 
     return translator * rotator * scaler;
 }
 
-AABB osc::InvertedAABB()
+std::array<Vec3, 8> osc::corner_vertices(AABB const& aabb)
 {
-    AABB rv{};
-    rv.min = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
-    rv.max = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
-    return rv;
-}
-
-Vec3 osc::Midpoint(AABB const& a)
-{
-    return 0.5f * (a.min + a.max);
-}
-
-Vec3 osc::Dimensions(AABB const& a)
-{
-    return a.max - a.min;
-}
-
-Vec3 osc::HalfWidths(AABB const& a)
-{
-    return 0.5f*Dimensions(a);
-}
-
-float osc::Volume(AABB const& a)
-{
-    Vec3 d = Dimensions(a);
-    return d.x * d.y * d.z;
-}
-
-AABB osc::Union(AABB const& a, AABB const& b)
-{
-    return AABB
-    {
-        elementwise_min(a.min, b.min),
-        elementwise_max(a.max, b.max),
-    };
-}
-
-bool osc::IsAPoint(AABB const& a)
-{
-    return a.min == a.max;
-}
-
-bool osc::IsZeroVolume(AABB const& a)
-{
-
-    for (Vec3::size_type i = 0; i < 3; ++i)
-    {
-        if (a.min[i] == a.max[i])
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-Vec3::size_type osc::LongestDimIndex(AABB const& a)
-{
-    return max_element_index(Dimensions(a));
-}
-
-float osc::LongestDim(AABB const& a)
-{
-    Vec3 const dims = Dimensions(a);
-    return std::max({dims[0], dims[1], dims[2]});
-}
-
-std::array<Vec3, 8> osc::ToCubeVerts(AABB const& aabb)
-{
-    Vec3 d = Dimensions(aabb);
+    Vec3 d = dimensions(aabb);
 
     std::array<Vec3, 8> rv{};
     rv[0] = aabb.min;
@@ -1354,20 +1294,16 @@ std::array<Vec3, 8> osc::ToCubeVerts(AABB const& aabb)
     return rv;
 }
 
-AABB osc::TransformAABB(AABB const& aabb, Mat4 const& m)
+AABB osc::transform_aabb(AABB const& aabb, Mat4 const& m)
 {
-    auto verts = ToCubeVerts(aabb);
-
-    for (Vec3& vert : verts)
+    return aabb_of(corner_vertices(aabb), [&](Vec3 const& vertex)
     {
-        Vec4 p = m * Vec4{vert, 1.0f};
-        vert = Vec3{p / p.w}; // perspective divide
-    }
-
-    return AABBFromVerts(verts);
+        Vec4 const p = m * Vec4{vertex, 1.0f};
+        return Vec3{p / p.w};  // perspective divide
+    });
 }
 
-AABB osc::TransformAABB(AABB const& aabb, Transform const& t)
+AABB osc::transform_aabb(AABB const& aabb, Transform const& t)
 {
     // from real-time collision detection (the book)
     //
@@ -1375,22 +1311,19 @@ AABB osc::TransformAABB(AABB const& aabb, Transform const& t)
 
     Mat3 const m = mat3_cast(t);
 
-    AABB rv{t.position, t.position};  // add in the translation
-    for (Vec3::size_type i = 0; i < 3; ++i)
-    {
+    AABB rv = aabb_of(t.position);  // add in the translation
+    for (Vec3::size_type i = 0; i < 3; ++i) {
+
         // form extent by summing smaller and larger terms repsectively
-        for (Vec3::size_type j = 0; j < 3; ++j)
-        {
+        for (Vec3::size_type j = 0; j < 3; ++j) {
             float const e = m[j][i] * aabb.min[j];
             float const f = m[j][i] * aabb.max[j];
 
-            if (e < f)
-            {
+            if (e < f) {
                 rv.min[i] += e;
                 rv.max[i] += f;
             }
-            else
-            {
+            else {
                 rv.min[i] += f;
                 rv.max[i] += e;
             }
@@ -1399,115 +1332,7 @@ AABB osc::TransformAABB(AABB const& aabb, Transform const& t)
     return rv;
 }
 
-AABB osc::AABBFromTriangle(Triangle const& t)
-{
-    AABB rv{t.p0, t.p0};
-    rv.min = elementwise_min(rv.min, t.p1);
-    rv.max = elementwise_max(rv.max, t.p1);
-    rv.min = elementwise_min(rv.min, t.p2);
-    rv.max = elementwise_max(rv.max, t.p2);
-    return rv;
-}
-
-AABB osc::AABBFromVerts(std::span<Vec3 const> vs)
-{
-    // edge-case: no points provided
-    if (vs.empty())
-    {
-        return AABB{};
-    }
-
-    // otherwise, compute bounds
-    AABB rv{vs[0], vs[0]};
-    for (size_t i = 1; i < vs.size(); ++i)
-    {
-        Vec3 const& pos = vs[i];
-        rv.min = elementwise_min(rv.min, pos);
-        rv.max = elementwise_max(rv.max, pos);
-    }
-
-    return rv;
-}
-
-AABB osc::AABBFromIndexedVerts(
-    std::span<Vec3 const> verts,
-    std::span<uint32_t const> indices)
-{
-    AABB rv{};
-
-    // edge-case: no points provided
-    if (indices.empty())
-    {
-        return rv;
-    }
-
-    rv.min =
-    {
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-    };
-
-    rv.max =
-    {
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest(),
-    };
-
-    for (uint32_t idx : indices)
-    {
-        if (idx < verts.size())  // ignore invalid indices
-        {
-            Vec3 const& pos = verts[idx];
-            rv.min = elementwise_min(rv.min, pos);
-            rv.max = elementwise_max(rv.max, pos);
-        }
-    }
-
-    return rv;
-}
-
-AABB osc::AABBFromIndexedVerts(
-    std::span<Vec3 const> verts,
-    std::span<uint16_t const> indices)
-{
-    AABB rv{};
-
-    // edge-case: no points provided
-    if (indices.empty())
-    {
-        return rv;
-    }
-
-    rv.min =
-    {
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-    };
-
-    rv.max =
-    {
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest(),
-    };
-
-    for (uint16_t idx : indices)
-    {
-        if (idx < verts.size())  // ignore invalid indices
-        {
-            Vec3 const& pos = verts[idx];
-            rv.min = elementwise_min(rv.min, pos);
-            rv.max = elementwise_max(rv.max, pos);
-        }
-    }
-
-    return rv;
-}
-
-std::optional<Rect> osc::AABBToScreenNDCRect(
+std::optional<Rect> osc::loosely_project_into_ndc(
     AABB const& aabb,
     Mat4 const& viewMat,
     Mat4 const& projMat,
@@ -1515,7 +1340,7 @@ std::optional<Rect> osc::AABBToScreenNDCRect(
     float zfar)
 {
     // create a new AABB in viewspace that bounds the worldspace AABB
-    AABB viewspaceAABB = TransformAABB(aabb, viewMat);
+    AABB viewspaceAABB = transform_aabb(aabb, viewMat);
 
     // z-test the viewspace AABB to see if any part of it it falls within the
     // camera's clipping planes
@@ -1523,13 +1348,11 @@ std::optional<Rect> osc::AABBToScreenNDCRect(
     // care: znear and zfar are usually defined as positive distances from the
     //       camera but viewspace points along -Z
 
-    if (viewspaceAABB.min.z > -znear && viewspaceAABB.max.z > -znear)
-    {
-        return std::nullopt;
+    if (viewspaceAABB.min.z > -znear && viewspaceAABB.max.z > -znear) {
+        return std::nullopt;  // AABB out of NDC bounds
     }
-    if (viewspaceAABB.min.z < -zfar && viewspaceAABB.max.z < -zfar)
-    {
-        return std::nullopt;
+    if (viewspaceAABB.min.z < -zfar && viewspaceAABB.max.z < -zfar) {
+        return std::nullopt;  // AABB out of NDC bounds
     }
 
     // clamp the viewspace AABB to within the camera's clipping planes
@@ -1537,12 +1360,12 @@ std::optional<Rect> osc::AABBToScreenNDCRect(
     viewspaceAABB.max.z = clamp(viewspaceAABB.max.z, -zfar, -znear);
 
     // transform it into an NDC-aligned NDC-space AABB
-    AABB ndcAABB = TransformAABB(viewspaceAABB, projMat);
+    AABB ndcAABB = transform_aabb(viewspaceAABB, projMat);
 
     // take the X and Y coordinates of that AABB and ensure they are clamped to within bounds
     Rect rv{Vec2{ndcAABB.min}, Vec2{ndcAABB.max}};
     rv.p1 = clamp(rv.p1, {-1.0f, -1.0f}, {1.0f, 1.0f});
-    rv.p2 = clamp(rv.p2, { -1.0f, -1.0f }, {1.0f, 1.0f});
+    rv.p2 = clamp(rv.p2, {-1.0f, -1.0f}, {1.0f, 1.0f});
 
     return rv;
 }
@@ -1567,9 +1390,9 @@ Mat4 osc::SegmentToSegmentMat4(LineSegment const& a, LineSegment const& b)
     Vec3 scaler = Vec3{1.0f, 1.0f, 1.0f} + (s-1.0f)*aDir;
 
     Mat4 rotate = Dir1ToDir2Xform(aDir, bDir);
-    Mat4 move = translate(Identity<Mat4>(), bCenter - aCenter);
+    Mat4 move = translate(identity<Mat4>(), bCenter - aCenter);
 
-    return move * rotate * scale(Identity<Mat4>(), scaler);
+    return move * rotate * scale(identity<Mat4>(), scaler);
 }
 
 Transform osc::SegmentToSegmentTransform(LineSegment const& a, LineSegment const& b)
@@ -1630,19 +1453,19 @@ void osc::ApplyWorldspaceRotation(
     t.rotation = normalize(q*t.rotation);
 }
 
-bool osc::IsPointInRect(Rect const& r, Vec2 const& p)
+bool osc::is_intersecting(Rect const& r, Vec2 const& p)
 {
     Vec2 relPos = p - r.p1;
-    Vec2 dims = Dimensions(r);
+    Vec2 dims = dimensions(r);
     return (0.0f <= relPos.x && relPos.x <= dims.x) && (0.0f <= relPos.y && relPos.y <= dims.y);
 }
 
-std::optional<RayCollision> osc::GetRayCollisionSphere(Line const& l, Sphere const& s)
+std::optional<RayCollision> osc::find_collision(Line const& l, Sphere const& s)
 {
     return GetRayCollisionSphereAnalytic(s, l);
 }
 
-std::optional<RayCollision> osc::GetRayCollisionAABB(Line const& l, AABB const& bb)
+std::optional<RayCollision> osc::find_collision(Line const& l, AABB const& bb)
 {
     // intersect the ray with each axis-aligned slab for each dimension
     //
@@ -1661,8 +1484,8 @@ std::optional<RayCollision> osc::GetRayCollisionAABB(Line const& l, AABB const& 
         {
             std::swap(tNear, tFar);
         }
-        t0 = std::max(t0, tNear);
-        t1 = std::min(t1, tFar);
+        t0 = max(t0, tNear);
+        t1 = min(t1, tFar);
 
         if (t0 > t1)
         {
@@ -1673,7 +1496,7 @@ std::optional<RayCollision> osc::GetRayCollisionAABB(Line const& l, AABB const& 
     return RayCollision{t0, l.origin + t0*l.direction};
 }
 
-std::optional<RayCollision> osc::GetRayCollisionPlane(Line const& l, Plane const& p)
+std::optional<RayCollision> osc::find_collision(Line const& l, Plane const& p)
 {
     // see: https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection
     //
@@ -1714,7 +1537,7 @@ std::optional<RayCollision> osc::GetRayCollisionPlane(Line const& l, Plane const
     }
 }
 
-std::optional<RayCollision> osc::GetRayCollisionDisc(Line const& l, Disc const& d)
+std::optional<RayCollision> osc::find_collision(Line const& l, Disc const& d)
 {
     // see: https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection
 
@@ -1725,7 +1548,7 @@ std::optional<RayCollision> osc::GetRayCollisionDisc(Line const& l, Disc const& 
     p.origin = d.origin;
     p.normal = d.normal;
 
-    std::optional<RayCollision> maybePlaneCollision = GetRayCollisionPlane(l, p);
+    std::optional<RayCollision> maybePlaneCollision = find_collision(l, p);
 
     if (!maybePlaneCollision)
     {
@@ -1745,7 +1568,7 @@ std::optional<RayCollision> osc::GetRayCollisionDisc(Line const& l, Disc const& 
     return maybePlaneCollision;
 }
 
-std::optional<RayCollision> osc::GetRayCollisionTriangle(Line const& l, Triangle const& tri)
+std::optional<RayCollision> osc::find_collision(Line const& l, Triangle const& tri)
 {
     // see: https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
 
@@ -1824,7 +1647,7 @@ std::optional<RayCollision> osc::GetRayCollisionTriangle(Line const& l, Triangle
     return RayCollision{t, l.origin + t*l.direction};
 }
 
-float osc::EaseOutElastic(float x)
+float osc::ease_out_elastic(float x)
 {
     // adopted from: https://easings.net/#easeOutElastic
 
@@ -1897,4 +1720,18 @@ bool osc::AreOrthogonal(FrameAxis a, FrameAxis b)
 std::ostream& osc::operator<<(std::ostream& o, FrameAxis f)
 {
     return o << ToStringView(f);
+}
+
+std::array<Mat4, 6> osc::CalcCubemapViewProjMatrices(
+    Mat4 const& projectionMatrix,
+    Vec3 cubeCenter)
+{
+    static_assert(std::size(c_CubemapFacesDetails) == 6);
+
+    std::array<Mat4, 6> rv{};
+    for (size_t i = 0; i < 6; ++i)
+    {
+        rv[i] = projectionMatrix * CalcCubemapViewMatrix(c_CubemapFacesDetails[i], cubeCenter);
+    }
+    return rv;
 }

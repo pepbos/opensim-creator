@@ -1,8 +1,5 @@
 #include "LOGLCubemapsTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -17,7 +14,7 @@ using namespace osc;
 namespace
 {
     constexpr CStringView c_TabStringID = "LearnOpenGL/Cubemaps";
-    constexpr auto c_SkyboxTextureFilenames = std::to_array<CStringView>({
+    constexpr auto c_SkyboxTextureFilenames = std::to_array<std::string_view>({
         "skybox_right.jpg",
         "skybox_left.jpg",
         "skybox_top.jpg",
@@ -26,13 +23,12 @@ namespace
         "skybox_back.jpg",
     });
     static_assert(c_SkyboxTextureFilenames.size() == NumOptions<CubemapFace>());
-    static_assert(c_SkyboxTextureFilenames.size() > 1);
 
     Cubemap LoadCubemap(ResourceLoader& rl)
     {
         // load the first face, so we know the width
         Texture2D t = LoadTexture2DFromImage(
-            rl.open(ResourcePath{"oscar_learnopengl/textures"} / std::string_view{c_SkyboxTextureFilenames.front()}),
+            rl.open(ResourcePath{"oscar_learnopengl/textures"} / c_SkyboxTextureFilenames.front()),
             ColorSpace::sRGB
         );
 
@@ -47,7 +43,7 @@ namespace
         for (CubemapFace f = Next(FirstCubemapFace()); f <= LastCubemapFace(); f = Next(f))
         {
             t = LoadTexture2DFromImage(
-                rl.open(ResourcePath{"oscar_learnopengl/textures"} / std::string_view{c_SkyboxTextureFilenames[ToIndex(f)]}),
+                rl.open(ResourcePath{"oscar_learnopengl/textures"} / c_SkyboxTextureFilenames[ToIndex(f)]),
                 ColorSpace::sRGB
             );
             OSC_ASSERT(t.getDimensions().x == dims.x);
@@ -145,7 +141,7 @@ private:
         m_Camera.onDraw();
 
         // clear screen and ensure camera has correct pixel rect
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
 
         drawInSceneCube();
         drawSkybox();
@@ -158,7 +154,7 @@ private:
         m_CubeProperties.setFloat("uIOR", m_IOR);
         Graphics::DrawMesh(
             m_Cube,
-            Identity<Transform>(),
+            identity<Transform>(),
             m_CubeMaterials.at(m_CubeMaterialIndex).material,
             m_Camera,
             m_CubeProperties
@@ -172,7 +168,7 @@ private:
         m_Camera.setViewMatrixOverride(Mat4{Mat3{m_Camera.getViewMatrix()}});
         Graphics::DrawMesh(
             m_Skybox,
-            Identity<Transform>(),
+            identity<Transform>(),
             m_SkyboxMaterial,
             m_Camera
         );
@@ -183,18 +179,18 @@ private:
 
     void draw2DUI()
     {
-        ImGui::Begin("controls");
-        if (ImGui::BeginCombo("Cube Texturing", m_CubeMaterials.at(m_CubeMaterialIndex).label.c_str())) {
+        ui::Begin("controls");
+        if (ui::BeginCombo("Cube Texturing", m_CubeMaterials.at(m_CubeMaterialIndex).label)) {
             for (size_t i = 0; i < m_CubeMaterials.size(); ++i) {
                 bool selected = i == m_CubeMaterialIndex;
-                if (ImGui::Selectable(m_CubeMaterials[i].label.c_str(), &selected)) {
+                if (ui::Selectable(m_CubeMaterials[i].label, &selected)) {
                     m_CubeMaterialIndex = i;
                 }
             }
-            ImGui::EndCombo();
+            ui::EndCombo();
         }
-        ImGui::InputFloat("IOR", &m_IOR);
-        ImGui::End();
+        ui::InputFloat("IOR", &m_IOR);
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -202,7 +198,7 @@ private:
     std::array<CubeMaterial, 3> m_CubeMaterials = CreateCubeMaterials(m_Loader);
     size_t m_CubeMaterialIndex = 0;
     MaterialPropertyBlock m_CubeProperties;
-    Mesh m_Cube = GenerateLearnOpenGLCubeMesh();
+    Mesh m_Cube = BoxGeometry{};
     Texture2D m_ContainerTexture = LoadTexture2DFromImage(
         m_Loader.open("oscar_learnopengl/textures/container.jpg"),
         ColorSpace::sRGB
@@ -213,7 +209,7 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedOpenGL/Cubemaps/Skybox.vert"),
         m_Loader.slurp("oscar_learnopengl/shaders/AdvancedOpenGL/Cubemaps/Skybox.frag"),
     }};
-    Mesh m_Skybox = GenerateCubeMesh();
+    Mesh m_Skybox = BoxGeometry{2.0f, 2.0f, 2.0f};
     Cubemap m_Cubemap = LoadCubemap(m_Loader);
 
     MouseCapturingCamera m_Camera = CreateCameraThatMatchesLearnOpenGL();

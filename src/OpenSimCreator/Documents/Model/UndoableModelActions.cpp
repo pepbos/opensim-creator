@@ -46,6 +46,7 @@
 #include <OpenSim/Simulation/SimbodyEngine/WeldJoint.h>
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Maths/Ellipsoid.h>
+#include <oscar/Maths/EllipsoidFunctions.h>
 #include <oscar/Maths/MathHelpers.h>
 #include <oscar/Maths/Plane.h>
 #include <oscar/Maths/Quat.h>
@@ -54,6 +55,7 @@
 #include <oscar/Platform/App.h>
 #include <oscar/Platform/Log.h>
 #include <oscar/Platform/os.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/FilesystemHelpers.h>
 #include <oscar/Utils/ParentPtr.h>
 #include <oscar/Utils/UID.h>
@@ -507,7 +509,7 @@ bool osc::ActionCopyModelPathToClipboard(UndoableModelStatePair const& uim)
 
     std::filesystem::path const absPath = std::filesystem::weakly_canonical(uim.getFilesystemPath());
 
-    SetClipboardText(absPath.string().c_str());
+    SetClipboardText(absPath.string());
 
     return true;
 }
@@ -515,7 +517,7 @@ bool osc::ActionCopyModelPathToClipboard(UndoableModelStatePair const& uim)
 bool osc::ActionAutoscaleSceneScaleFactor(UndoableModelStatePair& uim)
 {
     float const sf = GetRecommendedScaleFactor(
-        *App::singleton<SceneCache>(),
+        *App::singleton<SceneCache>(App::resource_loader()),
         uim.getModel(),
         uim.getState(),
         OpenSimDecorationOptions{}
@@ -649,7 +651,7 @@ bool osc::ActionReloadOsimFromDisk(UndoableModelStatePair& uim, SceneCache& mesh
         // mesh files are immediately visible after reloading
         //
         // this is useful for users that are actively editing the meshes of the model file
-        meshCache.clear();
+        meshCache.clearMeshes();
 
         return true;
     }
@@ -1375,6 +1377,114 @@ bool osc::ActionAddComponentToModel(UndoableModelStatePair& model, std::unique_p
     }
 }
 
+bool osc::ActionAddWrapObjectToPhysicalFrame(
+    UndoableModelStatePair& model,
+    OpenSim::ComponentPath const& physicalFramePath,
+    std::unique_ptr<OpenSim::WrapObject> wrapObjPtr)
+{
+    OSC_ASSERT(wrapObjPtr != nullptr);
+
+    if (!FindComponent<OpenSim::PhysicalFrame>(model.getModel(), physicalFramePath)) {
+        return false;  // cannot find the `OpenSim::PhysicalFrame` in the model
+    }
+
+    try {
+        OpenSim::Model& mutModel = model.updModel();
+        auto* frame = FindComponentMut<OpenSim::PhysicalFrame>(mutModel, physicalFramePath);
+        OSC_ASSERT_ALWAYS(frame != nullptr && "cannot find the given OpenSim::PhysicalFrame in the model");
+
+        OpenSim::WrapObject& wrapObj = AddWrapObject(*frame, std::move(wrapObjPtr));
+        FinalizeConnections(mutModel);
+        InitializeModel(mutModel);
+        InitializeState(mutModel);
+        model.setSelected(&wrapObj);
+
+        std::stringstream ss;
+        ss << "added " << wrapObj.getName();
+        model.commit(std::move(ss).str());
+
+        return true;
+    }
+    catch (std::exception const& ex) {
+        log_error("error detected while trying to add a wrap object to the model: %s", ex.what());
+        model.rollback();
+        return false;
+    }
+}
+
+bool osc::ActionAddWrapObjectToGeometryPathWraps(
+    UndoableModelStatePair& model,
+    OpenSim::GeometryPath const& geomPath,
+    OpenSim::WrapObject const& wrapObject)
+{
+    try {
+        OpenSim::Model& mutModel = model.updModel();
+        auto* mutGeomPath = FindComponentMut<OpenSim::GeometryPath>(mutModel, geomPath.getAbsolutePath());
+        OSC_ASSERT_ALWAYS(mutGeomPath != nullptr && "cannot find the geometry path in the model");
+        auto* mutWrapObject = FindComponentMut<OpenSim::WrapObject>(mutModel, wrapObject.getAbsolutePath());
+        OSC_ASSERT_ALWAYS(mutWrapObject != nullptr && "cannot find wrap object in the model");
+
+        std::stringstream msg;
+        msg << "added " << mutWrapObject->getName() << " to " << mutGeomPath->getName();
+
+        mutGeomPath->addPathWrap(*mutWrapObject);
+        InitializeModel(mutModel);
+        InitializeState(mutModel);
+
+        model.commit(std::move(msg).str());
+        return true;
+    }
+    catch (std::exception const& ex) {
+        log_error("error detected while trying to add a wrap object to a geometry path: %s", ex.what());
+        model.rollback();
+        return false;
+    }
+}
+
+bool osc::ActionRemoveWrapObjectFromGeometryPathWraps(
+    UndoableModelStatePair& model,
+    OpenSim::GeometryPath const& geomPath,
+    OpenSim::WrapObject const& wrapObject)
+{
+    // search for the wrap object in the geometry path's wrap list
+    std::optional<int> index;
+    for (int i = 0; i < geomPath.getWrapSet().getSize(); ++i) {
+        if (geomPath.getWrapSet().get(i).getWrapObject() == &wrapObject) {
+            index = i;
+            break;
+        }
+    }
+
+    if (!index) {
+        log_info("cannot find the %s in %s: skipping deletion", wrapObject.getName().c_str(), geomPath.getName().c_str());
+        return false;
+    }
+
+    try {
+        OpenSim::Model& mutModel = model.updModel();
+        auto* mutGeomPath = FindComponentMut<OpenSim::GeometryPath>(mutModel, geomPath.getAbsolutePath());
+        OSC_ASSERT_ALWAYS(mutGeomPath != nullptr && "cannot find the geometry path in the model");
+        auto* mutWrapObject = FindComponentMut<OpenSim::WrapObject>(mutModel, wrapObject.getAbsolutePath());
+        OSC_ASSERT_ALWAYS(mutWrapObject != nullptr && "cannot find wrap object in the model");
+
+        std::stringstream msg;
+        msg << "removed " << mutWrapObject->getName() << " from " << mutGeomPath->getName();
+
+        OSC_ASSERT(index);
+        mutGeomPath->deletePathWrap(model.getState(), *index);
+        InitializeModel(mutModel);
+        InitializeState(mutModel);
+
+        model.commit(std::move(msg).str());
+        return true;
+    }
+    catch (std::exception const& ex) {
+        log_error("error detected while trying to add a wrap object to a geometry path: %s", ex.what());
+        model.rollback();
+        return false;
+    }
+}
+
 bool osc::ActionSetCoordinateSpeed(
     UndoableModelStatePair& model,
     OpenSim::Coordinate const& coord,
@@ -1490,8 +1600,8 @@ bool osc::ActionSetCoordinateValue(
             return false;
         }
 
-        double const rangeMin = std::min(mutCoord->getRangeMin(), mutCoord->getRangeMax());
-        double const rangeMax = std::max(mutCoord->getRangeMin(), mutCoord->getRangeMax());
+        double const rangeMin = min(mutCoord->getRangeMin(), mutCoord->getRangeMax());
+        double const rangeMax = max(mutCoord->getRangeMin(), mutCoord->getRangeMax());
 
         if (!(rangeMin <= newValue && newValue <= rangeMax))
         {
@@ -2035,9 +2145,10 @@ bool osc::ActionFitEllipsoidToMesh(
     {
         // compute offset transform for ellipsoid
         SimTK::Mat33 m;
-        m.col(0) = ToSimTKVec3(ellipsoid.radiiDirections[0]);
-        m.col(1) = ToSimTKVec3(ellipsoid.radiiDirections[1]);
-        m.col(2) = ToSimTKVec3(ellipsoid.radiiDirections[2]);
+        auto directions = radii_directions(ellipsoid);
+        m.col(0) = ToSimTKVec3(directions[0]);
+        m.col(1) = ToSimTKVec3(directions[1]);
+        m.col(2) = ToSimTKVec3(directions[2]);
         SimTK::Transform const t{SimTK::Rotation{m}, ToSimTKVec3(ellipsoid.origin)};
         offsetFrame->setOffsetTransform(t);
     }

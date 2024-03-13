@@ -1,19 +1,14 @@
 #pragma once
 
+#include <oscar/Maths/Quat.h>
 #include <oscar/Maths/Vec3.h>
-
-#include <array>
 
 namespace osc
 {
+    // a positioned + oriented ellipsoid in 3D space
     struct Ellipsoid final {
         Vec3 origin{};
         Vec3 radii{1.0f};
-        std::array<Vec3, 3> radiiDirections =
-        {
-            Vec3{1.0f, 0.0f, 0.0f},
-            Vec3{0.0f, 1.0f, 0.0f},
-            Vec3{0.0f, 0.0f, 1.0f},
-        };
+        Quat orientation{};
     };
 }

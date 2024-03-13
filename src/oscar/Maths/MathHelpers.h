@@ -32,13 +32,14 @@ namespace osc { struct Disc; }
 namespace osc { struct Plane; }
 namespace osc { struct Rect; }
 namespace osc { struct LineSegment; }
+namespace osc { struct Tetrahedron; }
 
 // math helpers: generally handy math functions that aren't attached to a particular
 //               osc struct
 namespace osc
 {
     // computes horizontal FoV for a given vertical FoV + aspect ratio
-    Radians VerticalToHorizontalFOV(Radians verticalFOV, float aspectRatio);
+    Radians VerticalToHorizontalFOV(Radians vertical_fov, float aspectRatio);
 
     // ----- VecX/MatX helpers -----
 
@@ -107,7 +108,7 @@ namespace osc
     float Area(Rect const&);
 
     // returns the dimensions of the rectangle
-    Vec2 Dimensions(Rect const&);
+    Vec2 dimensions(Rect const&);
 
     // returns bottom-left point of the rectangle
     Vec2 BottomLeft(Rect const&);
@@ -116,7 +117,7 @@ namespace osc
     float AspectRatio(Rect const&);
 
     // returns the middle point of the rectangle
-    Vec2 Midpoint(Rect const&);
+    Vec2 centroid(Rect const&);
 
     // returns the smallest rectangle that bounds the provided points
     //
@@ -200,4 +201,14 @@ namespace osc
         Transform& applicationTarget,
         Eulers const& eulerAngles,
         Vec3 const& rotationCenter);
+
+    float volume(Tetrahedron const&);
+
+    // returns arrays that transforms cube faces from worldspace to projection
+    // space such that the observer is looking at each face of the cube from
+    // the center of the cube
+    std::array<Mat4, 6> CalcCubemapViewProjMatrices(
+        Mat4 const& projectionMatrix,
+        Vec3 cubeCenter
+    );
 }

@@ -36,25 +36,27 @@ namespace
             {"brick", cache.getBrickMesh()},
             {"cone", cache.getConeMesh()},
             {"floor", cache.getFloorMesh()},
+            {"circle", cache.getCircleMesh()},
             {"100x100 grid", cache.get100x100GridMesh()},
             {"cube (wire)", cache.getCubeWireMesh()},
+            {"cube2 (wire)", WireframeGeometry{BoxGeometry{2.0f, 2.0f, 2.0f, 1, 1, 1}}},
             {"yline", cache.getYLineMesh()},
             {"quad", cache.getTexturedQuadMesh()},
             {"torus", cache.getTorusMesh(0.9f, 0.1f)},
-            {"torusknot", GenerateTorusKnotMesh()},
-            {"box", GenerateBoxMesh(2.0f, 2.0f, 2.0f, 1, 1, 1)},
-            {"icosahedron", GenerateIcosahedronMesh()},
-            {"dodecahedron", GenerateDodecahedronMesh()},
-            {"octahedron", GenerateOctahedronMesh()},
-            {"tetrahedron", GenerateTetrahedronMesh()},
-            {"lathe", GenerateLatheMesh(LathePoints(), 3)},
-            {"circle2", GenerateCircleMesh2()},
-            {"ring", GenerateRingMesh(0.5f, 1.0f, 32, 3, Degrees{0}, Degrees{180})},
-            {"torus2", GenerateTorusMesh2(1.0f, 0.2f, 16, 64, Degrees{180})},
-            {"cylinder2", GenerateCylinderMesh2(0.0f, 1.0f, 1.0f, 16, 1, false, Degrees{0}, Degrees{180})},
-            {"cone2", GenerateConeMesh2()},
-            {"plane2", GeneratePlaneMesh2(2.0f, 2.0f, 4, 4)},
-            {"sphere2", GenerateSphereMesh2()},
+            {"torusknot", TorusKnotGeometry{}},
+            {"box", BoxGeometry{2.0f, 2.0f, 2.0f, 1, 1, 1}},
+            {"icosahedron", IcosahedronGeometry{}},
+            {"dodecahedron", DodecahedronGeometry{}},
+            {"octahedron", OctahedronGeometry{}},
+            {"tetrahedron", TetrahedronGeometry{}},
+            {"lathe", LatheGeometry{LathePoints(), 3}},
+            {"circle2", CircleGeometry{1.0f, 16}},
+            {"ring", RingGeometry{0.5f, 1.0f, 32, 3, Degrees{0}, Degrees{180}}},
+            {"torus2", TorusGeometry{0.9f, 0.1f, 12, 12, Degrees{360}}},
+            {"cylinder2", CylinderGeometry{1.0f, 1.0f, 2.0f, 16, 1}},
+            {"cone2", ConeGeometry{1.0f, 2.0f, 16}},
+            {"plane2", PlaneGeometry{2.0f, 2.0f, 1, 1}},
+            {"sphere2", SphereGeometry{1.0f, 16, 16}},
         };
     }
 }
@@ -69,30 +71,30 @@ public:
 private:
     void implOnDraw() final
     {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+        ui::DockSpaceOverViewport(ui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
         if (m_Viewer.isHovered()) {
-            UpdatePolarCameraFromImGuiMouseInputs(m_Camera, App::get().dims());
+            ui::UpdatePolarCameraFromImGuiMouseInputs(m_Camera, App::get().dims());
         }
 
-        if (ImGui::Begin("viewer")) {
-            ImGui::Checkbox("wireframe", &m_DrawWireframe);
+        if (ui::Begin("viewer")) {
+            ui::Checkbox("wireframe", &m_DrawWireframe);
             for (auto const& [name, _] : m_AllMeshes) {
-                if (ImGui::Button(name.c_str())) {
+                if (ui::Button(name)) {
                     m_CurrentMesh = name;
                 }
-                ImGui::SameLine();
+                ui::SameLine();
             }
-            ImGui::NewLine();
+            ui::NewLine();
 
-            Vec2 contentRegion = ImGui::GetContentRegionAvail();
+            Vec2 contentRegion = ui::GetContentRegionAvail();
             m_RenderParams.dimensions = elementwise_max(contentRegion, {0.0f, 0.0f});
             m_RenderParams.antiAliasingLevel = App::get().getCurrentAntiAliasingLevel();
 
             {
                 m_RenderParams.lightDirection = RecommendedLightDirection(m_Camera);
-                m_RenderParams.projectionMatrix = m_Camera.getProjMtx(AspectRatio(m_RenderParams.dimensions));
-                m_RenderParams.viewMatrix = m_Camera.getViewMtx();
+                m_RenderParams.projectionMatrix = m_Camera.projection_matrix(AspectRatio(m_RenderParams.dimensions));
+                m_RenderParams.viewMatrix = m_Camera.view_matrix();
                 m_RenderParams.viewPos = m_Camera.getPos();
                 m_RenderParams.nearClippingPlane = m_Camera.znear;
                 m_RenderParams.farClippingPlane = m_Camera.zfar;
@@ -106,7 +108,7 @@ private:
                 }}}, m_RenderParams);
             }
         }
-        ImGui::End();
+        ui::End();
     }
 
     std::map<std::string, Mesh> m_AllMeshes = GenerateMeshLookup();

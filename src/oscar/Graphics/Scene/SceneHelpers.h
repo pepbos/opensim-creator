@@ -24,7 +24,6 @@ namespace osc { struct PolarPerspectiveCamera; }
 namespace osc { struct Rect; }
 namespace osc { struct LineSegment; }
 namespace osc { class SceneCache; }
-namespace osc { class ShaderCache; }
 namespace osc { struct Transform; }
 
 namespace osc
@@ -135,11 +134,6 @@ namespace osc
         PolarPerspectiveCamera const&,
         AntiAliasingLevel,
         Vec2 renderDims
-    );
-
-    // returns a material that can draw a mesh's triangles in wireframe-style
-    Material CreateWireframeOverlayMaterial(
-        ShaderCache&
     );
 
     // returns a triangle BVH for the given triangle mesh, or an empty BVH if the mesh is non-triangular or empty

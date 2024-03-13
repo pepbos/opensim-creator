@@ -1,7 +1,5 @@
 #include "LOGLHDRTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -111,8 +109,8 @@ private:
     {
         // reformat intermediate HDR texture to match tab dimensions etc.
         {
-            Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
-            RenderTextureDescriptor descriptor{Dimensions(viewportRect)};
+            Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
+            RenderTextureDescriptor descriptor{dimensions(viewportRect)};
             descriptor.setAntialiasingLevel(App::get().getCurrentAntiAliasingLevel());
             if (m_Use16BitFormat)
             {
@@ -130,15 +128,15 @@ private:
     {
         Camera orthoCamera;
         orthoCamera.setBackgroundColor(Color::clear());
-        orthoCamera.setPixelRect(GetMainViewportWorkspaceScreenRect());
-        orthoCamera.setProjectionMatrixOverride(Identity<Mat4>());
-        orthoCamera.setViewMatrixOverride(Identity<Mat4>());
+        orthoCamera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
+        orthoCamera.setProjectionMatrixOverride(identity<Mat4>());
+        orthoCamera.setViewMatrixOverride(identity<Mat4>());
 
         m_TonemapMaterial.setRenderTexture("uTexture", m_SceneHDRTexture);
         m_TonemapMaterial.setBool("uUseTonemap", m_UseTonemap);
         m_TonemapMaterial.setFloat("uExposure", m_Exposure);
 
-        Graphics::DrawMesh(m_QuadMesh, Identity<Transform>(), m_TonemapMaterial, orthoCamera);
+        Graphics::DrawMesh(m_QuadMesh, identity<Transform>(), m_TonemapMaterial, orthoCamera);
         orthoCamera.renderToScreen();
 
         m_TonemapMaterial.clearRenderTexture("uTexture");
@@ -146,21 +144,21 @@ private:
 
     void draw2DUI()
     {
-        ImGui::Begin("controls");
-        ImGui::Checkbox("use tonemapping", &m_UseTonemap);
-        ImGui::Checkbox("use 16-bit colors", &m_Use16BitFormat);
-        ImGui::InputFloat("exposure", &m_Exposure);
-        ImGui::Text("pos = %f,%f,%f", m_Camera.getPosition().x, m_Camera.getPosition().y, m_Camera.getPosition().z);
-        ImGui::Text("eulers = %f,%f,%f", m_Camera.eulers().x.count(), m_Camera.eulers().y.count(), m_Camera.eulers().z.count());
-        ImGui::End();
+        ui::Begin("controls");
+        ui::Checkbox("use tonemapping", &m_UseTonemap);
+        ui::Checkbox("use 16-bit colors", &m_Use16BitFormat);
+        ui::InputFloat("exposure", &m_Exposure);
+        ui::Text("pos = %f,%f,%f", m_Camera.getPosition().x, m_Camera.getPosition().y, m_Camera.getPosition().z);
+        ui::Text("eulers = %f,%f,%f", m_Camera.eulers().x.count(), m_Camera.eulers().y.count(), m_Camera.eulers().z.count());
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
     Material m_SceneMaterial = CreateSceneMaterial(m_Loader);
     Material m_TonemapMaterial = CreateTonemapMaterial(m_Loader);
     MouseCapturingCamera m_Camera = CreateSceneCamera();
-    Mesh m_CubeMesh = GenerateCubeMesh();
-    Mesh m_QuadMesh = GenerateTexturedQuadMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
+    Mesh m_QuadMesh = PlaneGeometry{2.0f, 2.0f};
     Transform m_CorridoorTransform = CalcCorridoorTransform();
     RenderTexture m_SceneHDRTexture;
     float m_Exposure = 1.0f;

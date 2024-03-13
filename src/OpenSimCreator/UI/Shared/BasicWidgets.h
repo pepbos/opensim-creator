@@ -28,11 +28,13 @@ namespace osc { class IModelStatePair; }
 namespace osc { class IOutputExtractor; }
 namespace osc { class SimulationModelStatePair; }
 namespace OpenSim { class Component; }
+namespace OpenSim { class Ellipsoid; }
 namespace OpenSim { class Frame; }
 namespace OpenSim { class Geometry; }
 namespace OpenSim { class Mesh; }
 namespace OpenSim { class Point; }
 namespace OpenSim { class Sphere; }
+namespace OpenSim { class Station; }
 namespace SimTK { class State; }
 
 namespace osc
@@ -56,20 +58,22 @@ namespace osc
     // within the given component hierarchy (from `root`)
     //
     // calls `onFrameMenuOpened` when the user is hovering a frame's menu
-    // (i.e. `ImGui::BeginMenu($FRAME)` returned `true`)
+    // (i.e. `ui::BeginMenu($FRAME)` returned `true`)
     void DrawWithRespectToMenuContainingMenuPerFrame(
         OpenSim::Component const& root,
-        std::function<void(OpenSim::Frame const&)> const& onFrameMenuOpened
+        std::function<void(OpenSim::Frame const&)> const& onFrameMenuOpened,
+        OpenSim::Frame const* maybeParent
     );
 
     // draws a "With Respect to" menu that prompts the user to click a frame
     // within the given component hierarchy (from `root`)
     //
-    // calls `onFrameMenuItemClicked` when the user clicks the `ImGui::MenuItem`
+    // calls `onFrameMenuItemClicked` when the user clicks the `ui::MenuItem`
     // associated with a frame
     void DrawWithRespectToMenuContainingMenuItemPerFrame(
         OpenSim::Component const& root,
-        std::function<void(OpenSim::Frame const&)> const& onFrameMenuItemClicked
+        std::function<void(OpenSim::Frame const&)> const& onFrameMenuItemClicked,
+        OpenSim::Frame const* maybeParent
     );
 
     void DrawPointTranslationInformationWithRespectTo(
@@ -105,7 +109,14 @@ namespace osc
     void DrawCalculatePositionMenu(
         OpenSim::Component const& root,
         SimTK::State const&,
-        OpenSim::Point const&
+        OpenSim::Point const&,
+        OpenSim::Frame const* maybeParent
+    );
+    void DrawCalculateMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Station const&,
+        CalculateMenuFlags = CalculateMenuFlags::None
     );
     void DrawCalculateMenu(
         OpenSim::Component const& root,
@@ -114,6 +125,16 @@ namespace osc
         CalculateMenuFlags = CalculateMenuFlags::None
     );
     void DrawCalculateTransformMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Frame const&
+    );
+    void DrawCalculateOriginMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Frame const&
+    );
+    void DrawCalculateAxisDirectionsMenu(
         OpenSim::Component const& root,
         SimTK::State const&,
         OpenSim::Frame const&
@@ -151,6 +172,32 @@ namespace osc
         OpenSim::Component const& selected,
         CalculateMenuFlags = CalculateMenuFlags::None
     );
+    void DrawCalculateOriginMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Ellipsoid const&
+    );
+    void DrawCalculateRadiiMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Ellipsoid const&
+    );
+    void DrawCalculateRadiiDirectionsMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Ellipsoid const&
+    );
+    void DrawCalculateScaledRadiiDirectionsMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Ellipsoid const&
+    );
+    void DrawCalculateMenu(
+        OpenSim::Component const& root,
+        SimTK::State const&,
+        OpenSim::Ellipsoid const&,
+        CalculateMenuFlags = CalculateMenuFlags::None
+    );
 
     // basic wigetized parts of the 3D viewer
     bool DrawMuscleRenderingOptionsRadioButtions(OpenSimDecorationOptions&);
@@ -186,7 +233,7 @@ namespace osc
     );
 
     // toolbar stuff
-    bool BeginToolbar(CStringView label, std::optional<Vec2> padding = {});  // behaves the same as ImGui::Begin (i.e. you must call ImGui::End)
+    bool BeginToolbar(CStringView label, std::optional<Vec2> padding = {});  // behaves the same as ui::Begin (i.e. you must call ui::End)
     void DrawNewModelButton(ParentPtr<IMainUIStateAPI> const&);
     void DrawOpenModelButtonWithRecentFilesDropdown(
         std::function<void(std::optional<std::filesystem::path>)> const& onUserClickedOpenOrSelectedFile

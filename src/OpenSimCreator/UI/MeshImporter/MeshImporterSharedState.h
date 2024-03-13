@@ -18,16 +18,16 @@
 
 #include <IconsFontAwesome5.h>
 #include <OpenSim/Simulation/Model/Model.h>
+#include <oscar/Graphics/Materials/MeshBasicMaterial.h>
 #include <oscar/Graphics/Color.h>
+#include <oscar/Graphics/Geometries.h>
 #include <oscar/Graphics/Material.h>
-#include <oscar/Graphics/MeshGenerators.h>
 #include <oscar/Graphics/Scene/SceneCache.h>
 #include <oscar/Graphics/Scene/SceneDecoration.h>
 #include <oscar/Graphics/Scene/SceneDecorationFlags.h>
 #include <oscar/Graphics/Scene/SceneHelpers.h>
 #include <oscar/Graphics/Scene/SceneRenderer.h>
 #include <oscar/Graphics/Scene/SceneRendererParams.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/Angle.h>
 #include <oscar/Maths/CollisionTests.h>
 #include <oscar/Maths/Line.h>
@@ -78,10 +78,13 @@ namespace osc::mi
     // data that's shared between multiple UI states.
     class MeshImporterSharedState final {
     public:
-        MeshImporterSharedState() = default;
+        MeshImporterSharedState() :
+            MeshImporterSharedState{std::vector<std::filesystem::path>{}}
+        {}
 
         explicit MeshImporterSharedState(std::vector<std::filesystem::path> meshFiles)
         {
+            m_FloorMaterial.setTransparent(true);
             pushMeshLoadRequests(std::move(meshFiles));
         }
 
@@ -296,7 +299,7 @@ namespace osc::mi
             Vec3 const& child) const
         {
             // the line
-            ImGui::GetWindowDrawList()->AddLine(worldPosToScreenPos(parent), worldPosToScreenPos(child), color, c_ConnectionLineWidth);
+            ui::GetWindowDrawList()->AddLine(worldPosToScreenPos(parent), worldPosToScreenPos(child), color, c_ConnectionLineWidth);
 
             // the triangle
             drawConnectionLineTriangleAtMidpoint(color, parent, child);
@@ -307,13 +310,13 @@ namespace osc::mi
             std::unordered_set<UID> const& excludedIDs) const
         {
             Document const& mg = getModelGraph();
-            ImU32 colorU32 = ToImU32(color);
+            ImU32 colorU32 = ui::ToImU32(color);
 
             for (MIObject const& el : mg.iter())
             {
                 UID id = el.getID();
 
-                if (excludedIDs.find(id) != excludedIDs.end())
+                if (excludedIDs.contains(id))
                 {
                     continue;
                 }
@@ -342,7 +345,7 @@ namespace osc::mi
         void drawConnectionLines(MeshImporterHover const& currentHover) const
         {
             Document const& mg = getModelGraph();
-            ImU32 color = ToImU32(m_Colors.connectionLines);
+            ImU32 color = ui::ToImU32(m_Colors.connectionLines);
 
             for (MIObject const& el : mg.iter())
             {
@@ -376,21 +379,21 @@ namespace osc::mi
 
         void setContentRegionAvailAsSceneRect()
         {
-            set3DSceneRect(ContentRegionAvailScreenRect());
+            set3DSceneRect(ui::ContentRegionAvailScreenRect());
         }
 
         void drawScene(std::span<DrawableThing const> drawables)
         {
             // setup rendering params
             SceneRendererParams p;
-            p.dimensions = Dimensions(get3DSceneRect());
+            p.dimensions = dimensions(get3DSceneRect());
             p.antiAliasingLevel = App::get().getCurrentAntiAliasingLevel();
             p.drawRims = true;
             p.drawFloor = false;
             p.nearClippingPlane = m_3DSceneCamera.znear;
             p.farClippingPlane = m_3DSceneCamera.zfar;
-            p.viewMatrix = m_3DSceneCamera.getViewMtx();
-            p.projectionMatrix = m_3DSceneCamera.getProjMtx(AspectRatio(p.dimensions));
+            p.viewMatrix = m_3DSceneCamera.view_matrix();
+            p.projectionMatrix = m_3DSceneCamera.projection_matrix(AspectRatio(p.dimensions));
             p.viewPos = m_3DSceneCamera.getPos();
             p.lightDirection = RecommendedLightDirection(m_3DSceneCamera);
             p.lightColor = Color::white();
@@ -416,10 +419,10 @@ namespace osc::mi
             m_SceneRenderer.render(decs, p);
 
             // send texture to ImGui
-            DrawTextureAsImGuiImage(m_SceneRenderer.updRenderTexture(), m_SceneRenderer.getDimensions());
+            ui::DrawTextureAsImGuiImage(m_SceneRenderer.updRenderTexture(), m_SceneRenderer.getDimensions());
 
             // handle hittesting, etc.
-            setIsRenderHovered(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup));
+            setIsRenderHovered(ui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup));
         }
 
         bool isRenderHovered() const
@@ -434,7 +437,7 @@ namespace osc::mi
 
         Vec2 get3DSceneDims() const
         {
-            return Dimensions(m_3DSceneRect);
+            return dimensions(m_3DSceneRect);
         }
 
         PolarPerspectiveCamera const& getCamera() const
@@ -506,24 +509,18 @@ namespace osc::mi
             Transform t = getFloorTransform();
             t.scale *= 0.5f;
 
-            Material material
-            {
-                App::singleton<ShaderCache>(App::resource_loader())->load(
-                    "shaders/SolidColor.vert",
-                    "shaders/SolidColor.frag"
-                )
-            };
-            material.setColor("uColor", m_Colors.gridLines);
-            material.setTransparent(true);
+            auto props = MeshBasicMaterial::PropertyBlock{};
+            props.setColor(m_Colors.gridLines);
 
             DrawableThing dt;
             dt.id = MIIDs::Empty();
             dt.groupId = MIIDs::Empty();
-            dt.mesh = App::singleton<SceneCache>()->get100x100GridMesh();
+            dt.mesh = App::singleton<SceneCache>(App::resource_loader())->get100x100GridMesh();
             dt.transform = t;
             dt.color = m_Colors.gridLines;
             dt.flags = SceneDecorationFlags::None;
-            dt.maybeMaterial = std::move(material);
+            dt.maybeMaterial = m_FloorMaterial;
+            dt.maybePropertyBlock = props;
             return dt;
         }
 
@@ -560,18 +557,18 @@ namespace osc::mi
 
         MeshImporterHover doHovertest(std::vector<DrawableThing> const& drawables) const
         {
-            auto cache = App::singleton<SceneCache>();
+            auto cache = App::singleton<SceneCache>(App::resource_loader());
 
             Rect const sceneRect = get3DSceneRect();
-            Vec2 const mousePos = ImGui::GetMousePos();
+            Vec2 const mousePos = ui::GetMousePos();
 
-            if (!IsPointInRect(sceneRect, mousePos))
+            if (!is_intersecting(sceneRect, mousePos))
             {
                 // mouse isn't over the scene render
                 return MeshImporterHover{};
             }
 
-            Vec2 const sceneDims = Dimensions(sceneRect);
+            Vec2 const sceneDims = dimensions(sceneRect);
             Vec2 const relMousePos = mousePos - sceneRect.p1;
 
             Line const ray = getCamera().unprojectTopLeftPosToWorldRay(relMousePos, sceneDims);
@@ -963,7 +960,7 @@ namespace osc::mi
             Vec2 const p2 = midpointScr - (triangleWidth/2.0f)*directionNormalScr;
             Vec2 const p3 = midpointScr + triangleWidth*directionScr;
 
-            ImGui::GetWindowDrawList()->AddTriangleFilled(p1, p2, p3, color);
+            ui::GetWindowDrawList()->AddTriangleFilled(p1, p2, p3, color);
         }
 
         void drawConnectionLines(
@@ -976,7 +973,7 @@ namespace osc::mi
             {
                 UID refID = el.getCrossReferenceConnecteeID(i);
 
-                if (excludedIDs.find(refID) != excludedIDs.end())
+                if (excludedIDs.contains(refID))
                 {
                     continue;
                 }
@@ -1210,7 +1207,7 @@ namespace osc::mi
                     .rotation = xform.rotation,
                     .position = xform.position,
                 },
-                .color = coreColor.withAlpha(coreColor.a * alpha),
+                .color = coreColor.with_alpha(coreColor.a * alpha),
                 .flags = flags,
             });
 
@@ -1265,7 +1262,7 @@ namespace osc::mi
                 DrawableThing& originCube = appendOut.emplace_back();
                 originCube.id = logicalID;
                 originCube.groupId = groupID;
-                originCube.mesh = App::singleton<SceneCache>()->getBrickMesh();
+                originCube.mesh = App::singleton<SceneCache>(App::resource_loader())->getBrickMesh();
                 originCube.transform = scaled;
                 originCube.color = Color::white();
                 originCube.flags = SceneDecorationFlags::None;
@@ -1294,7 +1291,7 @@ namespace osc::mi
                 DrawableThing& legCube = appendOut.emplace_back();
                 legCube.id = logicalID;
                 legCube.groupId = groupID;
-                legCube.mesh = App::singleton<SceneCache>()->getConeMesh();
+                legCube.mesh = App::singleton<SceneCache>(App::resource_loader())->getConeMesh();
                 legCube.transform = t;
                 legCube.color = color;
                 legCube.flags = SceneDecorationFlags::None;
@@ -1441,13 +1438,16 @@ namespace osc::mi
         MeshLoader m_MeshLoader;
 
         // sphere mesh used by various scene elements
-        osc::Mesh m_SphereMesh = GenerateUVSphereMesh(12, 12);
+        osc::Mesh m_SphereMesh = SphereGeometry{1.0f, 12, 12};
 
         // cylinder mesh used by various scene elements
-        osc::Mesh m_CylinderMesh = GenerateUntexturedYToYCylinderMesh(16);
+        osc::Mesh m_CylinderMesh = CylinderGeometry{1.0f, 1.0f, 2.0f, 16};
 
         // cone mesh used to render scene elements
-        osc::Mesh m_ConeMesh = GenerateUntexturedYToYConeMesh(16);
+        osc::Mesh m_ConeMesh = ConeGeometry{1.0f, 2.0f, 16};
+
+        // material used to draw the floor grid
+        MeshBasicMaterial m_FloorMaterial;
 
         // main 3D scene camera
         PolarPerspectiveCamera m_3DSceneCamera = CreateDefaultCamera();
@@ -1457,8 +1457,7 @@ namespace osc::mi
 
         // renderer that draws the scene
         SceneRenderer m_SceneRenderer{
-            *App::singleton<SceneCache>(),
-            *App::singleton<ShaderCache>(App::resource_loader())
+            *App::singleton<SceneCache>(App::resource_loader()),
         };
 
         // COLORS
@@ -1567,7 +1566,7 @@ namespace osc::mi
         // `nullptr` until the model is successfully created
         std::unique_ptr<OpenSim::Model> m_MaybeOutputModel = nullptr;
 
-        // set to true after drawing the ImGui::Image
+        // set to true after drawing the ui::Image
         bool m_IsRenderHovered = false;
 
         // true if the implementation wants the host to close the mesh importer UI

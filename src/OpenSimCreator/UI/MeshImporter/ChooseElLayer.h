@@ -16,6 +16,7 @@
 #include <oscar/Platform/App.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/CStringView.h>
 #include <oscar/Utils/UID.h>
 #include <SDL_events.h>
@@ -90,13 +91,13 @@ namespace osc::mi
         // returns true if the user has already selected the given scene element
         bool isSelected(MIObject const& el) const
         {
-            return std::find(m_SelectedObjectIDs.begin(), m_SelectedObjectIDs.end(), el.getID()) != m_SelectedObjectIDs.end();
+            return contains(m_SelectedObjectIDs, el.getID());
         }
 
         // returns true if the user can (de)select the given element
         bool isSelectable(MIObject const& el) const
         {
-            if (m_Options.maybeElsAttachingTo.find(el.getID()) != m_Options.maybeElsAttachingTo.end())
+            if (m_Options.maybeElsAttachingTo.contains(el.getID()))
             {
                 return false;
             }
@@ -175,7 +176,7 @@ namespace osc::mi
             Document const& mg = m_Shared->getModelGraph();
 
             float fadedAlpha = 0.2f;
-            float animScale = EaseOutElastic(m_AnimationFraction);
+            float animScale = ease_out_elastic(m_AnimationFraction);
 
             for (MIObject const& el : mg.iter())
             {
@@ -237,7 +238,7 @@ namespace osc::mi
 
             drawHoverTooltip();
 
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            if (ui::IsMouseClicked(ImGuiMouseButton_Left))
             {
                 tryToggleSelectionStateOf(m_MaybeHover.ID);
                 handlePossibleCompletion();
@@ -256,11 +257,11 @@ namespace osc::mi
 
             if (se)
             {
-                ImGui::BeginTooltip();
-                ImGui::TextUnformatted(se->getLabel().c_str());
-                ImGui::SameLine();
-                ImGui::TextDisabled("(%s, click to choose)", se->getClass().getName().c_str());
-                ImGui::EndTooltip();
+                ui::BeginTooltipNoWrap();
+                ui::TextUnformatted(se->getLabel());
+                ui::SameLine();
+                ui::TextDisabled("(%s, click to choose)", se->getClass().getName().c_str());
+                ui::EndTooltipNoWrap();
             }
         }
 
@@ -293,7 +294,7 @@ namespace osc::mi
                     std::swap(parentPos, childPos);
                 }
 
-                ImU32 strongColorU2 = ToImU32(m_Shared->getColorConnectionLine());
+                ImU32 strongColorU2 = ui::ToImU32(m_Shared->getColorConnectionLine());
 
                 m_Shared->drawConnectionLine(strongColorU2, parentPos, childPos);
             }
@@ -307,30 +308,30 @@ namespace osc::mi
                 return;
             }
 
-            ImU32 color = ToImU32(Color::white());
+            ImU32 color = ui::ToImU32(Color::white());
             Vec2 padding = Vec2{10.0f, 10.0f};
             Vec2 pos = m_Shared->get3DSceneRect().p1 + padding;
-            ImGui::GetWindowDrawList()->AddText(pos, color, m_Options.header.c_str());
+            ui::GetWindowDrawList()->AddText(pos, color, m_Options.header.c_str());
         }
 
         // draw a user-clickable button for cancelling out of this choosing state
         void drawCancelButton()
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
-            osc::PushStyleColor(ImGuiCol_Button, Color::halfGrey());
+            ui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
+            ui::PushStyleColor(ImGuiCol_Button, Color::half_grey());
 
             CStringView const text = ICON_FA_ARROW_LEFT " Cancel (ESC)";
             Vec2 const margin = {25.0f, 35.0f};
-            Vec2 const buttonTopLeft = m_Shared->get3DSceneRect().p2 - (osc::CalcButtonSize(text) + margin);
+            Vec2 const buttonTopLeft = m_Shared->get3DSceneRect().p2 - (ui::CalcButtonSize(text) + margin);
 
-            ImGui::SetCursorScreenPos(buttonTopLeft);
-            if (ImGui::Button(text.c_str()))
+            ui::SetCursorScreenPos(buttonTopLeft);
+            if (ui::Button(text))
             {
                 requestPop();
             }
 
-            osc::PopStyleColor();
-            ImGui::PopStyleVar();
+            ui::PopStyleColor();
+            ui::PopStyleVar();
         }
 
         bool implOnEvent(SDL_Event const& e) final
@@ -342,7 +343,7 @@ namespace osc::mi
         {
             m_Shared->tick(dt);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+            if (ui::IsKeyPressed(ImGuiKey_Escape))
             {
                 // ESC: user cancelled out
                 requestPop();
@@ -352,7 +353,7 @@ namespace osc::mi
 
             if (isRenderHovered)
             {
-                UpdatePolarCameraFromImGuiMouseInputs(m_Shared->updCamera(), m_Shared->get3DSceneDims());
+                ui::UpdatePolarCameraFromImGuiMouseInputs(m_Shared->updCamera(), m_Shared->get3DSceneDims());
             }
 
             if (m_AnimationFraction < 1.0f)

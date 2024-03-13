@@ -1,14 +1,16 @@
 #include "ui_context.h"
 
 #include <IconsFontAwesome5.h>
-#include <imgui/backends/imgui_impl_sdl2.h>
 #include <oscar/Platform/App.h>
+#include <oscar/Platform/AppConfig.h>
 #include <oscar/Platform/ResourceLoader.h>
 #include <oscar/Platform/ResourcePath.h>
 #include <oscar/Shims/Cpp20/bit.h>
 #include <oscar/UI/ImGuiHelpers.h>
 #include <oscar/UI/oscimgui.h>
+#include <oscar/UI/imgui_impl_sdl2.h>
 #include <oscar/UI/ui_graphics_backend.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Perf.h>
 #include <SDL_events.h>
 
@@ -32,12 +34,9 @@ namespace
     typename Container::value_type* ToMalloced(Container const& c)
     {
         using value_type = typename Container::value_type;
-        using std::size;
-        using std::begin;
-        using std::end;
 
-        auto* ptr = cpp20::bit_cast<value_type*>(malloc(size(c) * sizeof(value_type)));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc,hicpp-no-malloc)
-        std::copy(begin(c), end(c), ptr);
+        auto* ptr = cpp20::bit_cast<value_type*>(malloc(std::ranges::size(c) * sizeof(value_type)));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc,hicpp-no-malloc)
+        copy(c, ptr);
         return ptr;
     }
 
@@ -63,11 +62,11 @@ void osc::ui::context::Init()
     // init ImGui top-level context
     ImGui::CreateContext();
 
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // make it so that windows can only ever be moved from the title bar
-    ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly = true;
+    ui::GetIO().ConfigWindowsMoveFromTitleBarOnly = true;
 
     // load application-level ImGui config, then the user one,
     // so that the user config takes precedence
@@ -83,8 +82,24 @@ void osc::ui::context::Init()
         io.IniFilename = s_UserImguiIniFilePath.c_str();
     }
 
+    float dpiScaleFactor = [&]()
+    {
+        float dpi{};
+        float hdpi{};
+        float vdpi{};
+
+        // if the user explicitly enabled high_dpi_mode...
+        if (auto v = App::config().getValue("experimental_feature_flags/high_dpi_mode"); v && v->toBool()) {
+            // and SDL is able to get the DPI of the given window...
+            if (SDL_GetDisplayDPI(SDL_GetWindowDisplayIndex(App::upd().updUndleryingWindow()), &dpi, &hdpi, &vdpi) == 0) {
+                return dpi / 96.0f;  // then calculate the scaling factor
+            }
+        }
+        return 1.0f;  // else: assume it's an unscaled 96dpi screen
+    }();
+
     ImFontConfig baseConfig;
-    baseConfig.SizePixels = 15.0f;
+    baseConfig.SizePixels = dpiScaleFactor*15.0f;
     baseConfig.PixelSnapH = true;
     baseConfig.OversampleH = 2;
     baseConfig.OversampleV = 2;
@@ -128,7 +143,7 @@ bool osc::ui::context::OnEvent(SDL_Event const& e)
 {
     ImGui_ImplSDL2_ProcessEvent(&e);
 
-    ImGuiIO const& io  = ImGui::GetIO();
+    ImGuiIO const& io  = ui::GetIO();
 
     bool handledByImgui = false;
 

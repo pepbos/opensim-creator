@@ -6,12 +6,8 @@
 
 namespace osc
 {
+    // an axis-aligned bounding box (AABB) in 3D space
     struct AABB final {
-
-        constexpr static AABB of_point(Vec3 const& p)
-        {
-            return AABB{p, p};
-        }
 
         friend bool operator==(AABB const&, AABB const&) = default;
 

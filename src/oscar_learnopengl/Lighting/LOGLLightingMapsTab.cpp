@@ -1,8 +1,5 @@
 #include "LOGLLightingMapsTab.h"
 
-#include <oscar_learnopengl/LearnOpenGLHelpers.h>
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -86,24 +83,24 @@ private:
         m_LightingMapsMaterial.setFloat("uLightDiffuse", m_LightDiffuse);
         m_LightingMapsMaterial.setFloat("uLightSpecular", m_LightSpecular);
         m_LightingMapsMaterial.setFloat("uMaterialShininess", m_MaterialShininess);
-        Graphics::DrawMesh(m_Mesh, Identity<Transform>(), m_LightingMapsMaterial, m_Camera);
+        Graphics::DrawMesh(m_Mesh, identity<Transform>(), m_LightingMapsMaterial, m_Camera);
 
         // draw lamp
         m_LightCubeMaterial.setColor("uLightColor", Color::white());
         Graphics::DrawMesh(m_Mesh, m_LightTransform, m_LightCubeMaterial, m_Camera);
 
         // render 3D scene
-        m_Camera.setPixelRect(GetMainViewportWorkspaceScreenRect());
+        m_Camera.setPixelRect(ui::GetMainViewportWorkspaceScreenRect());
         m_Camera.renderToScreen();
 
         // render 2D UI
-        ImGui::Begin("controls");
-        ImGui::InputFloat3("uLightPos", value_ptr(m_LightTransform.position));
-        ImGui::InputFloat("uLightAmbient", &m_LightAmbient);
-        ImGui::InputFloat("uLightDiffuse", &m_LightDiffuse);
-        ImGui::InputFloat("uLightSpecular", &m_LightSpecular);
-        ImGui::InputFloat("uMaterialShininess", &m_MaterialShininess);
-        ImGui::End();
+        ui::Begin("controls");
+        ui::InputVec3("uLightPos", m_LightTransform.position);
+        ui::InputFloat("uLightAmbient", &m_LightAmbient);
+        ui::InputFloat("uLightDiffuse", &m_LightDiffuse);
+        ui::InputFloat("uLightSpecular", &m_LightSpecular);
+        ui::InputFloat("uMaterialShininess", &m_MaterialShininess);
+        ui::End();
     }
 
     ResourceLoader m_Loader = App::resource_loader();
@@ -112,7 +109,7 @@ private:
         m_Loader.slurp("oscar_learnopengl/shaders/LightCube.vert"),
         m_Loader.slurp("oscar_learnopengl/shaders/LightCube.frag"),
     }};
-    Mesh m_Mesh = GenerateLearnOpenGLCubeMesh();
+    Mesh m_Mesh = BoxGeometry{};
     MouseCapturingCamera m_Camera = CreateCamera();
 
     Transform m_LightTransform = {

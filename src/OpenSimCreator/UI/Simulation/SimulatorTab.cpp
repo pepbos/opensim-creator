@@ -220,8 +220,8 @@ public:
 
     void onDraw()
     {
-        ImGui::DockSpaceOverViewport(
-            ImGui::GetMainViewport(),
+        ui::DockSpaceOverViewport(
+            ui::GetMainViewport(),
             ImGuiDockNodeFlags_PassthruCentralNode
         );
         drawContent();
@@ -412,9 +412,9 @@ private:
         }
         else
         {
-            ImGui::Begin("Waiting for simulation");
-            ImGui::TextDisabled("(waiting for first simulation state)");
-            ImGui::End();
+            ui::Begin("Waiting for simulation");
+            ui::TextDisabled("(waiting for first simulation state)");
+            ui::End();
 
             // and show the log, so that the user can see any errors from the integrator (#628)
             //

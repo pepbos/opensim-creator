@@ -27,32 +27,32 @@ void osc::GuiRuler::onDraw(
     }
 
     // users can exit measuring through these actions
-    if (ImGui::IsKeyDown(ImGuiKey_Escape) || ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+    if (ui::IsKeyDown(ImGuiKey_Escape) || ui::IsMouseReleased(ImGuiMouseButton_Right))
     {
         stopMeasuring();
         return;
     }
 
     // users can "finish" the measurement through these actions
-    if (m_State == State::WaitingForSecondPoint && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    if (m_State == State::WaitingForSecondPoint && ui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         stopMeasuring();
         return;
     }
 
-    Vec2 mouseLoc = ImGui::GetMousePos();
-    ImDrawList& dl = *ImGui::GetWindowDrawList();
-    ImU32 circleMousedOverNothingColor = ToImU32(Color::red().withAlpha(0.6f));
-    ImU32 circleColor = ToImU32(Color::white().withAlpha(0.8f));
+    Vec2 mouseLoc = ui::GetMousePos();
+    ImDrawList& dl = *ui::GetWindowDrawList();
+    ImU32 circleMousedOverNothingColor = ui::ToImU32(Color::red().with_alpha(0.6f));
+    ImU32 circleColor = ui::ToImU32(Color::white().with_alpha(0.8f));
     ImU32 lineColor = circleColor;
-    ImU32 textBgColor = ToImU32(Color::white());
-    ImU32 textColor = ToImU32(Color::black());
+    ImU32 textBgColor = ui::ToImU32(Color::white());
+    ImU32 textColor = ui::ToImU32(Color::black());
     float circleRadius = 5.0f;
     float lineThickness = 3.0f;
 
     auto drawTooltipWithBg = [&dl, &textBgColor, &textColor](Vec2 const& pos, CStringView tooltipText)
     {
-        Vec2 sz = ImGui::CalcTextSize(tooltipText.c_str());
+        Vec2 sz = ui::CalcTextSize(tooltipText);
         float bgPad = 5.0f;
         float edgeRounding = bgPad - 2.0f;
 
@@ -73,7 +73,7 @@ void osc::GuiRuler::onDraw(
             // mousing over something
             dl.AddCircleFilled(mouseLoc, circleRadius, circleColor);
 
-            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            if (ui::IsMouseReleased(ImGuiMouseButton_Left))
             {
                 m_State = State::WaitingForSecondPoint;
                 m_StartWorldPos = maybeMouseover->worldspaceLocation;

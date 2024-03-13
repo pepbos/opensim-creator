@@ -17,7 +17,6 @@
 #include <oscar/Graphics/Scene/SceneDecorationFlags.h>
 #include <oscar/Graphics/Scene/SceneHelpers.h>
 #include <oscar/Graphics/Scene/SceneRenderer.h>
-#include <oscar/Graphics/Scene/ShaderCache.h>
 #include <oscar/Maths/BVH.h>
 #include <oscar/Maths/MathHelpers.h>
 #include <oscar/Maths/Vec2.h>
@@ -48,7 +47,7 @@ namespace
         {
         }
 
-        std::shared_ptr<SceneCache> meshCache = App::singleton<SceneCache>();
+        std::shared_ptr<SceneCache> meshCache = App::singleton<SceneCache>(App::resource_loader());
         std::shared_ptr<UndoableModelStatePair> model;
         ChooseComponentsEditorLayerParameters popupParams;
         ModelRendererParams renderParams;
@@ -137,14 +136,14 @@ public:
         ChooseComponentsEditorLayerParameters parameters_) :
 
         m_State{std::move(model_), std::move(parameters_)},
-        m_Renderer{*App::singleton<SceneCache>(), *App::singleton<ShaderCache>(App::resource_loader())}
+        m_Renderer{*App::singleton<SceneCache>(App::resource_loader())}
     {}
 
     bool handleKeyboardInputs(
         ModelEditorViewerPanelParameters& params,
         ModelEditorViewerPanelState& state) const
     {
-        return UpdatePolarCameraFromImGuiKeyboardInputs(
+        return ui::UpdatePolarCameraFromImGuiKeyboardInputs(
             params.updRenderParams().camera,
             state.viewportRect,
             m_Decorations.bvh.getRootAABB()
@@ -155,12 +154,12 @@ public:
         ModelEditorViewerPanelParameters& params,
         ModelEditorViewerPanelState& state)
     {
-        bool rv = UpdatePolarCameraFromImGuiMouseInputs(
+        bool rv = ui::UpdatePolarCameraFromImGuiMouseInputs(
             params.updRenderParams().camera,
-            Dimensions(state.viewportRect)
+            dimensions(state.viewportRect)
         );
 
-        if (IsDraggingWithAnyMouseButtonDown())
+        if (ui::IsDraggingWithAnyMouseButtonDown())
         {
             m_State.hoveredComponent = {};
         }
@@ -177,13 +176,13 @@ public:
         ModelEditorViewerPanelParameters& panelParams,
         ModelEditorViewerPanelState& panelState)
     {
-        bool const layerIsHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+        bool const layerIsHovered = ui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
         // update this layer's state from provided state
         m_State.renderParams = panelParams.getRenderParams();
-        m_IsLeftClickReleasedWithoutDragging = IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
-        m_IsRightClickReleasedWithoutDragging = IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
-        if (ImGui::IsKeyReleased(ImGuiKey_Escape))
+        m_IsLeftClickReleasedWithoutDragging = ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Left);
+        m_IsRightClickReleasedWithoutDragging = ui::IsMouseReleasedWithoutDragging(ImGuiMouseButton_Right);
+        if (ui::IsKeyReleased(ImGuiKey_Escape))
         {
             m_State.shouldClosePopup = true;
         }
@@ -192,7 +191,7 @@ public:
         GenerateChooseComponentsDecorations(m_State, m_Decorations);
         SceneRendererParams const rendererParameters = CalcSceneRendererParams(
             m_State.renderParams,
-            Dimensions(panelState.viewportRect),
+            dimensions(panelState.viewportRect),
             App::get().getCurrentAntiAliasingLevel(),
             m_State.model->getFixupScaleFactor()
         );
@@ -201,9 +200,9 @@ public:
         m_Renderer.render(m_Decorations.decorations, rendererParameters);
 
         // blit texture as ImGui image
-        DrawTextureAsImGuiImage(
+        ui::DrawTextureAsImGuiImage(
             m_Renderer.updRenderTexture(),
-            Dimensions(panelState.viewportRect)
+            dimensions(panelState.viewportRect)
         );
 
         // do hovertest
@@ -214,7 +213,7 @@ public:
                 *m_State.meshCache,
                 m_Decorations.decorations,
                 m_State.renderParams.camera,
-                ImGui::GetMousePos(),
+                ui::GetMousePos(),
                 panelState.viewportRect
             );
             if (collision)
@@ -234,8 +233,8 @@ public:
         }
 
         // show header
-        ImGui::SetCursorScreenPos(panelState.viewportRect.p1 + Vec2{10.0f, 10.0f});
-        ImGui::Text("%s (ESC to cancel)", m_State.popupParams.popupHeaderText.c_str());
+        ui::SetCursorScreenPos(panelState.viewportRect.p1 + Vec2{10.0f, 10.0f});
+        ui::Text("%s (ESC to cancel)", m_State.popupParams.popupHeaderText.c_str());
 
         // handle completion state (i.e. user selected enough components)
         if (m_State.alreadyChosenComponents.size() == m_State.popupParams.numComponentsUserMustChoose)
@@ -246,19 +245,19 @@ public:
 
         // draw cancellation button
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
+            ui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
 
             constexpr CStringView cancellationButtonText = ICON_FA_ARROW_LEFT " Cancel (ESC)";
             Vec2 const margin = {25.0f, 25.0f};
-            Vec2 const buttonDims = CalcButtonSize(cancellationButtonText);
+            Vec2 const buttonDims = ui::CalcButtonSize(cancellationButtonText);
             Vec2 const buttonTopLeft = panelState.viewportRect.p2 - (buttonDims + margin);
-            ImGui::SetCursorScreenPos(buttonTopLeft);
-            if (ImGui::Button(cancellationButtonText.c_str()))
+            ui::SetCursorScreenPos(buttonTopLeft);
+            if (ui::Button(cancellationButtonText))
             {
                 m_State.shouldClosePopup = true;
             }
 
-            ImGui::PopStyleVar();
+            ui::PopStyleVar();
         }
     }
 

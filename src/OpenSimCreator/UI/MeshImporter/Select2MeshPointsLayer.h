@@ -95,13 +95,13 @@ namespace osc::mi
             {
                 return;  // nothing hovered
             }
-            else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            else if (ui::IsMouseClicked(ImGuiMouseButton_Left))
             {
                 // LEFT CLICK: set first mouse location
                 m_MaybeFirstLocation = m_MaybeCurrentHover.Pos;
                 handlePossibleTransitionToNextStep();
             }
-            else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            else if (ui::IsMouseClicked(ImGuiMouseButton_Right))
             {
                 // RIGHT CLICK: set second mouse location
                 m_MaybeSecondLocation = m_MaybeCurrentHover.Pos;
@@ -143,10 +143,10 @@ namespace osc::mi
                 return std::move(ss).str();
             }(m_MaybeCurrentHover.Pos);
 
-            ImGui::BeginTooltip();
-            ImGui::Text("%s", pos.c_str());
-            ImGui::TextDisabled("(left-click to assign as first point, right-click to assign as second point)");
-            ImGui::EndTooltip();
+            ui::BeginTooltipNoWrap();
+            ui::Text(pos);
+            ui::TextDisabled("(left-click to assign as first point, right-click to assign as second point)");
+            ui::EndTooltipNoWrap();
         }
 
         // draw 2D overlay over the render, things like connection lines, dots, etc.
@@ -160,9 +160,9 @@ namespace osc::mi
             Vec3 clickedWorldPos = m_MaybeFirstLocation ? *m_MaybeFirstLocation : *m_MaybeSecondLocation;
             Vec2 clickedScrPos = m_Shared->worldPosToScreenPos(clickedWorldPos);
 
-            auto color = ToImU32(Color::black());
+            auto color = ui::ToImU32(Color::black());
 
-            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImDrawList* dl = ui::GetWindowDrawList();
             dl->AddCircleFilled(clickedScrPos, 5.0f, color);
 
             if (!m_MaybeCurrentHover) {
@@ -183,30 +183,30 @@ namespace osc::mi
                 return;
             }
 
-            ImU32 color = ToImU32(Color::white());
+            ImU32 color = ui::ToImU32(Color::white());
             Vec2 padding{10.0f, 10.0f};
             Vec2 pos = m_Shared->get3DSceneRect().p1 + padding;
-            ImGui::GetWindowDrawList()->AddText(pos, color, m_Options.header.c_str());
+            ui::GetWindowDrawList()->AddText(pos, color, m_Options.header.c_str());
         }
 
         // draw a user-clickable button for cancelling out of this choosing state
         void drawCancelButton()
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
-            PushStyleColor(ImGuiCol_Button, Color::halfGrey());
+            ui::PushStyleVar(ImGuiStyleVar_FramePadding, {10.0f, 10.0f});
+            ui::PushStyleColor(ImGuiCol_Button, Color::half_grey());
 
             CStringView const text = ICON_FA_ARROW_LEFT " Cancel (ESC)";
             Vec2 const margin = {25.0f, 35.0f};
-            Vec2 const buttonTopLeft = m_Shared->get3DSceneRect().p2 - (CalcButtonSize(text) + margin);
+            Vec2 const buttonTopLeft = m_Shared->get3DSceneRect().p2 - (ui::CalcButtonSize(text) + margin);
 
-            ImGui::SetCursorScreenPos(buttonTopLeft);
-            if (ImGui::Button(text.c_str()))
+            ui::SetCursorScreenPos(buttonTopLeft);
+            if (ui::Button(text))
             {
                 requestPop();
             }
 
-            PopStyleColor();
-            ImGui::PopStyleVar();
+            ui::PopStyleColor();
+            ui::PopStyleVar();
         }
 
         bool implOnEvent(SDL_Event const& e) final
@@ -218,7 +218,7 @@ namespace osc::mi
         {
             m_Shared->tick(dt);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+            if (ui::IsKeyPressed(ImGuiKey_Escape))
             {
                 // ESC: user cancelled out
                 requestPop();
@@ -228,7 +228,7 @@ namespace osc::mi
 
             if (isRenderHovered)
             {
-                UpdatePolarCameraFromImGuiMouseInputs(m_Shared->updCamera(), m_Shared->get3DSceneDims());
+                ui::UpdatePolarCameraFromImGuiMouseInputs(m_Shared->updCamera(), m_Shared->get3DSceneDims());
             }
         }
 

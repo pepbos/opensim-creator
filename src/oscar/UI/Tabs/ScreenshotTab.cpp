@@ -53,7 +53,7 @@ namespace
     {
         float const targetAspectRatio = AspectRatio(targetRect);
         float const ratio = targetAspectRatio / aspectRatio;
-        Vec2 const targetDims = Dimensions(targetRect);
+        Vec2 const targetDims = dimensions(targetRect);
 
         if (ratio >= 1.0f)
         {
@@ -73,7 +73,7 @@ namespace
 
     Rect MapRect(Rect const& sourceRect, Rect const& targetRect, Rect const& rect)
     {
-        Vec2 const scale = Dimensions(targetRect) / Dimensions(sourceRect);
+        Vec2 const scale = dimensions(targetRect) / dimensions(sourceRect);
 
         return Rect
         {
@@ -95,54 +95,54 @@ public:
 private:
     void implOnDrawMainMenu() final
     {
-        if (ImGui::BeginMenu("File"))
+        if (ui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Save"))
+            if (ui::MenuItem("Save"))
             {
                 actionSaveOutputImage();
             }
-            ImGui::EndMenu();
+            ui::EndMenu();
         }
     }
 
     void implOnDraw() final
     {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+        ui::DockSpaceOverViewport(ui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
         // draw screenshot window
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
-            ImGui::Begin("Screenshot");
-            ImGui::PopStyleVar();
+            ui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
+            ui::Begin("Screenshot");
+            ui::PopStyleVar();
 
             Rect imageRect = drawScreenshot();
-            drawOverlays(*ImGui::GetWindowDrawList(), imageRect, c_UnselectedColor, c_SelectedColor);
+            drawOverlays(*ui::GetWindowDrawList(), imageRect, c_UnselectedColor, c_SelectedColor);
 
-            ImGui::End();
+            ui::End();
         }
 
         // draw controls window
         {
             int id = 0;
-            ImGui::Begin("Controls");
+            ui::Begin("Controls");
             for (ScreenshotAnnotation const& annotation : m_Screenshot.annotations)
             {
-                ImGui::PushID(id++);
-                ImGui::TextUnformatted(annotation.label.c_str());
-                ImGui::PopID();
+                ui::PushID(id++);
+                ui::TextUnformatted(annotation.label);
+                ui::PopID();
             }
-            ImGui::End();
+            ui::End();
         }
     }
 
     // returns screenspace rect of the screenshot within the UI
     Rect drawScreenshot()
     {
-        Vec2 const screenTopLeft = ImGui::GetCursorScreenPos();
-        Rect const windowRect = {screenTopLeft, screenTopLeft + Vec2{ImGui::GetContentRegionAvail()}};
+        Vec2 const screenTopLeft = ui::GetCursorScreenPos();
+        Rect const windowRect = {screenTopLeft, screenTopLeft + Vec2{ui::GetContentRegionAvail()}};
         Rect const imageRect = ShrinkToFit(windowRect, AspectRatio(m_Screenshot.image.getDimensions()));
-        ImGui::SetCursorScreenPos(imageRect.p1);
-        DrawTextureAsImGuiImage(m_ImageTexture, Dimensions(imageRect));
+        ui::SetCursorScreenPos(imageRect.p1);
+        ui::DrawTextureAsImGuiImage(m_ImageTexture, dimensions(imageRect));
         return imageRect;
     }
 
@@ -152,15 +152,15 @@ private:
         Color const& unselectedColor,
         Color const& selectedColor)
     {
-        Vec2 const mousePos = ImGui::GetMousePos();
-        bool const leftClickReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
+        Vec2 const mousePos = ui::GetMousePos();
+        bool const leftClickReleased = ui::IsMouseReleased(ImGuiMouseButton_Left);
         Rect const imageSourceRect = {{0.0f, 0.0f}, m_Screenshot.image.getDimensions()};
 
         for (ScreenshotAnnotation const& annotation : m_Screenshot.annotations)
         {
             Rect const annotationRectScreenSpace = MapRect(imageSourceRect, imageRect, annotation.rect);
             bool const selected = m_SelectedAnnotations.contains(annotation.label);
-            bool const hovered = IsPointInRect(annotationRectScreenSpace, mousePos);
+            bool const hovered = is_intersecting(annotationRectScreenSpace, mousePos);
 
             Vec4 color = selected ? selectedColor : unselectedColor;
             if (hovered)
@@ -183,7 +183,7 @@ private:
             drawlist.AddRect(
                 annotationRectScreenSpace.p1,
                 annotationRectScreenSpace.p2,
-                ImGui::ColorConvertFloat4ToU32(color),
+                ui::ColorConvertFloat4ToU32(color),
                 3.0f,
                 0,
                 3.0f
@@ -215,7 +215,7 @@ private:
         Graphics::Blit(m_ImageTexture, *rt);
 
         // draw overlays to a local ImGui drawlist
-        ImDrawList drawlist{ImGui::GetDrawListSharedData()};
+        ImDrawList drawlist{ui::GetDrawListSharedData()};
         drawlist.Flags |= ImDrawListFlags_AntiAliasedLines;
         drawlist.AddDrawCmd();
         Color outlineColor = c_SelectedColor;
@@ -249,7 +249,7 @@ private:
                     colors.reserve(drawlist.VtxBuffer.size());
                     for (ImDrawVert const& vert : drawlist.VtxBuffer)
                     {
-                        Color const linearColor = ToColor(vert.col);
+                        Color const linearColor = ui::ToColor(vert.col);
                         colors.push_back(linearColor);
                     }
                     mesh.setColors(colors);
@@ -267,7 +267,7 @@ private:
             };
 
             Camera c;
-            c.setViewMatrixOverride(Identity<Mat4>());
+            c.setViewMatrixOverride(identity<Mat4>());
 
             {
                 // project screenspace overlays into NDC

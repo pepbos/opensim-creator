@@ -141,7 +141,7 @@ public:
 
     void onDraw()
     {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+        ui::DockSpaceOverViewport(ui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
         m_TopToolbar.onDraw();
         m_PanelManager->onDraw();
@@ -154,7 +154,7 @@ public:
 private:
     bool onKeydownEvent(SDL_KeyboardEvent const& e)
     {
-        bool const ctrlOrSuperDown = IsCtrlOrSuperDown();
+        bool const ctrlOrSuperDown = ui::IsCtrlOrSuperDown();
 
         if (ctrlOrSuperDown && e.keysym.mod & KMOD_SHIFT && e.keysym.sym == SDLK_z)
         {

@@ -55,6 +55,7 @@
 #include <oscar/Maths/Transform.h>
 #include <oscar/Maths/Vec3.h>
 #include <oscar/Platform/Log.h>
+#include <oscar/Utils/Algorithms.h>
 #include <oscar/Utils/Assertions.h>
 #include <oscar/Utils/CStringView.h>
 #include <oscar/Utils/Perf.h>
@@ -176,7 +177,7 @@ namespace
         // move forward through the PFD sequence until a different frame is found
         //
         // the PFD before that one is the effective origin
-        auto const it = std::find_if(
+        auto const it = find_if(
             pfds.begin() + 1,
             pfds.end(),
             [&first = pfds.front()](auto const& pfd) { return &pfd->frame() != &first->frame(); }
@@ -192,7 +193,7 @@ namespace
         // move backward through the PFD sequence until a different frame is found
         //
         // the PFD after that one is the effective insertion
-        auto const rit = std::find_if(
+        auto const rit = find_if(
             pfds.rbegin() + 1,
             pfds.rend(),
             [&last = pfds.back()](auto const& pfd) { return &pfd->frame() != &last->frame(); }
@@ -394,7 +395,7 @@ std::vector<OpenSim::Component const*> osc::GetPathElements(OpenSim::Component c
         rv.push_back(p);
     }
 
-    std::reverse(rv.begin(), rv.end());
+    reverse(rv);
 
     return rv;
 }
@@ -445,7 +446,7 @@ OpenSim::Component const* osc::IsInclusiveChildOf(std::span<OpenSim::Component c
     // TODO: this method signature makes no sense and should be refactored
     for (; c; c = GetOwner(*c))
     {
-        if (auto it = std::find(parents.begin(), parents.end(), c); it != parents.end())
+        if (auto it = find(parents, c); it != parents.end())
         {
             return *it;
         }
@@ -1024,6 +1025,18 @@ bool osc::ActivateAllWrapObjectsIn(OpenSim::Model& m)
     return rv;
 }
 
+std::vector<OpenSim::WrapObject const*> osc::GetAllWrapObjectsReferencedBy(OpenSim::GeometryPath const& gp)
+{
+    auto const& wrapSet = gp.getWrapSet();
+
+    std::vector<OpenSim::WrapObject const*> rv;
+    rv.reserve(wrapSet.getSize());
+    for (int i = 0; i < wrapSet.getSize(); ++i) {
+        rv.push_back(wrapSet.get(i).getWrapObject());
+    }
+    return rv;
+}
+
 std::unique_ptr<UndoableModelStatePair> osc::LoadOsimIntoUndoableModel(std::filesystem::path const& p)
 {
     return std::make_unique<UndoableModelStatePair>(p);
@@ -1156,6 +1169,20 @@ bool osc::TrySetAppearancePropertyIsVisibleTo(OpenSim::Component& c, bool v)
     }
 }
 
+Color osc::ToColor(OpenSim::Appearance const& appearance)
+{
+    SimTK::Vec3 const& rgb = appearance.get_color();
+    double const a = appearance.get_opacity();
+
+    return
+    {
+        static_cast<float>(rgb[0]),
+        static_cast<float>(rgb[1]),
+        static_cast<float>(rgb[2]),
+        static_cast<float>(a),
+    };
+}
+
 Color osc::GetSuggestedBoneColor()
 {
     Color usualDefault = {232.0f / 255.0f, 216.0f / 255.0f, 200.0f/255.0f, 1.0f};
@@ -1259,7 +1286,7 @@ void osc::GetAbsolutePathString(OpenSim::Component const& c, std::string& out)
     {
         out[loc++] = '/';
         std::string const& name = els[i]->getName();
-        std::copy(name.begin(), name.end(), out.begin() + loc);
+        copy(name, out.begin() + loc);
         loc += name.size();
     }
 }
@@ -1652,6 +1679,13 @@ OpenSim::PhysicalOffsetFrame& osc::AddFrame(OpenSim::Joint& joint, std::unique_p
     return rv;
 }
 
+OpenSim::WrapObject& osc::AddWrapObject(OpenSim::PhysicalFrame& physFrame, std::unique_ptr<OpenSim::WrapObject> wrapObj)
+{
+    OpenSim::WrapObject& rv = *wrapObj;
+    physFrame.addWrapObject(wrapObj.release());
+    return rv;
+}
+
 OpenSim::Geometry& osc::AttachGeometry(OpenSim::Frame& frame, std::unique_ptr<OpenSim::Geometry> p)
 {
     OpenSim::Geometry& rv = *p;
@@ -1713,6 +1747,14 @@ std::optional<std::string> osc::TryGetOrientationalPropertyName(
     {
         return std::nullopt;
     }
+}
+
+OpenSim::Frame const* osc::TryGetParentFrame(OpenSim::Frame const& frame)
+{
+    if (auto offset = dynamic_cast<OpenSim::PhysicalOffsetFrame const*>(&frame)) {
+        return &offset->getParentFrame();
+    }
+    return nullptr;
 }
 
 std::optional<ComponentSpatialRepresentation> osc::TryGetSpatialRepresentation(

@@ -43,57 +43,57 @@ public:
         {
             drawContent();
         }
-        ImGui::End();
+        ui::End();
     }
 private:
     void drawModelFileRelatedButtons()
     {
         DrawNewModelButton(m_MainUIStateAPI);
-        ImGui::SameLine();
+        ui::SameLine();
         DrawOpenModelButtonWithRecentFilesDropdown(m_MainUIStateAPI);
-        ImGui::SameLine();
+        ui::SameLine();
         DrawSaveModelButton(m_MainUIStateAPI, *m_Model);
-        ImGui::SameLine();
+        ui::SameLine();
         DrawReloadModelButton(*m_Model);
     }
 
     void drawForwardDynamicSimulationControls()
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {2.0f, 0.0f});
+        ui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {2.0f, 0.0f});
 
-        PushStyleColor(ImGuiCol_Text, Color::darkGreen());
-        if (ImGui::Button(ICON_FA_PLAY))
+        ui::PushStyleColor(ImGuiCol_Text, Color::dark_green());
+        if (ui::Button(ICON_FA_PLAY))
         {
             ActionStartSimulatingModel(m_MainUIStateAPI, *m_Model);
         }
-        PopStyleColor();
-        App::upd().addFrameAnnotation("Simulate Button", GetItemRect());
-        DrawTooltipIfItemHovered("Simulate Model", "Run a forward-dynamic simulation of the model");
+        ui::PopStyleColor();
+        App::upd().addFrameAnnotation("Simulate Button", ui::GetItemRect());
+        ui::DrawTooltipIfItemHovered("Simulate Model", "Run a forward-dynamic simulation of the model");
 
-        ImGui::SameLine();
+        ui::SameLine();
 
-        if (ImGui::Button(ICON_FA_EDIT))
+        if (ui::Button(ICON_FA_EDIT))
         {
             m_EditorAPI->pushPopup(std::make_unique<ParamBlockEditorPopup>("simulation parameters", &m_MainUIStateAPI->updSimulationParams()));
         }
-        DrawTooltipIfItemHovered("Edit Simulation Settings", "Change the parameters used when simulating the model");
+        ui::DrawTooltipIfItemHovered("Edit Simulation Settings", "Change the parameters used when simulating the model");
 
-        ImGui::PopStyleVar();
+        ui::PopStyleVar();
     }
 
     void drawContent()
     {
         drawModelFileRelatedButtons();
-        SameLineWithVerticalSeperator();
+        ui::SameLineWithVerticalSeperator();
 
         DrawUndoAndRedoButtons(*m_Model);
-        SameLineWithVerticalSeperator();
+        ui::SameLineWithVerticalSeperator();
 
         DrawSceneScaleFactorEditorControls(*m_Model);
-        SameLineWithVerticalSeperator();
+        ui::SameLineWithVerticalSeperator();
 
         drawForwardDynamicSimulationControls();
-        SameLineWithVerticalSeperator();
+        ui::SameLineWithVerticalSeperator();
 
         DrawAllDecorationToggleButtons(*m_Model, *m_IconCache);
     }
@@ -105,7 +105,7 @@ private:
 
     std::shared_ptr<IconCache> m_IconCache = App::singleton<IconCache>(
         App::resource_loader().withPrefix("icons/"),
-        ImGui::GetTextLineHeight()/128.0f
+        ui::GetTextLineHeight()/128.0f
     );
 };
 

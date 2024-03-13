@@ -1,7 +1,5 @@
 #include "LOGLPointShadowsTab.h"
 
-#include <oscar_learnopengl/MouseCapturingCamera.h>
-
 #include <oscar/oscar.h>
 #include <SDL_events.h>
 
@@ -113,7 +111,7 @@ private:
 
     void draw3DScene()
     {
-        Rect const viewportRect = GetMainViewportWorkspaceScreenRect();
+        Rect const viewportRect = ui::GetMainViewportWorkspaceScreenRect();
 
         drawShadowPassToCubemap();
         drawShadowmappedSceneToScreen(viewportRect);
@@ -178,10 +176,10 @@ private:
 
     void draw2DUI()
     {
-        ImGui::Begin("controls");
-        ImGui::Checkbox("show shadows", &m_ShowShadows);
-        ImGui::Checkbox("soften shadows", &m_UseSoftShadows);
-        ImGui::End();
+        ui::Begin("controls");
+        ui::Checkbox("show shadows", &m_ShowShadows);
+        ui::Checkbox("soften shadows", &m_UseSoftShadows);
+        ui::End();
 
         m_PerfPanel.onDraw();
     }
@@ -209,7 +207,7 @@ private:
         m_Loader.open("oscar_learnopengl/textures/wood.png"),
         ColorSpace::sRGB
     );
-    Mesh m_CubeMesh = GenerateCubeMesh();
+    Mesh m_CubeMesh = BoxGeometry{2.0f, 2.0f, 2.0f};
     std::array<SceneCube, 6> m_SceneCubes = MakeSceneCubes();
     RenderTexture m_DepthTexture = CreateDepthTexture();
     Vec3 m_LightPos = {};
