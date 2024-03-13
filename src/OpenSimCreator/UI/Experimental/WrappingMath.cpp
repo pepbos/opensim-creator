@@ -538,6 +538,32 @@ void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic)
 }
 
 //==============================================================================
+//                      SOME MATHS
+//==============================================================================
+
+Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
+{
+    Vector3 p0 = a - point;
+    Vector3 p1 = b - point;
+
+    const Vector3 e = p1 - p0;
+
+    Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
+
+    const double d0 = p0.dot(p0);
+    const double d1 = p1.dot(p1);
+    const double d  = p.dot(p);
+
+    if (d0 < d) {
+        return a;
+    }
+    if (d1 < d) {
+        return b;
+    }
+    return p + point;
+};
+
+//==============================================================================
 //                      SURFACE
 //==============================================================================
 
