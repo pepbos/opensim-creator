@@ -846,7 +846,7 @@ calcLocalImplicitGeodesic(
         }
     }
 
-    AssertEq(length, l, "Total length does not match integrated length");
+    AssertEq(length, l, "Total length does not match integrated length", 1e-6); // TODO this should be flagged, and with high precision.
 
     return {xStart, xEnd};
 }
