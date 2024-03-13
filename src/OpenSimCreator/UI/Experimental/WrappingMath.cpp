@@ -734,6 +734,10 @@ DarbouxFrame calcDarbouxFrame(
     return {q.velocity, calcSurfaceNormal(s, q)};
 }
 
+//==============================================================================
+//                      SURFACE PROJECTION
+//==============================================================================
+
 size_t calcPointProjectedToSurface(
     const ImplicitSurface& s,
     Vector3& position,
