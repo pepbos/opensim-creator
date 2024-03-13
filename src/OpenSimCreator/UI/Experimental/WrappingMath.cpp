@@ -558,13 +558,11 @@ Geodesic Surface::calcGeodesic(
     // Detect start or end points breaking the surface.
     {
         if (!isAboveSurface(prev, Surface::MIN_DIST_FROM_SURF)) {
-            std::cout << "isAboveSurface: " << false << std::endl;
             setStatusFlag(geodesic.status, Geodesic::Status::StartPointInsideSurface, true);
         }
     }
     {
         if (!isAboveSurface(next, Surface::MIN_DIST_FROM_SURF)) {
-            std::cout << "isAboveSurface: " << false << std::endl;
             setStatusFlag(geodesic.status, Geodesic::Status::EndPointInsideSurface, true);
         }
     }
@@ -1309,8 +1307,6 @@ bool ImplicitCylinderSurface::isAboveSurface(Vector3 point, double bound) const
 {
     const double radialDistance = point.x() * point.x() + point.y() * point.y();
     const double radialBound = (_radius + bound) * (_radius + bound);
-    std::cout << "radialDistance = " << radialDistance << "\n";
-    std::cout << "radialBound = " << radialBound << "\n";
     return radialDistance > radialBound;
 }
 
@@ -1602,17 +1598,12 @@ bool PathContinuityError::calcPathCorrection()
 {
     // TODO Clamp the path error?
     /* clampPathError(_pathError, _maxAngleDegrees); */
-    std::cout << "_pathError =\n" << _pathError << std::endl;
-    std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl;
+    /* std::cout << "_pathError =\n" << _pathError << std::endl; */
+    /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
 
     const double weight = calcMaxPathError() / 2.;
 
     size_t n = _pathCorrections.rows();
-
-    std::cout << "n =\n" << n << std::endl;
-    std::cout << "_mat.rows() =\n" << _mat.rows() << std::endl;
-    std::cout << "_mat.cols() =\n" << _mat.cols() << std::endl;
-    std::cout << "_vec.rows() =\n" << _vec.rows() << std::endl;
 
     _mat.setIdentity(n, n);
     _mat *= weight;
@@ -2114,10 +2105,9 @@ void calcSegmentPathErrorJacobian(
 size_t calcPathErrorJacobian(WrappingPath& path)
 {
     size_t nActiveSegments = countActive(path.segments);
-    std::cout << "nActiveSegments = " << nActiveSegments << "\n";
+    /* std::cout << "nActiveSegments = " << nActiveSegments << "\n"; */
 
     path.smoothness.resize(nActiveSegments);
-    std::cout << "resize donw " <<  "\n";
 
     // Active segment count.
     size_t row = 0;
@@ -2133,9 +2123,9 @@ size_t calcPathErrorJacobian(WrappingPath& path)
         {
             ptrdiff_t prev = findPrevSegmentIndex(path.segments, idx);
 
-            std::cout << "idx = " << idx << "\n";
-            std::cout << "prev = " << prev << "\n";
-            std::cout << "row = " << row << "\n";
+            /* std::cout << "idx = " << idx << "\n"; */
+            /* std::cout << "row = " << row << "\n"; */
+            /* std::cout << "col = " << row << "\n"; */
             calcSegmentPathErrorJacobian(
                     prev < 0 ? nullptr : &path.segments.at(prev).end,
                     path.segments.at(idx).start,
@@ -2148,10 +2138,6 @@ size_t calcPathErrorJacobian(WrappingPath& path)
 
         {
             ptrdiff_t next = findNextSegmentIndex(path.segments, idx);
-            std::cout << "next = " << next << "\n";
-
-            std::cout << "row = " << row << "\n";
-            /* std::cout << "s = " << it->current->start << "\n"; */
             calcSegmentPathErrorJacobian(
                     nullptr,
                     path.segments.at(idx).end,
@@ -2159,11 +2145,12 @@ size_t calcPathErrorJacobian(WrappingPath& path)
                     next < 0 ? path.endPoint : path.segments.at(next).start.position,
                     path.smoothness.updPathError(),
                     path.smoothness.updPathErrorJacobian(),
-                    row);
+                    row, col, false);
         }
+        col += GEODESIC_DIM;
     }
-    std::cout << "    pathError=" << path.smoothness.updPathError().transpose() << "\n";
-    std::cout << "    pathErrorJcobian=\n" << path.smoothness.updPathErrorJacobian() << "\n";
+    /* std::cout << "    pathError=" << path.smoothness.updPathError().transpose() << "\n"; */
+    /* std::cout << "    pathErrorJcobian=\n" << path.smoothness.updPathErrorJacobian() << "\n"; */
     /* throw std::runtime_error("stop"); */
     return nActiveSegments;
 }
@@ -2196,7 +2183,7 @@ size_t Surface::calcUpdatedWrappingPath(
         std::cout << "    ===== CORR ==== = " << path.smoothness.calcMaxCorrectionStep() << "\n";
 
         if (path.smoothness.calcMaxPathError() < eps) {
-            std::cout << "   Wrapping path solved in " << loopIter << "steps\n";
+            /* std::cout << "   Wrapping path solved in " << loopIter << "steps\n"; */
             return loopIter;
         }
 
@@ -2216,26 +2203,20 @@ size_t Surface::calcUpdatedWrappingPath(
             // TODO remove this?
             /* const GeodesicCorrection correction = calcClamped(path.smoothness.maxStep, *corrIt); */
             const GeodesicCorrection correction = *corrIt;
-            
-                std::cout << "\n";
-                std::cout << "\n";
-                /* std::cout << "s.start_before = " << s.start << "\n"; */
-                std::cout << "s.length_before = " << s.length << "\n";
+
+            /* std::cout << "s.length_before = " << s.length << "\n"; */
             applyNaturalGeodesicVariation(s.start, correction);
 
-            for (double c: correction) {
-                std::cout << "ci = " << c << "\n";
-            }
+            /* for (double c: correction) { */
+            /*     std::cout << "ci = " << c << "\n"; */
+            /* } */
                 /* std::cout << "s.start_after = " << s.start << "\n"; */
 
             // TODO last field of correction must be lengthening.
             s.length += correction.at(3);
             if(s.length < 0.) {
-                /* std::cout << "negative path length: " << s.length << "\n"; */
+                std::cout << "negative path length: " << s.length << "\n";
             }
-                std::cout << "s.length_after = " << s.length << "\n";
-                std::cout << "\n";
-                std::cout << "\n";
 
             ++corrIt;
         }
@@ -2254,7 +2235,7 @@ size_t Surface::calcUpdatedWrappingPath(
                 s.length,
                 findPrevSegmentEndPoint(path.startPoint, path.segments, idx),
                 findNextSegmentStartPoint(path.endPoint, path.segments, idx));
-            std::cout << "Returned s.length = " << s.length << "\n";
+            /* std::cout << "Returned s.length = " << s.length << "\n"; */
         }
     }
 
