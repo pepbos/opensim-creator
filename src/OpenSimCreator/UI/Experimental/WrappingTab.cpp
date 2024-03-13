@@ -96,9 +96,9 @@ class osc::WrappingTab::Impl final : public StandardTabImpl
     const Surface* getWrapSurfaceHelper(size_t i)
     {
         switch (i) {
-            /* case 0: return &m_AnalyticSphereSurface; */
-            case 0: return &m_ImplicitEllipsoidSurface;
+            case 0: return &m_ImplicitSphereSurface;
             case 1: return &m_ImplicitCylinderSurface;
+            case 2: return &m_ImplicitEllipsoidSurface;
             default: return nullptr;
         }
     }
@@ -109,37 +109,43 @@ public:
     {
         // Set some surface params.
         {
-            m_ImplicitSphereSurface.setOffsetFrame(Transf{
-                Vector3{-7., 0.1, 0.1}
-            });
-            m_ImplicitSphereSurface.setRadius(0.75);
-
-            m_ImplicitEllipsoidSurface.setOffsetFrame(Transf{
-                Vector3{-5., 0.1, 0.1}
-            });
-            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.);
+            m_ImplicitEllipsoidSurface.setRadii(1., 3.0, 0.5);
             m_ImplicitEllipsoidSurface.setLocalPathStartGuess({-1., 1., 1});
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
-                Vector3{-3., 0., 0.1}
+                Vector3{-4., 0., 0.1}
             });
             m_ImplicitCylinderSurface.setRadius(0.75);
+            m_ImplicitCylinderSurface.setLocalPathStartGuess({-1., 1., 1});
+
+            m_AnalyticSphereSurface.setOffsetFrame(Transf{
+                Vector3{-4., -2., 0.}
+            });
+            m_AnalyticSphereSurface.setRadius(1.);
+            m_AnalyticSphereSurface.setLocalPathStartGuess({-1., 0., -1});
+
+            m_ImplicitSphereSurface.setOffsetFrame(Transf{
+                Vector3{-4., -2., 0.}
+            });
+            m_ImplicitSphereSurface.setRadius(1.);
+            m_ImplicitSphereSurface.setLocalPathStartGuess({-1., 0., -1});
         }
 
         // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
-        /* { */
-            /* m_ImplicitCylinderSurface.doSelfTests("ImplicitCylinderSurface"); */
+        if(false)
+        {
             /* m_AnalyticCylinderSurface.doSelfTests("AnalyticCylinderSurface"); */
-            /* m_ImplicitEllipsoidSurface.doSelfTests( "ImplicitEllipsoidSurface", 1e-3); */
+            m_ImplicitEllipsoidSurface.doSelfTests( "ImplicitEllipsoidSurface", 5e-3);
+            m_ImplicitCylinderSurface.doSelfTests("ImplicitCylinderSurface");
             /* m_ImplicitSphereSurface.doSelfTests("ImplicitSphereSurface"); */
-            /* m_AnalyticSphereSurface.doSelfTests("AnalyticSphereSurface"); */
+            m_AnalyticSphereSurface.doSelfTests("AnalyticSphereSurface");
             /* m_ImplicitSphereSurface.doSelfTests(); */
-        /* } */
+        }
 
         // Choose wrapping terminal points.
         {
-            m_StartPoint                     = {-7., -3, 0.};
-            m_EndPoint.radius                = 2.5;
+            m_StartPoint                     = {0., -7, 0.25};
+            m_EndPoint.radius                = 4.;
         }
 
         // Initialize the wrapping path.
