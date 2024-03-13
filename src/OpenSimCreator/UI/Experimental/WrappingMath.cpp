@@ -1486,27 +1486,27 @@ GeodesicCorrection calcClamped(
 
 void PathContinuityError::resize(size_t nSurfaces)
 {
-    resize(NUMBER_OF_CONSTRAINTS * nSurfaces, 4 * nSurfaces);
-}
+    constexpr size_t C = NUMBER_OF_CONSTRAINTS;
+    constexpr size_t Q = GEODESIC_DIM;
+    const size_t n = nSurfaces;
 
-void PathContinuityError::resize(size_t rows, size_t cols)
-{
-    _pathError.resize(rows);
-    _solverError.resize(rows);
-    _pathCorrections.resize(cols);
-    _pathErrorJacobian.resize(rows, cols);
+    _pathError.resize(n * C);
+    _solverError.resize(n * Q);
+    _pathCorrections.resize(n * Q);
+    _pathErrorJacobian.resize(n * C, n * Q);
 
-    _mat.resize(rows, cols);
-    _vec.resize(cols);
+    _mat.resize(n * Q, n * Q);
+    _vec.resize(n * Q);
 
     // Reset values.
     _pathCorrections.fill(NAN);
     _pathError.fill(NAN);
+    _solverError.fill(NAN);
+    _vec.fill(NAN);
+
     // Fill with zeros because it is sparse.
     _pathErrorJacobian.fill(0.);
-
     _mat.fill(0.);
-    _vec.fill(NAN);
 }
 
 Eigen::VectorXd& PathContinuityError::updPathError()
