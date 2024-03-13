@@ -2128,22 +2128,25 @@ size_t Surface::calcUpdatedWrappingPath(
     /* std::cout << "START WrapSolver::calcPath\n"; */
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
 
+        const ptrdiff_t nTouchdown = countActive(path.segments);
 
+
+        if (nTouchdown > 0) {
         // Fill the path error jacobian.
-        std::cout << "Calc Patherror Jacobian" << std::endl;
-        const ptrdiff_t nTouchdown = calcPathErrorJacobian(path);
-
-        // Process the path errors.
-        // TODO handle failing to invert jacobian.
-        std::cout << "Calc path error correction" << std::endl;
-        setStatusFlag(path.status, WrappingPath::Status::FailedToInvertJacobian, !(path.smoothness.calcPathCorrection()));
-        std::cout << "    ===== ERRR ==== = " << path.smoothness.calcMaxPathError() << "\n";
-        std::cout << "    ===== CORR ==== = " << path.smoothness.calcMaxCorrectionStep() << "\n";
+        /* std::cout << "Calc Patherror Jacobian" << std::endl; */
+        calcPathErrorJacobian(path);
+        /* std::cout << "    ===== ERRR ==== = " << path.smoothness.calcMaxPathError() << "\n"; */
 
         if (path.smoothness.calcMaxPathError() < eps) {
             /* std::cout << "   Wrapping path solved in " << loopIter << "steps\n"; */
             return loopIter;
         }
+
+        // Process the path errors.
+        // TODO handle failing to invert jacobian.
+        /* std::cout << "Calc path error correction" << std::endl; */
+        setStatusFlag(path.status, WrappingPath::Status::FailedToInvertJacobian, !(path.smoothness.calcPathCorrection()));
+        /* std::cout << "    ===== CORR ==== = " << path.smoothness.calcMaxCorrectionStep() << "\n"; */
 
         // Obtain the computed geodesic corrections from the path errors.
         const GeodesicCorrection* corrIt  = path.smoothness.begin();
@@ -2177,6 +2180,7 @@ size_t Surface::calcUpdatedWrappingPath(
             }
 
             ++corrIt;
+        }
         }
 
         /* size_t idx = 0; */
