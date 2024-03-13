@@ -903,10 +903,10 @@ bool calcTouchdown(
         // TODO use inf norm.
         const double err = diff.norm();
         std::cout << "err = " << err << std::endl;
-        if (err < eps) {
-        std::cout << "touchdown complete = " << q.position.transpose() << ",    " << q.velocity.transpose()  << std::endl;
+        /* if (err < eps) { */
+        /* std::cout << "touchdown complete = " << q.position.transpose() << ",    " << q.velocity.transpose()  << std::endl; */
             return true;
-        }
+        /* } */
     }
 
     return false;
