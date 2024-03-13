@@ -2041,7 +2041,7 @@ void calcSegmentPathErrorJacobian(
     const double l = (K.position - point).norm();
     const Vector3 e = (K.position - point) / l;
 
-    const size_t col = (row / GEODESIC_DIM) * GEODESIC_DIM;
+    const size_t col = (row / PathContinuityError::NUMBER_OF_CONSTRAINTS) * GEODESIC_DIM;
 
     auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m)
     {
@@ -2133,9 +2133,8 @@ size_t calcPathErrorJacobian(WrappingPath& path)
                     next < 0 ? path.endPoint : path.segments.at(next).start.position,
                     path.smoothness.updPathError(),
                     path.smoothness.updPathErrorJacobian(),
-                    row, col, false);
+                    row);
         }
-        col += GEODESIC_DIM;
     }
     /* std::cout << "    pathError=" << path.smoothness.updPathError().transpose() << "\n"; */
     /* std::cout << "    pathErrorJcobian=\n" << path.smoothness.updPathErrorJacobian() << "\n"; */

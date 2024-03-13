@@ -556,7 +556,7 @@ namespace osc
         // surfaces).
         void resize(size_t rows, size_t cols);
 
-        static const size_t NUMBER_OF_CONSTRAINTS=6;
+        static const size_t NUMBER_OF_CONSTRAINTS=4;
 
         void resize(size_t nSurfaces);
 
