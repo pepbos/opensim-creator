@@ -1621,11 +1621,7 @@ bool PathContinuityError::calcPathCorrection()
     }
     /* std::cout << "solverCorr =\n" << _pathCorrections << std::endl; */
 
-    _solverError = _pathErrorJacobian.transpose()
-                   * (_mat * _pathCorrections + _vec);
-    /* std::cout << "solverError =\n" << _solverError << std::endl; */
-    std::cout << "_mat =\n" << _mat << std::endl;
-    std::cout << "_vec =\n" << _vec << std::endl;
+    _solverError = _mat * _pathCorrections + _vec;
     return _solverError.norm() < _eps;
 }
 
