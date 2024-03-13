@@ -1997,44 +1997,6 @@ size_t countActive(const std::vector<Geodesic>& segments)
     return count;
 }
 
-void calcPathErrorElementAndJacobian(
-    const Geodesic::BoundaryState* KQ_prev,
-    const Geodesic::BoundaryState& K,
-    const Geodesic::BoundaryState* KP_next,
-    const Vector3& e, // Line segment direction
-    double l, // line segment length
-    const Vector3& m, // Normal or binormal direction
-    Eigen::VectorXd& pathError,
-    Eigen::MatrixXd& pathErrorJacobian,
-    size_t row,
-    size_t col)
-{
-    static constexpr size_t DIM = GEODESIC_DIM;
-
-    pathError[row] = e.dot(m);
-
-    const Vector3 de = (m - e * e.dot(m)) / l;
-
-    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
-        const Vector3& w = K.w.at(i);
-        // TODO store in inertial frame.
-        const Vector3 dm = (w[0] * K.frame.t + w[1] * K.frame.n + w[2] * K.frame.b).cross(m);
-
-        pathErrorJacobian(row, col) = de.dot(K.v.at(i)) + e.dot(dm);
-
-        // Check if other end was connected to a geodesic.
-        if (KQ_prev) {
-            // Jacobian of path error to previous geodesic variation.
-            pathErrorJacobian(row, col - DIM + i) = -de.dot(KQ_prev->v.at(i));
-        }
-
-        if (KP_next) {
-            // Jacobian of path error to next geodesic variation.
-            pathErrorJacobian(row, col + DIM + i) = -de.dot(KP_next->v.at(i));
-        }
-    }
-}
-
 void calcSegmentPathErrorJacobian(
     const Geodesic::BoundaryState* KQ_prev,
     const Geodesic::BoundaryState& K,
