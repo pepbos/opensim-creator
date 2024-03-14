@@ -1518,21 +1518,25 @@ void PathContinuityError::resize(size_t nSurfaces)
 {
     constexpr size_t C = NUMBER_OF_CONSTRAINTS;
     constexpr size_t Q = GEODESIC_DIM;
-    const size_t n = nSurfaces;
+    const size_t n = _nSurfaces = nSurfaces;
 
     _pathError.resize(n * C);
     _solverError.resize(n * Q);
-    _pathCorrections.resize(n * Q);
     _pathErrorJacobian.resize(n * C, n * Q);
 
-    _mat.resize(n * Q, n * Q);
-    _vec.resize(n * Q);
+    _mat.resize(n * (Q+C), n * (Q+C));
+    _vec.resize(n * (Q+C));
+    _pathCorrections.resize(_mat.cols());
+
+    _length = 0.;
+    _lengthJacobian.resize(n * Q);
 
     // Reset values.
     _pathCorrections.fill(NAN);
     _pathError.fill(NAN);
     _solverError.fill(NAN);
     _vec.fill(NAN);
+    _lengthJacobian.fill(0.);
 
     // Fill with zeros because it is sparse.
     _pathErrorJacobian.fill(0.);
@@ -1571,14 +1575,16 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
 {
 
     static constexpr double PI = M_PI;
-    const double cap           = sin(maxAngleDegrees / 180. * PI);
+    const double cap           = 1. - cos(maxAngleDegrees / 180. * PI);
+
+    std::cout << "before pathError =" << pathError.transpose() << std::endl;
 
     for (int r = 0; r < pathError.rows(); ++r) {
         double& err = pathError[r];
         err         = (std::abs(err) > cap) ? err / std::abs(err) * cap : err;
     }
 
-    /* std::cout << "pathError =\n" << pathError << std::endl; */
+    std::cout << "after pathError =" << pathError.transpose() << std::endl;
 }
 
 ptrdiff_t findPrevSegmentIndex(
@@ -1627,19 +1633,44 @@ Vector3 findNextSegmentStartPoint(
 bool PathContinuityError::calcPathCorrection()
 {
     // TODO Clamp the path error?
-    /* clampPathError(_pathError, _maxAngleDegrees); */
-    /* std::cout << "_pathError =\n" << _pathError << std::endl; */
-    /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
+    clampPathError(_pathError, 5.);
+    std::cout << "\n";
+    std::cout << "_pathError =" << _pathError.transpose() << std::endl;
+    std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl;
 
-    const double weight = calcMaxPathError() / 2.;
+    std::cout << "_lengthJacobian =" << _lengthJacobian.transpose() << std::endl;
+    std::cout << "_length =" << _length << std::endl;
 
-    size_t n = _pathCorrections.rows();
+    const double weight = calcMaxPathError() / 2. + 1e-4;
+    const double weightLength = 1./_length * 1e-4;
+    std::cout << "weight =" << weight << std::endl;
 
-    _mat.setIdentity(n, n);
-    _mat *= weight;
-    _mat += _pathErrorJacobian.transpose() * _pathErrorJacobian;
+    /* _mat = _pathErrorJacobian * _pathErrorJacobian.transpose(); */
+    /* _pathCorrections = -_pathErrorJacobian.transpose() * _mat.colPivHouseholderQr().solve(_pathError); */
+    /* _solverError = _pathErrorJacobian * _pathCorrections + _pathError; */
 
-    _vec = _pathErrorJacobian.transpose()  * _pathError;
+    const size_t n = _nSurfaces;
+    constexpr size_t Q = GEODESIC_DIM;
+    constexpr size_t C = NUMBER_OF_CONSTRAINTS;
+
+    {
+        for (size_t i = 0; i < n * Q; ++i) {
+            /* _mat(i,i) = ((i % GEODESIC_DIM) == 3) ? 0. : weight; */
+            _mat(i,i) = 1.;
+        }
+        _mat.topLeftCorner(n * Q, n * Q) += _lengthJacobian * _lengthJacobian.transpose() * weightLength;
+        _vec.topRows(n * Q) = _lengthJacobian * _length * weightLength;
+    }
+
+    {
+        _mat.bottomLeftCorner(n * C, n * Q) = _pathErrorJacobian;
+        _mat.topRightCorner(n * Q, n * C) = _pathErrorJacobian.transpose();
+
+        _vec.bottomRows(n * C) = _pathError;
+    }
+
+    std::cout << "_vec =" << _vec.transpose() << std::endl;
+    std::cout << "_mat =\n" << _mat << std::endl;
 
     // Compute singular value decomposition. TODO or other decomposition?
     constexpr bool useSvd = false;
@@ -1649,9 +1680,12 @@ bool PathContinuityError::calcPathCorrection()
     } else {
         _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec);
     }
-    /* std::cout << "solverCorr =\n" << _pathCorrections << std::endl; */
+    std::cout << "solverCorr = " << _pathCorrections.transpose() << std::endl;
 
     _solverError = _mat * _pathCorrections + _vec;
+    std::cout << "_solverError = " << _solverError.transpose() << std::endl;
+
+    /* throw std::runtime_error("stop"); */
     return _solverError.norm() < _eps;
 }
 
@@ -1662,7 +1696,7 @@ const GeodesicCorrection* PathContinuityError::begin() const
 
 const GeodesicCorrection* PathContinuityError::end() const
 {
-    return begin() + _pathCorrections.rows() / 4;
+    return begin() + _nSurfaces;
 }
 
 //==============================================================================
@@ -1706,175 +1740,6 @@ Vector3 calcTangentDerivative(const DarbouxFrame& frame, const Vector3& rate)
     }
 
     return tDot;
-}
-
-double calcPathErrorJacobian(
-    const Geodesic::BoundaryState& s0,
-    const Vector3& position,
-    Eigen::VectorXd& pathError,
-    Eigen::MatrixXd& pathErrorJacobian,
-    size_t idx)
-{
-    // Compute the length of the straight line segment.
-    const Vector3 d = position - s0.position;
-    const double l  = d.norm(); // segment length.
-
-    // Define the error as the direction from surface to point.
-    const Vector3 e = d / l;
-
-    // Fill the correct row of the path-error-vector and path-error-jacobian:
-    // The first straight line segment will add two constraints, and each
-    // following segment will add 4 constraints.
-    // We therefore start at row:
-    size_t row = idx * 4 + 2;
-
-    // Normal and binormal of surface.
-    const Vector3& N0 = s0.frame.n;
-    const Vector3& B0 = s0.frame.b;
-
-    // Compute path error as projection of error vector onto the normal and
-    // binormal.
-    pathError[row]     = e.dot(N0);
-    pathError[row + 1] = e.dot(B0);
-
-    for (size_t i = 0; i < 4; ++i) {
-        // Linear variation of position given ith natural geodesic variation.
-        const Vector3 v0 = s0.v.at(i);
-
-        // Angular variation of frame given ith natural geodesic variation.
-        const Vector3 w0 = s0.w.at(i);
-
-        // Frame variation given angular variation.
-        const Vector3 dN0 = calcNormalDerivative(s0.frame, w0);
-        const Vector3 dB0 = calcBinormalDerivative(s0.frame, w0);
-
-        // Variation of error vector.
-        const Vector3 de0 = -(v0 - e * e.dot(v0)) / l;
-
-        // Variation of path error values.
-        const size_t col                = idx * 4 + i;
-        pathErrorJacobian(row, col)     = de0.dot(N0) + e.dot(dN0);
-        pathErrorJacobian(row + 1, col) = de0.dot(B0) + e.dot(dB0);
-        /* std::cout << "    pathErrorJcobian[" << row <<"," << i << "] = " <<
-         * pathErrorJacobian(row, i) << "\n"; */
-    }
-
-    // Return the length of the straight line segment.
-    return l;
-}
-
-double calcPathErrorJacobian(
-    const Vector3& position,
-    const Geodesic::BoundaryState& s1,
-    Eigen::VectorXd& pathError,
-    Eigen::MatrixXd& pathErrorJacobian)
-{
-    /* std::cout << "\n"; */
-    /* std::cout << "START calcPathErrorJacobian (start)\n"; */
-    /* std::cout << "    p0 = " << Print3{position} << "\n"; */
-    /* std::cout << "    s1 = " << s1 << "\n"; */
-
-    const double l  = (s1.position - position).norm();
-    const Vector3 e = (s1.position - position) / l;
-
-    /* std::cout << "    l0 = " << l << "\n"; */
-    /* std::cout << "    e0 = " << Print3{e} << "\n"; */
-    /* std::cout << "    t1 = " << Print3{s1.frame.t} << "\n"; */
-
-    const Vector3 N1 = s1.frame.n;
-    const Vector3 B1 = s1.frame.b;
-
-    // Compute path error.
-    pathError[0] = e.dot(N1);
-    pathError[1] = e.dot(B1);
-    /* std::cout << "    eN1 = " << pathError[0] << "\n"; */
-    /* std::cout << "    eB1 = " << pathError[1] << "\n"; */
-
-    // Compute jacobian to natural geodesic variation.
-    for (size_t i = 0; i < 4; ++i) {
-        const Vector3 v1    = s1.v.at(i);
-        const Vector3 n1Dot = calcNormalDerivative(s1.frame, s1.w.at(i));
-        const Vector3 b1Dot = calcBinormalDerivative(s1.frame, s1.w.at(i));
-
-        const Vector3 de1 = (v1 - e * e.dot(v1)) / l;
-
-        pathErrorJacobian(0, i) = de1.dot(N1) + e.dot(n1Dot);
-        pathErrorJacobian(1, i) = de1.dot(B1) + e.dot(b1Dot);
-
-        /* std::cout << "        J0" */
-        /*           << "," << i << " = " << pathErrorJacobian(0, i) << "\n"; */
-        /* std::cout << "        J1" */
-        /*           << "," << i << " = " << pathErrorJacobian(1, i) << "\n"; */
-    }
-
-    /* std::cout << "\n"; */
-    return l;
-}
-
-double calcPathErrorJacobian(
-    const Geodesic::BoundaryState& s0,
-    const Geodesic::BoundaryState& s1,
-    Eigen::VectorXd& pathError,
-    Eigen::MatrixXd& pathErrorJacobian,
-    size_t idx0)
-{
-    Vector3 e      = s1.position - s0.position;
-    const double l = e.norm();
-    e              = e / l;
-
-    const Vector3& N0 = s0.frame.n;
-    const Vector3& B0 = s0.frame.b;
-
-    const Vector3& N1 = s1.frame.n;
-    const Vector3& B1 = s1.frame.b;
-
-    size_t row = idx0 * 4 + 2;
-
-    // Compute path error.
-    pathError[row]     = e.dot(N0);
-    pathError[row + 1] = e.dot(B0);
-
-    pathError[row + 2] = e.dot(N1);
-    pathError[row + 3] = e.dot(B1);
-
-    /* std::cout << "    pathError = " << row << "\n"; */
-
-    // Compute jacobian to natural geodesic variation.
-    for (size_t i = 0; i < 4; ++i) {
-        const size_t col = idx0 * 4 + i;
-        const Vector3 v0 = s0.v.at(i);
-        const Vector3 v1 = s1.v.at(i);
-
-        const Vector3 w0 = s0.w.at(i);
-        const Vector3 w1 = s1.w.at(i);
-
-        const Vector3 dN0 = calcNormalDerivative(s0.frame, w0);
-        const Vector3 dB0 = calcBinormalDerivative(s0.frame, w0);
-
-        const Vector3 dN1 = calcNormalDerivative(s1.frame, w1);
-        const Vector3 dB1 = calcBinormalDerivative(s1.frame, w1);
-
-        const Vector3 de0 = -(v0 - e * e.dot(v0)) / l;
-        const Vector3 de1 = (v1 - e * e.dot(v1)) / l;
-
-        {
-            pathErrorJacobian(row, col)     = de0.dot(N0) + e.dot(dN0);
-            pathErrorJacobian(row + 1, col) = de0.dot(B0) + e.dot(dB0);
-
-            pathErrorJacobian(row, col + 4)     = de1.dot(N0);
-            pathErrorJacobian(row + 1, col + 4) = de1.dot(B0);
-        }
-
-        {
-            pathErrorJacobian(row + 2, col) = de0.dot(N1);
-            pathErrorJacobian(row + 3, col) = de0.dot(B1);
-
-            pathErrorJacobian(row + 2, col + 4) = de1.dot(N1) + e.dot(dN1);
-            pathErrorJacobian(row + 3, col + 4) = de1.dot(B1) + e.dot(dB1);
-        }
-    }
-
-    return l;
 }
 
 // TODO reuse existin functions.
@@ -2027,6 +1892,11 @@ size_t countActive(const std::vector<Geodesic>& segments)
     return count;
 }
 
+double sign(double x)
+{
+    return static_cast<double>(x > 0.) - static_cast<double>(x < 0.);
+}
+
 void calcSegmentPathErrorJacobian(
     const Geodesic::BoundaryState* KQ_prev,
     const Geodesic::BoundaryState& K,
@@ -2034,7 +1904,9 @@ void calcSegmentPathErrorJacobian(
     const Vector3& point,
     Eigen::VectorXd& pathError,
     Eigen::MatrixXd& pathErrorJacobian,
-    size_t& row)
+    double& length,
+    Eigen::VectorXd& lengthJacobian,
+    size_t& row, bool isFirst)
 {
     constexpr size_t DIM = GEODESIC_DIM;
 
@@ -2043,19 +1915,38 @@ void calcSegmentPathErrorJacobian(
 
     const size_t col = (row / PathContinuityError::NUMBER_OF_CONSTRAINTS) * GEODESIC_DIM;
 
+    std::cout << "row = " << row << "\n";
+    std::cout << "col = " << col << "\n";
+    std::cout << "prev = " << KQ_prev << "\n";
+    std::cout << "next = " << KP_next << "\n";
+    // Update the path length.
+    length += l;
+
+    // Update path length jacobian.
+    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+        /* std::cout << "setting length jacobian index " << col + i  << "\n"; */
+        lengthJacobian(col + i) += e.dot(K.v.at(i));
+        if (KQ_prev) {
+            lengthJacobian(col - DIM + i) += -e.dot(KQ_prev->v.at(i));
+        }
+        if (KP_next) {
+            lengthJacobian(col + DIM + i) += -e.dot(KP_next->v.at(i));
+        }
+    }
+    std::cout << "    l =" << l << "\n";
+    std::cout << "    lengthJacobian =" << lengthJacobian.transpose() << "\n";
+
     auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m)
     {
-        /* std::cout << "    (row, col)= (" << row << ", " <<  col << ")\n"; */
-        pathError[row] = e.dot(m);
+
+        const double y = isFirst ? -1. : 1.;
+        pathError[row] = e.dot(m) + y;
 
         const Vector3 de = (m - e * e.dot(m)) / l;
 
         for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+
             const Vector3& w = K.w.at(i);
-            if (row ==0) {
-                /* std::cout << "wi = " << w.transpose() << "\n"; */
-                /* std::cout << "vi = " << K.v.at(i).transpose() << "\n"; */
-            }
             // TODO store in inertial frame.
             const Vector3 dm = (w[0] * K.frame.t + w[1] * K.frame.n + w[2] * K.frame.b).cross(m);
 
@@ -2063,31 +1954,21 @@ void calcSegmentPathErrorJacobian(
 
             // Check if other end was connected to a geodesic.
             if (KQ_prev) {
-                // Jacobian of path error to previous geodesic variation.
-                /* std::cout << "triggering prev\n"; */
-                /* std::cout << "prev vi = " << KQ_prev->v.at(i).transpose() << "\n"; */
                 pathErrorJacobian(row, col - DIM + i) = -de.dot(KQ_prev->v.at(i));
             }
 
             if (KP_next) {
-                // Jacobian of path error to next geodesic variation.
-                /* std::cout << "triggering next\n"; */
                 pathErrorJacobian(row, col + DIM + i) = -de.dot(KP_next->v.at(i));
             }
         }
+
         ++row;
-    /* std::cout << "STOP\n"; */
-    /* std::cout << "    point =" << point.transpose() << "\n"; */
-    /* std::cout << "    dim =" << GEODESIC_DIM << "\n"; */
-    /* std::cout << "    l =" << l << "\n"; */
-    /* std::cout << "    m =" << m.transpose() << "\n"; */
-    /* std::cout << "    K.p =" << K.position.transpose() << "\n"; */
-    /* std::cout << "    pathError=" << pathError.transpose() << "\n"; */
-    /* std::cout << "    pathErrorJcobian=\n" << pathErrorJacobian << "\n"; */
+    std::cout << "    pathError=" << pathError.transpose() << "\n";
+    std::cout << "    pathErrorJcobian=\n" << pathErrorJacobian << "\n";
     };
 
-    UpdatePathErrorElementAndJacobian(K.frame.n);
-    UpdatePathErrorElementAndJacobian(K.frame.b);
+    UpdatePathErrorElementAndJacobian(K.frame.t);
+    /* UpdatePathErrorElementAndJacobian(K.frame.b); */
 }
 
 size_t calcPathErrorJacobian(WrappingPath& path)
@@ -2121,7 +2002,9 @@ size_t calcPathErrorJacobian(WrappingPath& path)
                     prev < 0 ? path.startPoint : path.segments.at(prev).end.position,
                     path.smoothness.updPathError(),
                     path.smoothness.updPathErrorJacobian(),
-                    row);
+                    path.smoothness._length,
+                    path.smoothness._lengthJacobian,
+                    row, true);
         }
 
         {
@@ -2133,8 +2016,13 @@ size_t calcPathErrorJacobian(WrappingPath& path)
                     next < 0 ? path.endPoint : path.segments.at(next).start.position,
                     path.smoothness.updPathError(),
                     path.smoothness.updPathErrorJacobian(),
-                    row);
+                    path.smoothness._length,
+                    path.smoothness._lengthJacobian,
+                    row, false);
         }
+
+        path.smoothness._length += std::abs(s.length);
+        path.smoothness._lengthJacobian(row + 3) += sign(s.length);
     }
     /* std::cout << "    pathError=" << path.smoothness.updPathError().transpose() << "\n"; */
     /* std::cout << "    pathErrorJcobian=\n" << path.smoothness.updPathErrorJacobian() << "\n"; */

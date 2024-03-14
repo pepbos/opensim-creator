@@ -530,7 +530,7 @@ public:
     // surfaces).
     void resize(size_t rows, size_t cols);
 
-    static const size_t NUMBER_OF_CONSTRAINTS = 4;
+    static const size_t NUMBER_OF_CONSTRAINTS = 2;
 
     void resize(size_t nSurfaces);
 
@@ -544,6 +544,9 @@ public:
 
     Eigen::MatrixXd _mat;
     Eigen::VectorXd _vec;
+
+    double _length = 0.;
+    Eigen::VectorXd _lengthJacobian;
 
     Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
     size_t _nSurfaces = 0;
