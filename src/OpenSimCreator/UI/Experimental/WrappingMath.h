@@ -543,6 +543,7 @@ public:
     Eigen::MatrixXd _pathErrorJacobian;
 
     Eigen::MatrixXd _mat;
+    Eigen::MatrixXd _matSmall;
     Eigen::VectorXd _vec;
 
     double _length = 0.;

@@ -101,9 +101,9 @@ class osc::WrappingTab::Impl final : public StandardTabImpl
     const Surface* getWrapSurfaceHelper(size_t i)
     {
         switch (i) {
-            case 0: return &m_ImplicitSphereSurface;
-            case 1: return &m_ImplicitCylinderSurface;
-            case 2: return &m_ImplicitEllipsoidSurface;
+            /* case 0: return &m_ImplicitSphereSurface; */
+            /* case 1: return &m_ImplicitCylinderSurface; */
+            case 0: return &m_ImplicitEllipsoidSurface;
             default: return nullptr;
         }
     }
