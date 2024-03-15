@@ -770,23 +770,22 @@ calcLocalImplicitGeodesic(
         std::move(velocityInit)};
     calcFastSurfaceProjection(s, xStart.position, xStart.velocity);
 
-    double l  = 0.;
-    double dl = length / static_cast<double>(steps);
-    /* std::cout << "ImplicitSurface::calcLocalGeodesic" << std::endl; */
     ImplicitGeodesicState xEnd(xStart);
-    /* std::cout << "    xStart = " << xEnd << std::endl; */
-
     Monitor(xEnd);
 
-    // For unit testing.
-    if (length != 0.) {
-        for (size_t k = 0; k < steps; ++k) {
-            RungeKutta4(s, xEnd, l, dl);
+    if (length <= 0.) {
+        return {xStart, xEnd};
+    }
 
-            calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity);
+    double l  = 0.;
+    double dl = length / static_cast<double>(steps);
 
-            Monitor(xEnd);
-        }
+    for (size_t k = 0; k < steps; ++k) {
+        RungeKutta4(s, xEnd, l, dl);
+
+        calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity);
+
+        Monitor(xEnd);
     }
 
     AssertEq(
