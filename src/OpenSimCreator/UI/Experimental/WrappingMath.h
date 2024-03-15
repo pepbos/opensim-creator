@@ -57,8 +57,8 @@ struct Geodesic
     {
         Ok                             = 0,
         InitialTangentParallelToNormal = 1, // TODO
-        StartPointInsideSurface        = 2, // TODO
-        EndPointInsideSurface          = 4, // TODO
+        PrevLineSegmentInsideSurface        = 2, // TODO
+        NextLineSegmentInsideSurface          = 4, // TODO
         NegativeLength                 = 8,
         LiftOff                        = 16, // TODO
         TouchDownFailed                = 32, // TODO
@@ -121,19 +121,30 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s);
 
 inline Geodesic::Status operator|(Geodesic::Status lhs, Geodesic::Status rhs)
 {
+    using T = std::underlying_type_t<Geodesic::Status>;
     return static_cast<Geodesic::Status>(
-        static_cast<int>(lhs) | static_cast<int>(rhs));
+        static_cast<T>(lhs) | static_cast<T>(rhs));
 }
 
 inline Geodesic::Status operator&(Geodesic::Status lhs, Geodesic::Status rhs)
 {
+    using T = std::underlying_type_t<Geodesic::Status>;
     return static_cast<Geodesic::Status>(
-        static_cast<int>(lhs) & static_cast<int>(rhs));
+        static_cast<T>(lhs) & static_cast<T>(rhs));
 }
 
 inline Geodesic::Status operator~(Geodesic::Status s)
 {
-    return static_cast<Geodesic::Status>(~static_cast<int>(s));
+    using T = std::underlying_type_t<Geodesic::Status>;
+    return static_cast<Geodesic::Status>(~static_cast<T>(s));
+}
+
+inline Geodesic::Status& operator|=(Geodesic::Status& lhs, Geodesic::Status rhs)
+{
+    using T = std::underlying_type_t<Geodesic::Status>;
+    lhs = static_cast<Geodesic::Status>(
+        static_cast<T>(lhs) | static_cast<T>(rhs));
+    return lhs;
 }
 
 //==============================================================================
@@ -205,6 +216,8 @@ public:
 
     void setLocalPathStartGuess(Vector3 pathStartGuess);
 
+    bool isAboveSurface(Vector3 point, double bound) const;
+
 private:
     virtual Geodesic calcLocalGeodesicImpl(
         Vector3 initPosition,
@@ -213,7 +226,7 @@ private:
         Vector3 pointBefore,
         Vector3 pointAfter) const = 0;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const = 0;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
 
     // TODO Move this to an actual testing framework.
     virtual std::vector<Vector3> makeSelfTestPoints() const;
@@ -321,7 +334,7 @@ private:
     Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const override;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -359,7 +372,7 @@ private:
     Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const override;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -397,7 +410,7 @@ private:
         Vector3 pointBefore,
         Vector3 pointAfter) const override;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const override;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -436,7 +449,7 @@ private:
     Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const override;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -474,7 +487,7 @@ private:
         Vector3 pointBefore,
         Vector3 pointAfter) const override;
 
-    virtual bool isAboveSurface(Vector3 point, double bound) const override;
+    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {

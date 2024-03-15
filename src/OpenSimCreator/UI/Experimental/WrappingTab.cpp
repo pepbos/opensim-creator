@@ -230,8 +230,8 @@ private:
         bool error = m_WrappingPath.status > 0;
         for (const Geodesic& s: m_WrappingPath.segments) {
             error |= (s.status & Geodesic::Status::InitialTangentParallelToNormal) > 0;
-            error |= (s.status & Geodesic::Status::StartPointInsideSurface) > 0;
-            error |= (s.status & Geodesic::Status::EndPointInsideSurface) > 0;
+            error |= (s.status & Geodesic::Status::PrevLineSegmentInsideSurface) > 0;
+            error |= (s.status & Geodesic::Status::NextLineSegmentInsideSurface) > 0;
             /* error |= (s.status & Geodesic::Status::NegativeLength) > 0; */
             /* error |= (s.status & Geodesic::Status::LiftOff) > 0; */
             error |= (s.status & Geodesic::Status::TouchDownFailed) > 0;

@@ -79,12 +79,12 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
         os << delim << "InitialTangentParallelToNormal";
         delim = ", ";
     }
-    if (s & Geodesic::Status::StartPointInsideSurface) {
-        os << delim << "StartPointInsideSurface";
+    if (s & Geodesic::Status::PrevLineSegmentInsideSurface) {
+        os << delim << "PrevLineSegmentInsideSurface";
         delim = ", ";
     }
-    if (s & Geodesic::Status::EndPointInsideSurface) {
-        os << delim << "EndPointInsideSurface";
+    if (s & Geodesic::Status::NextLineSegmentInsideSurface) {
+        os << delim << "NextLineSegmentInsideSurface";
         delim = ", ";
     }
     if (s & Geodesic::Status::NegativeLength) {
@@ -252,36 +252,6 @@ bool AssertEq(
  * eps; */
 /*     return AssertEq(lhs, rhs, msg, os, bound); */
 /* } */
-
-} // namespace
-
-//==============================================================================
-//                      STATUS FLAGS
-//==============================================================================
-
-namespace
-{
-using GS = Geodesic::Status;
-
-void setStatusFlag(GS& current, GS flag, bool value = true)
-{
-    if (value) {
-        current = current | flag;
-    } else {
-        current = current & ~flag;
-    }
-}
-
-using WS = WrappingPath::Status;
-
-void setStatusFlag(WS& current, WS flag, bool value = true)
-{
-    if (value) {
-        current = current | flag;
-    } else {
-        current = current & ~flag;
-    }
-}
 
 } // namespace
 
@@ -563,8 +533,57 @@ Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
 };
 
 //==============================================================================
+//                      GEODESIC STATUS FLAGS
+//==============================================================================
+
+namespace
+{
+    using GS = Geodesic::Status;
+
+    GS isPrevOrNextLineSegmentInsideSurface(
+            const Surface& surface,
+            Vector3 prevPoint,
+            Vector3 nextPoint)
+    {
+        GS a = surface.isAboveSurface(std::move(prevPoint), Surface::MIN_DIST_FROM_SURF)
+            ? GS::Ok
+            : GS::PrevLineSegmentInsideSurface;
+
+        GS b = surface.isAboveSurface(std::move(nextPoint), Surface::MIN_DIST_FROM_SURF)
+            ? GS::Ok
+            : GS::NextLineSegmentInsideSurface;
+
+        return a | b;
+    }
+}
+
+//==============================================================================
+//                      WRAPPING STATUS FLAGS
+//==============================================================================
+
+namespace
+{
+using WS = WrappingPath::Status;
+
+void setStatusFlag(WS& current, WS flag, bool value = true)
+{
+    if (value) {
+        current = current | flag;
+    } else {
+        current = current & ~flag;
+    }
+}
+
+}
+
+//==============================================================================
 //                      SURFACE
 //==============================================================================
+
+bool Surface::isAboveSurface(Vector3 point, double bound) const
+{
+    return isAboveSurfaceImpl(point, bound);
+}
 
 Geodesic Surface::calcGeodesic(
     Vector3 initPosition,
@@ -581,22 +600,7 @@ Geodesic Surface::calcGeodesic(
     Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
 
     // Detect start or end points breaking the surface.
-    {
-        if (!isAboveSurface(prev, Surface::MIN_DIST_FROM_SURF)) {
-            setStatusFlag(
-                geodesic.status,
-                Geodesic::Status::StartPointInsideSurface,
-                true);
-        }
-    }
-    {
-        if (!isAboveSurface(next, Surface::MIN_DIST_FROM_SURF)) {
-            setStatusFlag(
-                geodesic.status,
-                Geodesic::Status::EndPointInsideSurface,
-                true);
-        }
-    }
+    geodesic.status |= isPrevOrNextLineSegmentInsideSurface(*this, pointBefore, pointAfter);
 
     calcGeodesicInGlobal(_transform, geodesic);
 
@@ -999,10 +1003,9 @@ Geodesic ImplicitSurface::calcLocalGeodesicImpl(
     bool negativeLength = length < 0.;
     length              = negativeLength ? 0. : length;
 
-    setStatusFlag(
-        geodesic.status,
-        Geodesic::Status::NegativeLength,
-        negativeLength);
+    if (negativeLength) {
+        geodesic.status |= Geodesic::Status::NegativeLength;
+    }
 
     bool liftoff = true;
 
@@ -1028,15 +1031,17 @@ Geodesic ImplicitSurface::calcLocalGeodesicImpl(
             _integratorSteps,
             Monitor);
 
-    setStatusFlag(geodesic.status, Geodesic::Status::LiftOff, liftoff);
+    if (liftoff) {
+        geodesic.status |= Geodesic::Status::LiftOff;
+    }
 
     geodesic.length = liftoff ? 0. : length;
 
     if (liftoff) {
-        setStatusFlag(
-            geodesic.status,
-            Geodesic::Status::TouchDownFailed,
-            !calcTouchdown(*this, out.first, pointBefore, pointAfter));
+        if(!calcTouchdown(*this, out.first, pointBefore, pointAfter))
+        {
+            geodesic.status |= Geodesic::Status::TouchDownFailed;
+        }
         geodesic.curveKnots.clear();
     }
 
@@ -1086,7 +1091,7 @@ Mat3x3 ImplicitEllipsoidSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     return hessian;
 }
 
-bool ImplicitEllipsoidSurface::isAboveSurface(Vector3 point, double bound) const
+bool ImplicitEllipsoidSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     point.x() /= (_xRadius + bound);
     point.y() /= (_yRadius + bound);
@@ -1120,7 +1125,7 @@ Mat3x3 ImplicitSphereSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     return hessian;
 }
 
-bool ImplicitSphereSurface::isAboveSurface(Vector3 point, double bound) const
+bool ImplicitSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     return point.dot(point) - (_radius + bound) * (_radius + bound) > 0.;
 }
@@ -1341,7 +1346,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     return {K_P, K_Q, length, std::move(curveKnots)};
 }
 
-bool AnalyticSphereSurface::isAboveSurface(Vector3 point, double bound) const
+bool AnalyticSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     return point.dot(point) - (_radius + bound) * (_radius + bound) > 0.;
 }
@@ -1372,7 +1377,7 @@ Mat3x3 ImplicitCylinderSurface::calcSurfaceConstraintHessianImpl(Vector3) const
     return hessian;
 }
 
-bool ImplicitCylinderSurface::isAboveSurface(Vector3 point, double bound) const
+bool ImplicitCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     const double radialDistance = point.x() * point.x() + point.y() * point.y();
     const double radialBound    = (_radius + bound) * (_radius + bound);
@@ -1519,7 +1524,7 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
     return {K_P, K_Q, length, std::move(curveKnots)};
 }
 
-bool AnalyticCylinderSurface::isAboveSurface(Vector3 point, double bound) const
+bool AnalyticCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     return point.x() * point.x() + point.y() * point.y() -
                (_radius + bound) * (_radius + bound) >
@@ -2188,6 +2193,7 @@ size_t Surface::calcUpdatedWrappingPath(
 
 namespace osc
 {
+
 std::vector<Vector3> Surface::makeSelfTestPoints() const
 {
     std::vector<Vector3> points;
