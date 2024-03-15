@@ -57,8 +57,8 @@ struct Geodesic
     {
         Ok                             = 0,
         InitialTangentParallelToNormal = 1, // TODO
-        PrevLineSegmentInsideSurface        = 2, // TODO
-        NextLineSegmentInsideSurface          = 4, // TODO
+        PrevLineSegmentInsideSurface   = 2, // TODO
+        NextLineSegmentInsideSurface   = 4, // TODO
         NegativeLength                 = 8,
         LiftOff                        = 16, // TODO
         TouchDownFailed                = 32, // TODO
@@ -71,6 +71,8 @@ struct Geodesic
         Vector3 velocity{NAN, NAN, NAN};
         double length = NAN;
     };
+
+    using Sample = std::pair<Vector3, DarbouxFrame>;
 
     struct BoundaryState
     {
@@ -110,7 +112,7 @@ struct Geodesic
     double length;
 
     // Points and frames along the geodesic (TODO keep in local frame).
-    std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
+    std::vector<Sample> samples;
 
     Status status = Status::Ok;
 };
@@ -187,6 +189,11 @@ public:
         return calcGeodesic(guess.position, guess.velocity, guess.length);
     }
 
+    Geodesic calcLocalGeodesic(
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length) const;
+
     Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) const;
 
     using GetSurfaceFn = std::function<const Surface*(size_t)>;
@@ -218,6 +225,8 @@ public:
 
     bool isAboveSurface(Vector3 point, double bound) const;
 
+    size_t calcAccurateLocalSurfaceProjection(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const;
+
 private:
     virtual Geodesic calcLocalGeodesicImpl(
         Vector3 initPosition,
@@ -225,6 +234,9 @@ private:
         double length,
         Vector3 pointBefore,
         Vector3 pointAfter) const = 0;
+
+    // Required for touchdown.
+    virtual size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const = 0;
 
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
 
@@ -294,6 +306,8 @@ private:
         double length,
         Vector3 pointBefore,
         Vector3 pointAfter) const override;
+
+    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
 
     // TODO would become obsolete with variable step integration.
     size_t _integratorSteps = 1000;
@@ -410,7 +424,9 @@ private:
         Vector3 pointBefore,
         Vector3 pointAfter) const override;
 
-    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+    bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+
+    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -449,7 +465,7 @@ private:
     Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
-    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+    bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -487,7 +503,9 @@ private:
         Vector3 pointBefore,
         Vector3 pointAfter) const override;
 
-    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+    bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+
+    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
 
     double selfTestEquivalentRadius() const override
     {

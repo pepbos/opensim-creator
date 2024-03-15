@@ -113,7 +113,7 @@ std::ostream& operator<<(std::ostream& os, const Geodesic& x)
     os << "    K_Q: " << x.end << ",\n";
     os << "    l: " << x.length << ",\n";
     os << "    s: " << x.status << ",\n";
-    os << "    nKnts: " << x.curveKnots.size();
+    os << "    nKnts: " << x.samples.size();
     return os << "}";
 }
 
@@ -500,7 +500,7 @@ void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic)
     calcBoundaryStateInGlobal(transform, geodesic.end);
 
     // TODO this is a bit wasteful.
-    for (std::pair<Vector3, DarbouxFrame>& knot : geodesic.curveKnots) {
+    for (std::pair<Vector3, DarbouxFrame>& knot : geodesic.samples) {
         knot.first = calcPointInGround(transform, knot.first);
         calcDarbouxFrameInGlobal(transform, knot.second);
     }
@@ -532,117 +532,9 @@ Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
     return p + point;
 };
 
-//==============================================================================
-//                      GEODESIC STATUS FLAGS
-//==============================================================================
-
-namespace
+double sign(double x)
 {
-    using GS = Geodesic::Status;
-
-    GS isPrevOrNextLineSegmentInsideSurface(
-            const Surface& surface,
-            Vector3 prevPoint,
-            Vector3 nextPoint)
-    {
-        GS a = surface.isAboveSurface(std::move(prevPoint), Surface::MIN_DIST_FROM_SURF)
-            ? GS::Ok
-            : GS::PrevLineSegmentInsideSurface;
-
-        GS b = surface.isAboveSurface(std::move(nextPoint), Surface::MIN_DIST_FROM_SURF)
-            ? GS::Ok
-            : GS::NextLineSegmentInsideSurface;
-
-        return a | b;
-    }
-}
-
-//==============================================================================
-//                      WRAPPING STATUS FLAGS
-//==============================================================================
-
-namespace
-{
-using WS = WrappingPath::Status;
-
-void setStatusFlag(WS& current, WS flag, bool value = true)
-{
-    if (value) {
-        current = current | flag;
-    } else {
-        current = current & ~flag;
-    }
-}
-
-}
-
-//==============================================================================
-//                      SURFACE
-//==============================================================================
-
-bool Surface::isAboveSurface(Vector3 point, double bound) const
-{
-    return isAboveSurfaceImpl(std::move(point), bound);
-}
-
-Geodesic Surface::calcGeodesic(
-    Vector3 initPosition,
-    Vector3 initVelocity,
-    double length,
-    Vector3 pointBefore,
-    Vector3 pointAfter) const
-{
-    Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
-    Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
-
-    Vector3 prev      = calcPointInLocal(_transform, std::move(pointBefore));
-    Vector3 next      = calcPointInLocal(_transform, std::move(pointAfter));
-    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
-
-    // Detect start or end points breaking the surface.
-    geodesic.status |= isPrevOrNextLineSegmentInsideSurface(*this, pointBefore, pointAfter);
-
-    calcGeodesicInGlobal(_transform, geodesic);
-
-    return geodesic;
-}
-
-Geodesic Surface::calcGeodesic(
-    Vector3 initPosition,
-    Vector3 initVelocity,
-    double length) const
-{
-    return calcGeodesic(
-        std::move(initPosition),
-        std::move(initVelocity),
-        length,
-        {NAN, NAN, NAN},
-        {NAN, NAN, NAN});
-}
-
-const Transf& Surface::getOffsetFrame() const
-{
-    return _transform;
-}
-
-Geodesic Surface::calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter)
-    const
-{
-    GetSurfaceFn getSurface = [&](size_t idx) -> const Surface* {
-        return idx == 0 ? this : nullptr;
-    };
-    return calcNewWrappingPath(pointBefore, pointAfter, getSurface)
-        .segments.front();
-}
-
-void Surface::setLocalPathStartGuess(Vector3 pathStartGuess)
-{
-    _pathLocalStartGuess = std::move(pathStartGuess);
-}
-
-Vector3 Surface::getPathStartGuess() const
-{
-    return calcPointInGround(_transform, _pathLocalStartGuess);
+    return static_cast<double>(x > 0.) - static_cast<double>(x < 0.);
 }
 
 //==============================================================================
@@ -754,7 +646,7 @@ DarbouxFrame calcDarbouxFrame(
 //                      SURFACE PROJECTION
 //==============================================================================
 
-size_t calcPointProjectedToSurface(
+size_t calcFastPointProjectedToSurface(
     const ImplicitSurface& s,
     Vector3& position,
     double eps     = 1e-13,
@@ -778,27 +670,23 @@ size_t calcPointProjectedToSurface(
     throw std::runtime_error("Failed to project point to surface");
 }
 
-size_t calcProjectedToSurface(
+size_t calcFastSurfaceProjection(
     const ImplicitSurface& s,
-    ImplicitGeodesicState& q,
+    Vector3& p,
+    Vector3& v,
     double eps     = 1e-13,
     size_t maxIter = 100)
 {
-    /* std::cout << "START calcProjectedToSurface\n"; */
-    size_t steps = calcPointProjectedToSurface(s, q.position, eps, maxIter);
-    /* std::cout << "    point projected in " << steps << " steps."; */
+    size_t steps = calcFastPointProjectedToSurface(s, p, eps, maxIter);
 
-    Vector3 n = calcSurfaceNormal(s, q);
-    if (!(n.cross(q.velocity).norm() > 1e-13)) {
+    Vector3 n = s.calcSurfaceConstraintGradient(p);
+    if (!(n.cross(v).norm() > 1e-13)) {
         throw std::runtime_error("Velocity and normal are perpendicular!");
     }
 
-    q.velocity = q.velocity - n.dot(q.velocity) * n;
-    q.velocity = q.velocity / q.velocity.norm();
+    v = v - n.dot(v) * n / n.dot(n);
+    v = v / v.norm();
 
-    // TODO remove, and catch nan
-    AssertEq(q.velocity, 1., "Failed to project velocity to unit norm");
-    AssertEq(q.velocity.dot(n), 0., "Failed to project velocity to surface");
     return steps;
 }
 
@@ -880,7 +768,7 @@ calcLocalImplicitGeodesic(
     ImplicitGeodesicState xStart{
         std::move(positionInit),
         std::move(velocityInit)};
-    calcProjectedToSurface(s, xStart);
+    calcFastSurfaceProjection(s, xStart.position, xStart.velocity);
 
     double l  = 0.;
     double dl = length / static_cast<double>(steps);
@@ -895,7 +783,7 @@ calcLocalImplicitGeodesic(
         for (size_t k = 0; k < steps; ++k) {
             RungeKutta4(s, xEnd, l, dl);
 
-            calcProjectedToSurface(s, xEnd);
+            calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity);
 
             Monitor(xEnd);
         }
@@ -910,65 +798,352 @@ calcLocalImplicitGeodesic(
     return {xStart, xEnd};
 }
 
-// Only touchdown in case of liftoff.
-bool calcTouchdown(
-    const ImplicitSurface& s,
-    ImplicitGeodesicState& q,
-    const Vector3& pointBefore,
-    const Vector3& pointAfter)
+//==============================================================================
+//                      PATH ERROR GRADIENT
+//==============================================================================
+
+Vector3 calcDirectionDerivative(Vector3 d, double l, Vector3 v) {
+    return (v - d * d.dot(v)) / l;
+}
+
+double calcPathErrorDerivative(
+        Vector3 e,
+        double l,
+        Vector3 v,
+        Vector3 d,
+        Vector3 w,
+        DarbouxFrame& f) // TODO write w in inertial frame.
 {
-    // Helper to compute point on line between pointBefore and pointAfter that
-    // is near geodesic start point.
-    auto CalcPointOnLineNearPointOnSurface = [&]() -> Vector3 {
-        Vector3 p0 = pointBefore - q.position;
-        Vector3 p1 = pointAfter - q.position;
+    const Vector3 w0 = w[0] * f.t + w[1] * f.n + w[2] * f.b;
+    return calcDirectionDerivative(e, l, v).dot(d) + e.dot(w0.cross(d));
+}
 
-        const Vector3 e = p1 - p0;
+//==============================================================================
+//                      ACCURATE SURFACE PROJECTION
+//==============================================================================
 
-        Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
+double calcMaxAlignmentError(
+        double angleDeg)
+{
+    return 1. - cos(angleDeg / 180. * M_PI);
+}
 
-        const double d0 = p0.dot(p0);
-        const double d1 = p1.dot(p1);
-        const double d  = p.dot(p);
+template<typename VECTOR>
+double calcInfNorm(const VECTOR& vec)
+{
+    double maxError = 0.;
+    for (size_t i = 0; i < vec.rows(); ++i) {
+        maxError = std::max(maxError, std::abs(vec[i]));
+    }
+    return maxError;
+}
 
-        if (d0 < d) {
-            return pointBefore;
+template<typename VECTOR>
+double clampToMaxAlighmentError(VECTOR& vec, double angleDeg)
+{
+    const double maxError = calcInfNorm(vec);
+    const double bnd = calcMaxAlignmentError(angleDeg);
+    if (bnd < maxError) {
+        const double c = bnd / maxError;
+        vec *= c;
+        return c;
+    }
+    return 1.;
+}
+
+size_t calcAccurateSurfaceProjection(
+    const ImplicitSurface& s,
+    Vector3 point,
+    Vector3& projectedPoint,
+    Vector3& projectedTangent,
+    double eps,
+    size_t maxIter)
+{
+    using Vector2 = Eigen::Vector2d;
+
+    Vector3& pk = projectedPoint;
+    Vector3& vk = projectedTangent;
+
+    // Initial guess.
+    const Vector3& p0 = point;
+
+    size_t iter = 0;
+
+    // The cost (the thing we wish to minimize) is defined as `V = 1 -
+    // cos(angle)`, where the angle is measured between the surface normal, and
+    // the vector pointing from the projected to the initial point.
+    double cost = NAN;
+    const double maxCost = calcMaxAlignmentError(10.);
+    const double minCost = calcMaxAlignmentError(1.); // Move these bounds
+    for (; iter < maxIter; ++iter) {
+        // Project directly to surface.
+        size_t prjIter = calcFastSurfaceProjection(s, pk, vk, eps, maxIter - iter);
+        std::cout << "    Projected to pk = " << pk.transpose() << " in " << prjIter << " steps\n";
+        iter += prjIter;
+        /* std::cout << "    FAST point projected in " << steps << " steps."; */
+
+        // Now that the point lies on the surface, compute the error and gradient.
+        Geodesic::BoundaryState K_P = calcGeodesicBoundaryState(s, {pk, vk}, false);
+
+        // Distance to original point.
+        const double l = (p0 - K_P.position).norm();
+
+        std::cout << "    Distance to p0 = " << l << "\n";
+        if (std::abs(l) < eps) {
+            break;
         }
-        if (d1 < d) {
-            return pointAfter;
+
+        // Error vector from surface point to oginial point.
+        const Vector3 e = (p0 - K_P.position) / l;
+        std::cout << "    Distance to p0 = " << l << "\n";
+
+        const double cosAngle = e.dot(K_P.frame.n);
+
+        if (sign(cosAngle) < 0.) {
+            std::cout << "    TOUCHDOWN!" << std::endl;
+            return iter;
         }
-        return p + q.position;
-    };
 
-    // Minimize distance to line:
-    const size_t maxIter = 20;
-    const double eps     = 1e-3;
+        // The costfunction to minimize.
+        double cost = 1. - e.dot(K_P.frame.n);
+        std::cout << "    cost: " << cost << "\n";
 
-    for (size_t iter = 0; iter < maxIter; ++iter) {
-        std::cout << "Start finding touchdown iter " << iter << std::endl;
-        // Project onto surface.
-        Vector3 pointOnLine = CalcPointOnLineNearPointOnSurface();
-        std::cout << "pointOnLine = " << Print3{pointOnLine} << std::endl;
+        if (std::abs(cost) < minCost) {
+            std::cout << "    TOUCHDOWN!" << std::endl;
+            return iter;
+        }
 
-        q.position = pointOnLine;
-        iter += calcProjectedToSurface(s, q, eps, maxIter - iter);
+        // Compute gradient of cost.
+        double df_dt = -calcPathErrorDerivative(e, l, -K_P.v.at(0), K_P.frame.n, K_P.w.at(0), K_P.frame);
+        double df_dB = -calcPathErrorDerivative(e, l, -K_P.v.at(1), K_P.frame.n, K_P.w.at(1), K_P.frame);
+        Vector2 df {df_dt, df_dB};
+        std::cout << "    cost gradient: " << df.transpose() << "\n";
 
-        const Vector3 n = calcSurfaceNormal(s, q);
-        Vector3 diff    = pointOnLine - q.position;
-        diff            = diff - diff.dot(n) * n;
-        std::cout << "diff = " << Print3{diff} << std::endl;
+        // Compute step to minimize the cost.
+        const double weight = 1. / ( 1. + cost);
+        cost = std::min(cost, maxCost);
+        std::cout << "    clamped cost: " << cost << "\n";
+        std::cout << "    weight: " << weight << "\n";
 
-        // TODO use inf norm.
-        const double err = diff.norm();
-        std::cout << "err = " << err << std::endl;
-        /* if (err < eps) { */
-        /* std::cout << "touchdown complete = " << q.position.transpose() << ",
-         * " << q.velocity.transpose()  << std::endl; */
-        return true;
-        /* } */
+        Vector2 step = df * cost / df.dot(df) * weight;
+        std::cout << "    step: " << step.transpose() << "\n";
+
+        pk -= K_P.frame.t * step[0] + K_P.frame.b * step[1];
+        std::cout << "    updated point pk = " << pk.transpose() << "\n";
+        std::cout << std::endl;
     }
 
-    return false;
+    if (std::abs(cost) > eps) {
+        throw std::runtime_error("Accurate surface projection failed");
+    }
+
+    return iter;
+}
+
+size_t ImplicitSurface::calcAccurateLocalSurfaceProjectionImpl(
+        Vector3 pointInit,
+        Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const
+{
+    size_t iter = calcAccurateSurfaceProjection(*this, pointInit, point, frame.t, eps, maxIter);
+    frame = calcDarbouxFromTangentGuessAndNormal(frame.t, calcSurfaceConstraintGradient(point));
+    return iter;
+}
+
+size_t Surface::calcAccurateLocalSurfaceProjection(
+        Vector3 pointInit,
+        Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const
+{
+    return calcAccurateLocalSurfaceProjectionImpl(std::move(pointInit), point, frame, eps, maxIter);
+}
+
+size_t calcTouchdown(
+    const Surface& s,
+    Vector3 &point,
+    DarbouxFrame &frame,
+    Vector3 prev,
+    Vector3 next,
+    double eps,
+    size_t maxIter)
+{
+    for (size_t iter = 0; iter < maxIter; ++iter) {
+        const Vector3 pl = calcPointOnLineNearPoint(prev, next, point);
+        frame = calcDarbouxFromTangentGuessAndNormal(point - prev, frame.n);
+        iter += s.calcAccurateLocalSurfaceProjection(pl, point, frame, eps, maxIter - iter);
+
+        // Detect touchdown.
+        const Vector3 d = (pl - point);
+        const double dDotN = d.dot(frame.n);
+        if (dDotN < 0.) {
+            return iter;
+        }
+
+        const double minCost = calcMaxAlignmentError(5.); // Move these bounds
+        const double cosAngle = dDotN / d.norm();
+        const double cost = 1. - cosAngle;
+        if (cost < minCost) {
+            return iter;
+        }
+    }
+
+    return maxIter;
+}
+
+//==============================================================================
+//                      GEODESIC STATUS FLAGS
+//==============================================================================
+
+namespace
+{
+    using GS = Geodesic::Status;
+
+    GS isPrevOrNextLineSegmentInsideSurface(
+            const Surface& surface,
+            Vector3 prevPoint,
+            Vector3 nextPoint)
+    {
+        GS a = surface.isAboveSurface(std::move(prevPoint), Surface::MIN_DIST_FROM_SURF)
+            ? GS::Ok
+            : GS::PrevLineSegmentInsideSurface;
+
+        GS b = surface.isAboveSurface(std::move(nextPoint), Surface::MIN_DIST_FROM_SURF)
+            ? GS::Ok
+            : GS::NextLineSegmentInsideSurface;
+
+        return a | b;
+    }
+
+    GS calcLiftoff(
+            Geodesic::Sample* begin,
+            Geodesic::Sample* end,
+            Vector3 prevPoint,
+            Vector3 nextPoint)
+    {
+        auto Liftoff = [&](
+                const std::pair<Vector3, DarbouxFrame>& frame,
+                Vector3 point) -> bool
+        {
+            return frame.second.n.dot(point - frame.first) > 0.;
+        };
+
+        for (;begin != end && Liftoff(*begin, prevPoint); ++begin) {}
+        for (;begin != end && Liftoff(*(end-1), nextPoint); --end) {}
+
+        return begin == end ? GS::LiftOff : GS::Ok;
+    }
+}
+
+//==============================================================================
+//                      WRAPPING STATUS FLAGS
+//==============================================================================
+
+namespace
+{
+using WS = WrappingPath::Status;
+
+void setStatusFlag(WS& current, WS flag, bool value = true)
+{
+    if (value) {
+        current = current | flag;
+    } else {
+        current = current & ~flag;
+    }
+}
+
+}
+
+//==============================================================================
+//                      SURFACE
+//==============================================================================
+
+bool Surface::isAboveSurface(Vector3 point, double bound) const
+{
+    return isAboveSurfaceImpl(std::move(point), bound);
+}
+
+void updGeodesicStatus(
+    const Surface& s,
+    Geodesic& geodesic,
+    Vector3 prev,
+    Vector3 next)
+{
+    geodesic.status |= isPrevOrNextLineSegmentInsideSurface(s, prev, next);
+
+    if (geodesic.length < 0.) {
+        geodesic.status |= Geodesic::Status::NegativeLength;
+    }
+
+    geodesic.status |= calcLiftoff(&*geodesic.samples.begin(), &*geodesic.samples.end(), prev, next);
+
+    if ((geodesic.status & Geodesic::Status::LiftOff) == 0) {
+        return;
+    }
+
+    geodesic.length = 0.;
+    geodesic.samples.clear();
+
+    size_t maxIter = 10;
+    if(calcTouchdown(s, geodesic.start.position, geodesic.start.frame, prev, next, 1e-3, maxIter) == maxIter)
+    {
+        geodesic.status |= Geodesic::Status::TouchDownFailed;
+    }
+}
+
+Geodesic Surface::calcGeodesic(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length,
+    Vector3 pointBefore,
+    Vector3 pointAfter) const
+{
+    Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
+    Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
+
+    Vector3 prev      = calcPointInLocal(_transform, std::move(pointBefore));
+    Vector3 next      = calcPointInLocal(_transform, std::move(pointAfter));
+
+    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
+    updGeodesicStatus(*this, geodesic, prev, next); // TODO Flip the order.
+
+    calcGeodesicInGlobal(_transform, geodesic);
+    return geodesic;
+}
+
+Geodesic Surface::calcGeodesic(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length) const
+{
+    return calcGeodesic(
+        std::move(initPosition),
+        std::move(initVelocity),
+        length,
+        {NAN, NAN, NAN},
+        {NAN, NAN, NAN});
+}
+
+const Transf& Surface::getOffsetFrame() const
+{
+    return _transform;
+}
+
+Geodesic Surface::calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter)
+    const
+{
+    GetSurfaceFn getSurface = [&](size_t idx) -> const Surface* {
+        return idx == 0 ? this : nullptr;
+    };
+    return calcNewWrappingPath(pointBefore, pointAfter, getSurface)
+        .segments.front();
+}
+
+void Surface::setLocalPathStartGuess(Vector3 pathStartGuess)
+{
+    _pathLocalStartGuess = std::move(pathStartGuess);
+}
+
+Vector3 Surface::getPathStartGuess() const
+{
+    return calcPointInGround(_transform, _pathLocalStartGuess);
 }
 
 //==============================================================================
@@ -995,30 +1170,16 @@ Geodesic ImplicitSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Vector3 pointBefore,
-    Vector3 pointAfter) const
+    Vector3 , 
+    Vector3 ) const
 {
     Geodesic geodesic;
-
-    bool negativeLength = length < 0.;
-    length              = negativeLength ? 0. : length;
-
-    if (negativeLength) {
-        geodesic.status |= Geodesic::Status::NegativeLength;
-    }
-
-    bool liftoff = true;
 
     std::function<void(const ImplicitGeodesicState&)> Monitor =
         [&](const ImplicitGeodesicState& qk) {
             const Vector3 r      = qk.position;
             const DarbouxFrame f = calcDarbouxFrame(*this, qk);
-
-            // Compute liftoff.
-            liftoff &= f.n.dot(pointBefore - r) > 0;
-            liftoff &= f.n.dot(pointAfter - r) > 0;
-
-            geodesic.curveKnots.emplace_back(
+            geodesic.samples.emplace_back(
                 std::pair<Vector3, DarbouxFrame>{r, f});
         };
 
@@ -1031,23 +1192,9 @@ Geodesic ImplicitSurface::calcLocalGeodesicImpl(
             _integratorSteps,
             Monitor);
 
-    if (liftoff) {
-        geodesic.status |= Geodesic::Status::LiftOff;
-    }
-
-    geodesic.length = liftoff ? 0. : length;
-
-    if (liftoff) {
-        if(!calcTouchdown(*this, out.first, pointBefore, pointAfter))
-        {
-            geodesic.status |= Geodesic::Status::TouchDownFailed;
-        }
-        geodesic.curveKnots.clear();
-    }
-
     geodesic.start = calcGeodesicBoundaryState(*this, out.first, false);
-    geodesic.end   = liftoff ? geodesic.start
-                             : calcGeodesicBoundaryState(*this, out.second, true);
+    geodesic.end   = calcGeodesicBoundaryState(*this, out.second, true);
+    geodesic.length = length;
 
     return geodesic;
 }
@@ -1332,23 +1479,30 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
         K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
     }
 
-    std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
+    std::vector<std::pair<Vector3, DarbouxFrame>> samples;
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
         const double angle_i =
             angle * static_cast<double>(i) / static_cast<double>(nSamples);
         const Rotation dq{Eigen::AngleAxisd(angle_i, axis)};
         const DarbouxFrame f = dq * K_P.frame;
-        curveKnots.emplace_back(
+        samples.emplace_back(
             std::pair<Vector3, DarbouxFrame>{dq * K_P.position, f});
     }
 
-    return {K_P, K_Q, length, std::move(curveKnots)};
+    return {K_P, K_Q, length, std::move(samples)};
 }
 
 bool AnalyticSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 {
     return point.dot(point) - (_radius + bound) * (_radius + bound) > 0.;
+}
+
+size_t AnalyticSphereSurface::calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double, size_t) const
+{
+    point = pointInit / pointInit.norm() * _radius;
+    frame = calcDarbouxFromTangentGuessAndNormal(frame.t, point);
+    return 0;
 }
 
 //==============================================================================
@@ -1508,7 +1662,7 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
     }
 
-    std::vector<std::pair<Vector3, DarbouxFrame>> curveKnots;
+    std::vector<std::pair<Vector3, DarbouxFrame>> samples;
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
         const double factor =
@@ -1518,10 +1672,21 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
         const DarbouxFrame f = dq * K_P.frame;
         const Vector3 p_i    = dq * K_P.position + h_i * z;
-        curveKnots.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
+        samples.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
     }
 
-    return {K_P, K_Q, length, std::move(curveKnots)};
+    return {K_P, K_Q, length, std::move(samples)};
+}
+
+size_t AnalyticCylinderSurface::calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double, size_t) const
+{
+    const double x = pointInit.x();
+    const double y = pointInit.y();
+    const double z = pointInit.z();
+    const double c = _radius / std::sqrt(x*x + y*y);
+    point = Vector3{x * c, y * c, z};
+    frame = calcDarbouxFromTangentGuessAndNormal(frame.t, point);
+    return 0;
 }
 
 bool AnalyticCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
@@ -1829,7 +1994,12 @@ std::vector<Geodesic> calcInitWrappingPathGuess(
             pathStart,
             pathEnd));
 
+        if (geodesics.back().samples.empty()) {
+            throw std::runtime_error("Failed to sample the geodesic");
+        }
+
         if (geodesics.back().length != 0.) {
+            std::cout << "length = " << geodesics.back().length << std::endl;
             throw std::runtime_error("Failed to shoot a zero-length geodesic");
         }
     }
@@ -1931,11 +2101,6 @@ size_t countActive(const std::vector<Geodesic>& segments)
         ++count;
     }
     return count;
-}
-
-double sign(double x)
-{
-    return static_cast<double>(x > 0.) - static_cast<double>(x < 0.);
 }
 
 void calcSegmentPathErrorJacobian(

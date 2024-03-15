@@ -266,10 +266,10 @@ private:
             DrawCurveSegmentMesh(ToVec3(ComputePoint(m_StartPoint)), ToVec3(prev), false);
 
             // Draw no
-            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(prev + g.curveKnots.front().second.t), false);
+            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(prev + g.samples.front().second.t), false);
             // Iterate over the logged points in the Geodesic.
             for (const std::pair<Vector3, DarbouxFrame>& knot :
-                    g.curveKnots) {
+                    g.samples) {
                 const Vector3 next = knot.first;
                 DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
                 prev = next;

@@ -381,7 +381,7 @@ private:
 
                 // Iterate over the logged points in the Geodesic.
                 for (const std::pair<Vector3, DarbouxFrame>& knot :
-                     geodesic.curveKnots) {
+                     geodesic.samples) {
                     const Vector3 next = knot.first;
                     DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
                     prev = next;
