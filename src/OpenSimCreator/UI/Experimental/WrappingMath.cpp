@@ -582,7 +582,7 @@ void setStatusFlag(WS& current, WS flag, bool value = true)
 
 bool Surface::isAboveSurface(Vector3 point, double bound) const
 {
-    return isAboveSurfaceImpl(point, bound);
+    return isAboveSurfaceImpl(std::move(point), bound);
 }
 
 Geodesic Surface::calcGeodesic(
