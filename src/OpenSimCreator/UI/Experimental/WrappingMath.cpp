@@ -868,18 +868,11 @@ size_t calcAccurateSurfaceProjection(
 
     size_t iter = 0;
 
-    // The cost (the thing we wish to minimize) is defined as `V = 1 -
-    // cos(angle)`, where the angle is measured between the surface normal, and
-    // the vector pointing from the projected to the initial point.
-    double cost = NAN;
     const double maxCost = calcMaxAlignmentError(10.);
     const double minCost = calcMaxAlignmentError(1.); // Move these bounds
     for (; iter < maxIter; ++iter) {
         // Project directly to surface.
-        size_t prjIter = calcFastSurfaceProjection(s, pk, vk, eps, maxIter - iter);
-        std::cout << "    Projected to pk = " << pk.transpose() << " in " << prjIter << " steps\n";
-        iter += prjIter;
-        /* std::cout << "    FAST point projected in " << steps << " steps."; */
+        iter += calcFastSurfaceProjection(s, pk, vk, eps, maxIter - iter);
 
         // Now that the point lies on the surface, compute the error and gradient.
         Geodesic::BoundaryState K_P = calcGeodesicBoundaryState(s, {pk, vk}, false);
@@ -887,28 +880,25 @@ size_t calcAccurateSurfaceProjection(
         // Distance to original point.
         const double l = (p0 - K_P.position).norm();
 
-        std::cout << "    Distance to p0 = " << l << "\n";
         if (std::abs(l) < eps) {
             break;
         }
 
         // Error vector from surface point to oginial point.
         const Vector3 e = (p0 - K_P.position) / l;
-        std::cout << "    Distance to p0 = " << l << "\n";
 
         const double cosAngle = e.dot(K_P.frame.n);
 
         if (sign(cosAngle) < 0.) {
-            std::cout << "    TOUCHDOWN!" << std::endl;
+            // Point is below surface, so we stop. TODO does that make sense? or should we continue?
             return iter;
         }
 
         // The costfunction to minimize.
         double cost = 1. - e.dot(K_P.frame.n);
-        std::cout << "    cost: " << cost << "\n";
 
+        // Stop if the costfunction is small enough.
         if (std::abs(cost) < minCost) {
-            std::cout << "    TOUCHDOWN!" << std::endl;
             return iter;
         }
 
@@ -916,24 +906,14 @@ size_t calcAccurateSurfaceProjection(
         double df_dt = -calcPathErrorDerivative(e, l, -K_P.v.at(0), K_P.frame.n, K_P.w.at(0), K_P.frame);
         double df_dB = -calcPathErrorDerivative(e, l, -K_P.v.at(1), K_P.frame.n, K_P.w.at(1), K_P.frame);
         Vector2 df {df_dt, df_dB};
-        std::cout << "    cost gradient: " << df.transpose() << "\n";
 
         // Compute step to minimize the cost.
         const double weight = 1. / ( 1. + cost);
         cost = std::min(cost, maxCost);
-        std::cout << "    clamped cost: " << cost << "\n";
-        std::cout << "    weight: " << weight << "\n";
 
         Vector2 step = df * cost / df.dot(df) * weight;
-        std::cout << "    step: " << step.transpose() << "\n";
 
         pk -= K_P.frame.t * step[0] + K_P.frame.b * step[1];
-        std::cout << "    updated point pk = " << pk.transpose() << "\n";
-        std::cout << std::endl;
-    }
-
-    if (std::abs(cost) > eps) {
-        throw std::runtime_error("Accurate surface projection failed");
     }
 
     return iter;
@@ -1024,10 +1004,11 @@ namespace
             return frame.second.n.dot(point - frame.first) > 0.;
         };
 
-        for (;begin != end && Liftoff(*begin, prevPoint); ++begin) {}
-        for (;begin != end && Liftoff(*(end-1), nextPoint); --end) {}
+        bool liftoff = true;
+        for(Geodesic::Sample* it = begin; it != end && (liftoff &= Liftoff(*it, prevPoint)); ++it) {}
+        for(Geodesic::Sample* it = end; begin != it && (liftoff &= Liftoff(*(it-1), nextPoint)); --it) {}
 
-        return begin == end ? GS::LiftOff : GS::Ok;
+        return liftoff ? GS::LiftOff : GS::Ok;
     }
 }
 
@@ -1065,6 +1046,9 @@ void updGeodesicStatus(
     Vector3 prev,
     Vector3 next)
 {
+    if (geodesic.samples.empty()) {
+        throw std::runtime_error("no samples in geodesic");
+    }
     geodesic.status |= isPrevOrNextLineSegmentInsideSurface(s, prev, next);
 
     if (geodesic.length < 0.) {
