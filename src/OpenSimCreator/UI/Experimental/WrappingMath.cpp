@@ -831,7 +831,8 @@ template<typename VECTOR>
 double calcInfNorm(const VECTOR& vec)
 {
     double maxError = 0.;
-    for (size_t i = 0; i < vec.rows(); ++i) {
+    const auto n = static_cast<size_t>(vec.rows());
+    for (size_t i = 0; i < n; ++i) {
         maxError = std::max(maxError, std::abs(vec[i]));
     }
     return maxError;
@@ -1813,7 +1814,8 @@ bool PathContinuityError::calcPathCorrection()
     /* std::cout << "weight =" << weight << std::endl; */
 
     // TODO Clamp the path error?
-    clampPathError(_pathError, 5.);
+    /* clampPathError(_pathError, 5.); */
+    clampToMaxAlighmentError(_pathError, 5.);
     /* std::cout << "\n"; */
     /* std::cout << "_pathError =" << _pathError.transpose() << std::endl; */
     /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
