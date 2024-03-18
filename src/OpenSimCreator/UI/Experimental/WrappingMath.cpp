@@ -1071,52 +1071,45 @@ void updGeodesicStatus(
     }
 }
 
-Geodesic Surface::calcGeodesic(
+void Surface::calcGeodesic(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Vector3 pointBefore,
-    Vector3 pointAfter) const
+    Geodesic& geodesic) const
 {
     Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
     Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
 
-    Vector3 prev      = calcPointInLocal(_transform, std::move(pointBefore));
-    Vector3 next      = calcPointInLocal(_transform, std::move(pointAfter));
+    geodesic.samples.clear();
+    calcLocalGeodesicImpl(p0, v0, length, geodesic);
 
-    Geodesic geodesic = calcLocalGeodesicImpl(p0, v0, length, prev, next);
+    calcGeodesicInGlobal(_transform, geodesic);
+}
+
+void Surface::calcGeodesic(
+    Vector3 initPosition,
+    Vector3 initVelocity,
+    double length,
+    Vector3 pointBefore,
+    Vector3 pointAfter,
+    Geodesic& geodesic) const
+{
+    Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
+    Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
+
+    Vector3 prev = calcPointInLocal(_transform, std::move(pointBefore));
+    Vector3 next = calcPointInLocal(_transform, std::move(pointAfter));
+
+    geodesic.samples.clear();
+    calcLocalGeodesicImpl(p0, v0, length, geodesic);
     updGeodesicStatus(*this, geodesic, prev, next); // TODO Flip the order.
 
     calcGeodesicInGlobal(_transform, geodesic);
-    return geodesic;
-}
-
-Geodesic Surface::calcGeodesic(
-    Vector3 initPosition,
-    Vector3 initVelocity,
-    double length) const
-{
-    return calcGeodesic(
-        std::move(initPosition),
-        std::move(initVelocity),
-        length,
-        {NAN, NAN, NAN},
-        {NAN, NAN, NAN});
 }
 
 const Transf& Surface::getOffsetFrame() const
 {
     return _transform;
-}
-
-Geodesic Surface::calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter)
-    const
-{
-    GetSurfaceFn getSurface = [&](size_t idx) -> const Surface* {
-        return idx == 0 ? this : nullptr;
-    };
-    return calcNewWrappingPath(pointBefore, pointAfter, getSurface)
-        .segments.front();
 }
 
 void Surface::setLocalPathStartGuess(Vector3 pathStartGuess)
@@ -1149,37 +1142,31 @@ ImplicitSurface::Hessian ImplicitSurface::calcSurfaceConstraintHessian(
     return calcSurfaceConstraintHessianImpl(position);
 }
 
-Geodesic ImplicitSurface::calcLocalGeodesicImpl(
-    Vector3 initPosition,
-    Vector3 initVelocity,
-    double length,
-    Vector3 , 
-    Vector3 ) const
+void ImplicitSurface::calcLocalGeodesicImpl(
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const
 {
-    Geodesic geodesic;
-
     std::function<void(const ImplicitGeodesicState&)> Monitor =
-        [&](const ImplicitGeodesicState& qk) {
-            const Vector3 r      = qk.position;
-            const DarbouxFrame f = calcDarbouxFrame(*this, qk);
+        [&](const ImplicitGeodesicState& q) {
             geodesic.samples.emplace_back(
-                std::pair<Vector3, DarbouxFrame>{r, f});
+                    Geodesic::Sample
+                    {q.position, calcDarbouxFrame(*this, q)});
         };
 
     std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
         calcLocalImplicitGeodesic(
             *this,
-            std::move(initPosition),
-            std::move(initVelocity),
+            initPosition,
+            initVelocity,
             length,
             _integratorSteps,
             Monitor);
 
-    geodesic.start = calcGeodesicBoundaryState(*this, out.first, false);
-    geodesic.end   = calcGeodesicBoundaryState(*this, out.second, true);
+    geodesic.start  = calcGeodesicBoundaryState(*this, out.first, false);
+    geodesic.end    = calcGeodesicBoundaryState(*this, out.second, true);
     geodesic.length = length;
-
-    return geodesic;
 }
 
 //==============================================================================
@@ -1285,13 +1272,13 @@ DarbouxFrame testRotationIntegration(DarbouxFrame f_P, double angle)
     return f_Q;
 }
 
-Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
-    Vector3 initPosition,
-    Vector3 initVelocity,
-    double length,
-    Vector3,
-    Vector3) const
+void AnalyticSphereSurface::calcLocalGeodesicImpl(
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const
 {
+
     // Make sure we are not changing the variation dimension.
     /* static_assert(Geodesic::BoundaryState.w::size() == 4); */
     /* static_assert(Geodesic::BoundaryState.v.size() == 4); */
@@ -1304,8 +1291,7 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
     }
 
     // Initial darboux frame.
-    DarbouxFrame f_P =
-        calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
+    DarbouxFrame f_P = calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
 
     // Initial trihedron: K_P
     Geodesic::BoundaryState K_P;
@@ -1462,18 +1448,19 @@ Geodesic AnalyticSphereSurface::calcLocalGeodesicImpl(
         K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
     }
 
-    std::vector<std::pair<Vector3, DarbouxFrame>> samples;
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
         const double angle_i =
             angle * static_cast<double>(i) / static_cast<double>(nSamples);
         const Rotation dq{Eigen::AngleAxisd(angle_i, axis)};
         const DarbouxFrame f = dq * K_P.frame;
-        samples.emplace_back(
+        geodesic.samples.emplace_back(
             std::pair<Vector3, DarbouxFrame>{dq * K_P.position, f});
     }
 
-    return {K_P, K_Q, length, std::move(samples)};
+    geodesic.start = std::move(K_P);
+    geodesic.end = std::move(K_Q);
+    geodesic.length = length;
 }
 
 bool AnalyticSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
@@ -1525,17 +1512,12 @@ bool ImplicitCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound) co
 //                      ANALYTIC CYLINDER SURFACE
 //==============================================================================
 
-Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
+void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Vector3,
-    Vector3) const
+    Geodesic& geodesic) const
 {
-    if (initPosition.norm() < 1e-13) {
-        throw std::runtime_error("Error: initial position at origin.");
-    }
-
     const double r = _radius;
     const double l = length;
 
@@ -1645,7 +1627,6 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
     }
 
-    std::vector<std::pair<Vector3, DarbouxFrame>> samples;
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
         const double factor =
@@ -1655,10 +1636,12 @@ Geodesic AnalyticCylinderSurface::calcLocalGeodesicImpl(
         const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
         const DarbouxFrame f = dq * K_P.frame;
         const Vector3 p_i    = dq * K_P.position + h_i * z;
-        samples.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
+        geodesic.samples.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
     }
 
-    return {K_P, K_Q, length, std::move(samples)};
+    geodesic.start  = std::move(K_P);
+    geodesic.end    = std::move(K_Q);
+    geodesic.length = length;
 }
 
 size_t AnalyticCylinderSurface::calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double, size_t) const
@@ -1951,65 +1934,36 @@ Vector3 calcPointClosestToPointOnEdge(
 
 std::vector<Geodesic> calcInitWrappingPathGuess(
     const Vector3& pathStart,
-    const Vector3& pathEnd,
     std::function<const Surface*(size_t)>& getSurface)
 {
     std::vector<Geodesic> geodesics;
+    Vector3 pointBefore = pathStart;
     for (size_t i = 0; getSurface(i); ++i) {
-        Vector3 originSurface = getSurface(i)->getOffsetFrame().position;
-        const Vector3 pointBefore =
-            i == 0 ? pathStart : geodesics.back().end.position;
         Vector3 initPositon = getSurface(i)->getPathStartGuess();
-
-        // TODO this was the prev initializer.
-        /* const Vector3& pointAfter = pathEnd; */
-        /* Vector3 initPositon = calcPointClosestToPointOnEdge( */
-        /*     pointBefore, */
-        /*     pointAfter, */
-        /*     originSurface); */
-        Vector3 initVelocity = (pathEnd - pathStart);
+        Vector3 initVelocity = (initPositon - pointBefore);
 
         // Shoot a zero-length geodesic as initial guess.
-        geodesics.push_back(getSurface(i)->calcGeodesic(
-            initPositon,
-            initVelocity,
-            0.,
-            pathStart,
-            pathEnd));
+        geodesics.push_back({});
+        Geodesic& g = geodesics.back();
+        getSurface(i)->calcGeodesic(initPositon, initVelocity, 0., g);
 
-        if (geodesics.back().samples.empty()) {
-            throw std::runtime_error("Failed to sample the geodesic");
-        }
-
-        if (geodesics.back().length != 0.) {
-            std::cout << "length = " << geodesics.back().length << std::endl;
+        if (g.length != 0. || g.samples.empty()) {
             throw std::runtime_error("Failed to shoot a zero-length geodesic");
         }
+
+        pointBefore = initPositon;
     }
     return geodesics;
 }
 
-WrappingPath Surface::calcNewWrappingPath(
+WrappingPath::WrappingPath(
     Vector3 pathStart,
     Vector3 pathEnd,
-    Surface::GetSurfaceFn& GetSurface,
-    double eps,
-    size_t maxIter)
-{
-    PathContinuityError smoothness;
-
-    size_t nSurfaces = 0;
-    for (; GetSurface(nSurfaces); ++nSurfaces) {
-    }
-
-    WrappingPath path(pathStart, pathEnd);
-    path.segments = calcInitWrappingPathGuess(pathStart, pathEnd, GetSurface);
-
-    /* path.smoothness.resize(nSurfaces*4, nSurfaces*4); */
-    Surface::calcUpdatedWrappingPath(path, GetSurface, eps, maxIter);
-
-    return path;
-}
+    GetSurfaceFn& GetSurface) :
+    startPoint(pathStart),
+    endPoint(pathEnd),
+    segments(calcInitWrappingPathGuess(startPoint, GetSurface))
+{}
 
 Geodesic::InitialConditions applyNaturalGeodesicVariation2(
     const Geodesic& geodesic,
@@ -2230,13 +2184,11 @@ size_t calcPathErrorJacobian(WrappingPath& path)
     return nActiveSegments;
 }
 
-size_t Surface::calcUpdatedWrappingPath(
-    WrappingPath& path,
-    Surface::GetSurfaceFn& GetSurface,
+size_t WrappingPath::updPath(GetSurfaceFn& GetSurface,
     double eps,
     size_t maxIter)
 {
-    const size_t nSurfaces = path.segments.size();
+    const size_t nSurfaces = segments.size();
 
     if (nSurfaces == 0) {
         return 0;
@@ -2245,16 +2197,16 @@ size_t Surface::calcUpdatedWrappingPath(
     /* std::cout << "START WrapSolver::calcPath\n"; */
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
 
-        const ptrdiff_t nTouchdown = countActive(path.segments);
+        const ptrdiff_t nTouchdown = countActive(segments);
 
         if (nTouchdown > 0) {
             // Fill the path error jacobian.
             /* std::cout << "Calc Patherror Jacobian" << std::endl; */
-            calcPathErrorJacobian(path);
+            calcPathErrorJacobian(*this);
             /* std::cout << "    ===== ERRR ==== = " <<
              * path.smoothness.calcMaxPathError() << "\n"; */
 
-            if (path.smoothness.calcMaxPathError() < eps) {
+            if (smoothness.calcMaxPathError() < eps) {
                 /* std::cout << "   Wrapping path solved in " << loopIter <<
                  * "steps\n"; */
                 return loopIter;
@@ -2264,15 +2216,15 @@ size_t Surface::calcUpdatedWrappingPath(
             // TODO handle failing to invert jacobian.
             /* std::cout << "Calc path error correction" << std::endl; */
             setStatusFlag(
-                path.status,
+                status,
                 WrappingPath::Status::FailedToInvertJacobian,
-                !(path.smoothness.calcPathCorrection()));
+                !(smoothness.calcPathCorrection()));
             /* std::cout << "    ===== CORR ==== = " <<
              * path.smoothness.calcMaxCorrectionStep() << "\n"; */
 
             // Obtain the computed geodesic corrections from the path errors.
-            const GeodesicCorrection* corrIt  = path.smoothness.begin();
-            const GeodesicCorrection* corrEnd = path.smoothness.end();
+            const GeodesicCorrection* corrIt  = smoothness.begin();
+            const GeodesicCorrection* corrEnd = smoothness.end();
             if (corrEnd - corrIt != nTouchdown) {
                 throw std::runtime_error(
                     "Number of geodesic-corrections not equal to "
@@ -2280,7 +2232,7 @@ size_t Surface::calcUpdatedWrappingPath(
             }
 
             // Apply corrections.
-            for (Geodesic& s : path.segments) {
+            for (Geodesic& s : segments) {
                 if ((s.status & Geodesic::Status::LiftOff) > 0) {
                     continue;
                 }
@@ -2312,18 +2264,18 @@ size_t Surface::calcUpdatedWrappingPath(
         /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end;
          * ++it, ++idx) { */
         for (ptrdiff_t idx = 0;
-             idx < static_cast<ptrdiff_t>(path.segments.size());
+             idx < static_cast<ptrdiff_t>(segments.size());
              ++idx) {
             // Shoot a new geodesic.
             /* Geodesic& s = *it->current; */
-            const Geodesic& s = path.segments.at(idx);
+            const Geodesic& s = segments.at(idx);
             /* std::cout << "Shooting s.length = " << s.length << "\n"; */
-            path.segments.at(idx) = GetSurface(idx)->calcGeodesic(
+            GetSurface(idx)->calcGeodesic(
                 s.start.position,
                 s.start.frame.t,
                 s.length,
-                findPrevSegmentEndPoint(path.startPoint, path.segments, idx),
-                findNextSegmentStartPoint(path.endPoint, path.segments, idx));
+                findPrevSegmentEndPoint(startPoint, segments, idx),
+                findNextSegmentStartPoint(endPoint, segments, idx), segments.at(idx));
             /* std::cout << "Returned s.length = " << s.length << "\n"; */
         }
     }
@@ -2429,7 +2381,8 @@ void Surface::doSelfTest(
 {
 
     // Shoot a zero length geodesic.
-    const Geodesic gZero = calcGeodesic(r_P, v_P, l);
+    Geodesic gZero;
+    calcGeodesic(r_P, v_P, l, gZero);
 
     // To check the local behavior of the geodesic variation, we apply a
     // small variation to the start point, and see the effect on the
@@ -2452,7 +2405,7 @@ void Surface::doSelfTest(
             // Shoot a new geodesic with the applied variation.
             double dl =
                 i == 3 ? c.at(i) + l : l; // TODO encode this in the struct.
-            gOne = calcGeodesic(dK_P.position, dK_P.frame.t, dl);
+            calcGeodesic(dK_P.position, dK_P.frame.t, dl, gOne);
         }
 
         std::ostringstream os;
@@ -2540,7 +2493,7 @@ void Surface::doSelfTest(
     }
 }
 
-void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface)
+void WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSurface)
 {
     GetSurface(0);
     std::cout << "Disabled WrappinPathTester\n" << path.status << std::endl;
@@ -2567,8 +2520,7 @@ void WrappingTester(const WrappingPath& path, Surface::GetSurfaceFn& GetSurface)
             applyNaturalGeodesicVariation(start, correction);
 
             const double length = path.segments.at(i).length + correction.at(3);
-            pathOne.segments.at(i) =
-                surface->calcGeodesic(start.position, start.frame.t, length);
+            surface->calcGeodesic(start.position, start.frame.t, length, pathOne.segments.at(i));
 
             calcPathErrorJacobian(pathOne);
 

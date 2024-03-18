@@ -172,44 +172,19 @@ public:
     static constexpr double MIN_DIST_FROM_SURF =
         1e-3; // TODO this must be a setting.
 
-    Geodesic calcGeodesic(
+    void calcGeodesic(
         Vector3 initPosition,
         Vector3 initVelocity,
-        double length) const;
+        double length,
+        Geodesic& geodesic) const;
 
-    Geodesic calcGeodesic(
+    void calcGeodesic(
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
         Vector3 pointBefore,
-        Vector3 pointAfter) const;
-
-    Geodesic calcGeodesic(const Geodesic::InitialConditions guess) const
-    {
-        return calcGeodesic(guess.position, guess.velocity, guess.length);
-    }
-
-    Geodesic calcLocalGeodesic(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length) const;
-
-    Geodesic calcWrappingPath(Vector3 pointBefore, Vector3 pointAfter) const;
-
-    using GetSurfaceFn = std::function<const Surface*(size_t)>;
-
-    static WrappingPath calcNewWrappingPath(
-        Vector3 pathStart,
-        Vector3 pathEnd,
-        GetSurfaceFn& GetSurface,
-        double eps     = 1e-3,
-        size_t maxIter = 1);
-
-    static size_t calcUpdatedWrappingPath(
-        WrappingPath& path,
-        GetSurfaceFn& GetSurface,
-        double eps     = 1e-8,
-        size_t maxIter = 10);
+        Vector3 pointAfter,
+        Geodesic& geodesic) const;
 
     // TODO This is just here for the current test.
     void setOffsetFrame(Transf transform)
@@ -228,12 +203,11 @@ public:
     size_t calcAccurateLocalSurfaceProjection(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const;
 
 private:
-    virtual Geodesic calcLocalGeodesicImpl(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Vector3 pointBefore,
-        Vector3 pointAfter) const = 0;
+    virtual void calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            Geodesic& geodesic) const = 0;
 
     // Required for touchdown.
     virtual size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const = 0;
@@ -300,12 +274,11 @@ private:
     virtual Hessian calcSurfaceConstraintHessianImpl(
         Vector3 position) const = 0;
 
-    Geodesic calcLocalGeodesicImpl(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Vector3 pointBefore,
-        Vector3 pointAfter) const override;
+    void calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            Geodesic& geodesic) const override;
 
     size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
 
@@ -417,12 +390,11 @@ public:
     }
 
 private:
-    Geodesic calcLocalGeodesicImpl(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Vector3 pointBefore,
-        Vector3 pointAfter) const override;
+    void calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            Geodesic& geodesic) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
@@ -496,12 +468,11 @@ public:
     }
 
 private:
-    Geodesic calcLocalGeodesicImpl(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Vector3 pointBefore,
-        Vector3 pointAfter) const override;
+    void calcLocalGeodesicImpl(
+            Vector3 initPosition,
+            Vector3 initVelocity,
+            double length,
+            Geodesic& geodesic) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
@@ -584,27 +555,25 @@ public:
     size_t _nSurfaces = 0;
 
     friend Surface; // TODO change to whomever is calculating the path.
-    friend WrappingPath calcNewWrappingPath(
-        Vector3,
-        Vector3,
-        std::function<const Surface*(size_t)>,
-        double,
-        size_t);
-    friend size_t calcUpdatedWrappingPath(
-        WrappingPath& path,
-        std::function<const Surface*(size_t)> surfaces,
-        double,
-        size_t);
+    friend WrappingPath;
 };
 
 // The result of computing a path over surfaces.
 struct WrappingPath
 {
+    using GetSurfaceFn = std::function<const Surface*(size_t)>;
+
     WrappingPath() = default;
 
-    WrappingPath(Vector3 pStart, Vector3 pEnd) :
-        startPoint(std::move(pStart)), endPoint(std::move(pEnd))
-    {}
+    WrappingPath(
+        Vector3 pathStart,
+        Vector3 pathEnd,
+        GetSurfaceFn& GetSurface);
+
+    size_t updPath(
+        GetSurfaceFn& GetSurface,
+        double eps     = 1e-6,
+        size_t maxIter = 10);
 
     Vector3 startPoint{
         NAN,
@@ -616,8 +585,8 @@ struct WrappingPath
         NAN,
         NAN,
     };
-    std::vector<Geodesic> segments;
-    PathContinuityError smoothness;
+    std::vector<Geodesic> segments = {};
+    PathContinuityError smoothness = {};
 
     enum Status
     {
@@ -764,6 +733,6 @@ inline WrappingPath::Status operator~(WrappingPath::Status s)
 
 void WrappingTester(
     const WrappingPath& path,
-    Surface::GetSurfaceFn& GetSurface);
+    WrappingPath::GetSurfaceFn& GetSurface);
 
 } // namespace osc

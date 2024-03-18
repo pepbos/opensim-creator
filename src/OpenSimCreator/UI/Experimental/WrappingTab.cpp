@@ -155,10 +155,10 @@ public:
 
         // Initialize the wrapping path.
         {
-            Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+            WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return getWrapSurfaceHelper(i);
             };
-            m_WrappingPath = Surface::calcNewWrappingPath(
+            m_WrappingPath = WrappingPath(
                 m_StartPoint,
                 ComputePoint(m_EndPoint),
                 GetSurface);
@@ -203,7 +203,7 @@ private:
     void implOnTick() final
     {
         // Analytic geodesic computation.
-        Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+        WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
             return getWrapSurfaceHelper(i);
         };
 
@@ -218,9 +218,9 @@ private:
         if (!m_FreezePath) {
             if (m_CachePath) {
                 m_WrappingPath.endPoint = ComputePoint(m_EndPoint);
-                Surface::calcUpdatedWrappingPath(m_WrappingPath, GetSurface);
+                m_WrappingPath.updPath(GetSurface);
             } else {
-                m_WrappingPath = Surface::calcNewWrappingPath(
+                m_WrappingPath = WrappingPath(
                         m_StartPoint,
                         ComputePoint(m_EndPoint),
                         GetSurface);
@@ -287,7 +287,7 @@ private:
             }
 
             m_ErrorDetected = false;
-            /* Surface::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* { */
+            /* WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* { */
             /*     return getWrapSurfaceHelper(i); */
             /* }; */
             /* WrappingTester(m_WrappingPath, GetSurface); */

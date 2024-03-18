@@ -168,11 +168,11 @@ private:
         Vector3 v0 = ComputeVelocity(m_StartPoint);
         double l = m_StartPoint.length;
 
-        m_Geodesics.at(0) = m_ImplicitSphereSurface.calcGeodesic(p0, v0, l);
-        m_Geodesics.at(1) = m_AnalyticSphereSurface.calcGeodesic(p0, v0, l);
-        m_Geodesics.at(2) = m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l*10.);
-        m_Geodesics.at(3) = m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l * m_ImplicitCylinderSurface.getRadius() * 2.);
-        m_Geodesics.at(4) = m_AnalyticCylinderSurface.calcGeodesic(p0, v0, l * m_AnalyticCylinderSurface.getRadius() * 2.);
+        m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesics.at(0));
+        m_AnalyticSphereSurface.calcGeodesic(p0, v0, l, m_Geodesics.at(1));
+        m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l*10., m_Geodesics.at(2));
+        m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l * m_ImplicitCylinderSurface.getRadius() * 2., m_Geodesics.at(3));
+        m_AnalyticCylinderSurface.calcGeodesic(p0, v0, l * m_AnalyticCylinderSurface.getRadius() * 2., m_Geodesics.at(4));
     }
 
     void implOnDraw() final
