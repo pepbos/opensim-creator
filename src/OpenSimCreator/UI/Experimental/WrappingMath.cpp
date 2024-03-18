@@ -1101,17 +1101,15 @@ void updGeodesicStatus(
 
     geodesic.status |= calcLiftoff(&*geodesic.samples.begin(), &*geodesic.samples.end(), prev, next);
 
-    if ((geodesic.status & Geodesic::Status::LiftOff) == 0) {
-        return;
-    }
+    if (geodesic.status & Geodesic::Status::LiftOff) {
+        geodesic.length = 0.;
+        geodesic.samples.clear();
 
-    geodesic.length = 0.;
-    geodesic.samples.clear();
-
-    size_t maxIter = 10;
-    if(calcTouchdown(s, geodesic.start.position, geodesic.start.frame, prev, next, 1e-3, maxIter) == maxIter)
-    {
-        geodesic.status |= Geodesic::Status::TouchDownFailed;
+        size_t maxIter = 10;
+        if(calcTouchdown(s, geodesic.start.position, geodesic.start.frame, prev, next, 1e-3, maxIter) == maxIter)
+        {
+            geodesic.status |= Geodesic::Status::TouchDownFailed;
+        }
     }
 }
 
@@ -1146,6 +1144,9 @@ void Surface::calcGeodesic(
 
     geodesic.samples.clear();
     calcLocalGeodesicImpl(p0, v0, length, geodesic);
+
+    // Reset status flags.
+    geodesic.status = Geodesic::Status::Ok;
     updGeodesicStatus(*this, geodesic, prev, next); // TODO Flip the order.
 
     calcGeodesicInGlobal(_transform, geodesic);
