@@ -1012,6 +1012,50 @@ namespace
     }
 }
 
+ptrdiff_t findPrevSegmentIndex(
+    const std::vector<Geodesic>& segments,
+    ptrdiff_t idx)
+{
+    ptrdiff_t prev = -1;
+    for (ptrdiff_t i = 0; i < idx; ++i) {
+        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+            prev = i;
+        }
+    }
+    return prev;
+}
+
+ptrdiff_t findNextSegmentIndex(
+    const std::vector<Geodesic>& segments,
+    ptrdiff_t idx)
+{
+    for (ptrdiff_t i = idx + 1; i < static_cast<ptrdiff_t>(segments.size());
+         ++i) {
+        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+Vector3 findPrevSegmentEndPoint(
+    const Vector3& pathStart,
+    const std::vector<Geodesic>& segments,
+    ptrdiff_t idx)
+{
+    ptrdiff_t prev = findPrevSegmentIndex(segments, idx);
+    return prev < 0 ? pathStart : segments.at(prev).end.position;
+}
+
+Vector3 findNextSegmentStartPoint(
+    const Vector3& pathEnd,
+    const std::vector<Geodesic>& segments,
+    ptrdiff_t idx)
+{
+    ptrdiff_t next = findNextSegmentIndex(segments, idx);
+    return next < 0 ? pathEnd : segments.at(next).start.position;
+}
+
 //==============================================================================
 //                      WRAPPING STATUS FLAGS
 //==============================================================================
@@ -1759,50 +1803,6 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
     }
 
     /* std::cout << "after pathError =" << pathError.transpose() << std::endl; */
-}
-
-ptrdiff_t findPrevSegmentIndex(
-    const std::vector<Geodesic>& segments,
-    ptrdiff_t idx)
-{
-    ptrdiff_t prev = -1;
-    for (ptrdiff_t i = 0; i < idx; ++i) {
-        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
-            prev = i;
-        }
-    }
-    return prev;
-}
-
-ptrdiff_t findNextSegmentIndex(
-    const std::vector<Geodesic>& segments,
-    ptrdiff_t idx)
-{
-    for (ptrdiff_t i = idx + 1; i < static_cast<ptrdiff_t>(segments.size());
-         ++i) {
-        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-Vector3 findPrevSegmentEndPoint(
-    const Vector3& pathStart,
-    const std::vector<Geodesic>& segments,
-    ptrdiff_t idx)
-{
-    ptrdiff_t prev = findPrevSegmentIndex(segments, idx);
-    return prev < 0 ? pathStart : segments.at(prev).end.position;
-}
-
-Vector3 findNextSegmentStartPoint(
-    const Vector3& pathEnd,
-    const std::vector<Geodesic>& segments,
-    ptrdiff_t idx)
-{
-    ptrdiff_t next = findNextSegmentIndex(segments, idx);
-    return next < 0 ? pathEnd : segments.at(next).start.position;
 }
 
 bool PathContinuityError::calcPathCorrection()
