@@ -272,14 +272,13 @@ private:
         if (freezeClicked) {
 
             std::cout << "Freeze! : error = \n";
-            std::cout << " path error:\n";
-            std::cout << m_WrappingPath.smoothness.updPathError() << "\n";
+            std::cout << " path error: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
             std::cout << " path jacobian:\n";
             std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
-            std::cout << " path matrix:\n";
+            std::cout << " path cor: " << m_WrappingPath.smoothness._pathCorrections.transpose() << "\n";
+            std::cout << " path mat:\n";
             std::cout << m_WrappingPath.smoothness._mat << "\n";
-            std::cout << " path vec:\n";
-            std::cout << m_WrappingPath.smoothness._vec << "\n";
+            std::cout << " path vec: " << m_WrappingPath.smoothness._vec.transpose() << "\n";
 
             std::cout << "    " << m_WrappingPath.status << "\n";
             for (const Geodesic& s: m_WrappingPath.segments) {

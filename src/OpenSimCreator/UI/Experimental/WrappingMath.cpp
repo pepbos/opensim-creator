@@ -1824,14 +1824,17 @@ bool PathContinuityError::calcPathCorrection()
     /*           << std::endl; */
     /* std::cout << "_length =" << _length << std::endl; */
 
-    _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose();
-    _vec = _pathErrorJacobian.transpose() * _matSmall.colPivHouseholderQr().solve(_pathError);
+    /* _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose(); */
+    /* _vec = _pathErrorJacobian.transpose() * _matSmall.colPivHouseholderQr().solve(_pathError); */
     /* _solverError = _pathErrorJacobian * _pathCorrections + _pathError; */
+
+    _mat = _pathErrorJacobian.transpose() * _pathErrorJacobian;
+    _vec = _pathErrorJacobian.transpose() * _pathError;
 
     const size_t n     = _nSurfaces;
     constexpr size_t Q = GEODESIC_DIM;
     for (size_t i = 0; i < n * Q; ++i) {
-        _mat(i,i) = weight + 1.;
+        _mat(i,i) += weight;
     }
 
     /* _mat = (_pathErrorJacobian * _pathErrorJacobian.transpose()).colPivHouseholderQr(). */
