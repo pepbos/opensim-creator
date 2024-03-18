@@ -1906,32 +1906,6 @@ Vector3 calcTangentDerivative(const DarbouxFrame& frame, const Vector3& rate)
     return tDot;
 }
 
-// TODO reuse existin functions.
-Vector3 calcPointClosestToPointOnEdge(
-    const Vector3& edgePoint0,
-    const Vector3& edgePoint1,
-    const Vector3& targetPoint)
-{
-    Vector3 p0 = edgePoint0 - targetPoint;
-    Vector3 p1 = edgePoint1 - targetPoint;
-
-    const Vector3 e = p1 - p0;
-
-    Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
-
-    const double d0 = p0.dot(p0);
-    const double d1 = p1.dot(p1);
-    const double d  = p.dot(p);
-
-    if (d0 < d) {
-        return edgePoint0;
-    }
-    if (d1 < d) {
-        return edgePoint1;
-    }
-    return p + targetPoint;
-}
-
 std::vector<Geodesic> calcInitWrappingPathGuess(
     const Vector3& pathStart,
     std::function<const Surface*(size_t)>& getSurface)
