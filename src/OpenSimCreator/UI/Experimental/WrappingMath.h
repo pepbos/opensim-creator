@@ -202,6 +202,8 @@ public:
 
     size_t calcAccurateLocalSurfaceProjection(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const;
 
+    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var) const;
+
 private:
     virtual void calcLocalGeodesicImpl(
             Vector3 initPosition,
@@ -545,8 +547,10 @@ public:
     Eigen::MatrixXd _pathErrorJacobian;
 
     Eigen::MatrixXd _mat;
-    Eigen::MatrixXd _matSmall;
     Eigen::VectorXd _vec;
+
+    Eigen::MatrixXd _matSmall;
+    Eigen::MatrixXd _vecSmall;
 
     double _length = 0.;
     Eigen::VectorXd _lengthJacobian;

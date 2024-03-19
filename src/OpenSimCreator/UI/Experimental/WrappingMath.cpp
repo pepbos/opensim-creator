@@ -1743,9 +1743,11 @@ void PathContinuityError::resize(size_t nSurfaces)
     _solverError.resize(n * Q);
     _pathErrorJacobian.resize(n * C, n * Q);
 
-    _matSmall.resize(n * C, n * C);
-    _mat.resize(n * Q, n * Q);
-    _vec.resize(n * Q);
+    /* _matSmall.resize(n * C, n * C); */
+    /* _vecSmall.resize(n * C); */
+
+    _mat.resize(n * (Q + C), n * (Q + C));
+    _vec.resize(n * (Q + C));
     _pathCorrections.resize(_mat.cols());
 
     _length = 0.;
@@ -1810,33 +1812,53 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
 
 bool PathContinuityError::calcPathCorrection()
 {
-    const double weight       = calcMaxPathError() / 2. + 1e-4;
-    /* const double weightLength = 1. / _length * 1e-4; */
+    /* const double weight       = calcMaxPathError() / 2. + 1e-3; */
+
+    const double weightLength = 1. / _length * 1e-4;
     /* std::cout << "weight =" << weight << std::endl; */
 
     // TODO Clamp the path error?
-    /* clampPathError(_pathError, 5.); */
-    clampToMaxAlighmentError(_pathError, 5.);
+    /* clampPathError(_pathError, 10.); */
+    clampToMaxAlighmentError(_pathError, 10.);
     /* std::cout << "\n"; */
     /* std::cout << "_pathError =" << _pathError.transpose() << std::endl; */
     /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl; */
 
-    /* std::cout << "_lengthJacobian =" << _lengthJacobian.transpose() */
-    /*           << std::endl; */
+    /* std::cout << "_lengthJacobian =" << _lengthJacobian.transpose() << std::endl; */
     /* std::cout << "_length =" << _length << std::endl; */
 
     /* _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose(); */
-    /* _vec = _pathErrorJacobian.transpose() * _matSmall.colPivHouseholderQr().solve(_pathError); */
-    /* _solverError = _pathErrorJacobian * _pathCorrections + _pathError; */
-
-    _mat = _pathErrorJacobian.transpose() * _pathErrorJacobian;
-    _vec = _pathErrorJacobian.transpose() * _pathError;
+    /* _vecSmall =  _matSmall.colPivHouseholderQr().solve(_pathError); */
 
     const size_t n     = _nSurfaces;
     constexpr size_t Q = GEODESIC_DIM;
-    for (size_t i = 0; i < n * Q; ++i) {
-        _mat(i,i) += weight;
+    constexpr size_t C = NUMBER_OF_CONSTRAINTS;
+
+    /* _mat *= weight; */
+
+    /* _matSmall.fill(0.); */
+    /* _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose() * weight; */
+
+    // Set cost function.
+    {
+        /* _mat.topLeftCorner(n * Q, n * Q) *= weight; */
+        _mat.topLeftCorner(n * Q, n * Q) += _lengthJacobian * _lengthJacobian.transpose() * weightLength;
+        /* _vec.topRows(n * Q).fill(0.); */
+        _vec.topRows(n * Q) = _lengthJacobian * _length * weightLength;
     }
+
+    // Set constraints
+    {
+        _mat.bottomLeftCorner(n * C, n * Q) = _pathErrorJacobian;
+        _mat.topRightCorner(n * Q, n * C) = _pathErrorJacobian.transpose();
+        _vec.bottomRows(n * C) = _pathError;
+    }
+
+    _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec);
+
+    /* _mat += _pathErrorJacobian.transpose() * _pathErrorJacobian; */
+    /* _vec = _pathErrorJacobian.transpose() * _pathError; */
+
 
     /* _mat = (_pathErrorJacobian * _pathErrorJacobian.transpose()).colPivHouseholderQr(). */
 
@@ -1844,13 +1866,13 @@ bool PathContinuityError::calcPathCorrection()
     /* std::cout << "_mat =\n" << _mat << std::endl; */
 
     // Compute singular value decomposition. TODO or other decomposition?
-    constexpr bool useSvd = false;
-    if (useSvd) {
-        _svd.compute(_mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        _pathCorrections = -_svd.solve(_vec);
-    } else {
-        _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec);
-    }
+    /* constexpr bool useSvd = false; */
+    /* if (useSvd) { */
+    /*     _svd.compute(_mat, Eigen::ComputeThinU | Eigen::ComputeThinV); */
+    /*     _pathCorrections = -_svd.solve(_vec); */
+    /* } else { */
+    /*     _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec); */
+    /* } */
     /* std::cout << "solverCorr = " << _pathCorrections.transpose() << std::endl; */
 
     _solverError = _mat * _pathCorrections + _vec;
@@ -2116,6 +2138,7 @@ size_t calcPathErrorJacobian(WrappingPath& path)
 
     // Active segment count.
     size_t row = 0;
+    size_t rowLengthJacobian = 3;
     /* SegmentIterator end = SegmentIterator::End(path); */
     /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it)
      */
@@ -2163,7 +2186,17 @@ size_t calcPathErrorJacobian(WrappingPath& path)
         }
 
         path.smoothness._length += std::abs(s.length);
-        path.smoothness._lengthJacobian(row + 3) += sign(s.length);
+        path.smoothness._lengthJacobian(rowLengthJacobian) += sign(s.length);
+        rowLengthJacobian += GEODESIC_DIM;
+
+        for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+            for (size_t j = 0; j < GEODESIC_DIM; ++j) {
+                const size_t r = i + GEODESIC_DIM * idx;
+                const size_t c = j + GEODESIC_DIM * idx;
+                path.smoothness._mat(r,c) = s.start.v.at(i).dot(s.start.v.at(j));
+                path.smoothness._mat(r,c) += s.end.v.at(i).dot(s.end.v.at(j));
+            }
+        }
     }
     /* std::cout << "    pathError=" <<
      * path.smoothness.updPathError().transpose() << "\n"; */

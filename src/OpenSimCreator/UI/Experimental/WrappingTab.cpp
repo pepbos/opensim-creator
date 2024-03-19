@@ -260,8 +260,8 @@ private:
             std::cout << "\n";
 
             std::cout << "mat:\n";
-            std::cout << m_WrappingPath.smoothness._matSmall << "\n";
-            std::cout << "vec: " << m_WrappingPath.smoothness._vecSmall.transpose() << "\n";
+            std::cout << m_WrappingPath.smoothness._mat << "\n";
+            std::cout << "vec: " << m_WrappingPath.smoothness._vec.transpose() << "\n";
 
             std::cout << "\n";
 
