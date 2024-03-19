@@ -2012,38 +2012,6 @@ WrappingPath::WrappingPath(
     segments(calcInitWrappingPathGuess(startPoint, GetSurface))
 {}
 
-Geodesic::InitialConditions applyNaturalGeodesicVariation2(
-    const Geodesic& geodesic,
-    const GeodesicCorrection& correction) // TODO remove bool arg
-{
-    // Compute new initial conditions for updating the geodesic.
-    Geodesic::InitialConditions initialConditions;
-
-    // Update the length.
-    initialConditions.length = geodesic.length + correction.back();
-
-    // Update the position.
-    const Geodesic::BoundaryState K_P = geodesic.start;
-    const DarbouxFrame f_P            = K_P.frame;
-    initialConditions.position        = geodesic.start.position +
-                                 correction.at(1) * f_P.b +
-                                 correction.at(0) * f_P.t;
-
-    // Update the velocity direction.
-    // TODO overload vor ANALYTIC?
-    initialConditions.velocity = f_P.t;
-
-    // TODO use matrix multiplication.
-    for (size_t i = 0; i < correction.size(); ++i) {
-        const Vector3& w_P = K_P.w.at(i);
-        const double c     = correction.at(i); // TODO rename to q?
-
-        initialConditions.velocity += calcTangentDerivative(f_P, w_P * c);
-    }
-
-    return initialConditions;
-}
-
 void applyNaturalGeodesicVariation(
     Geodesic::BoundaryState& geodesicStart,
     const GeodesicCorrection& correction)
