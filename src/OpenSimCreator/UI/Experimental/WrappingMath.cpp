@@ -143,26 +143,26 @@ std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s)
 namespace
 {
 
-void AssertEq(
-    const Vector3& lhs,
-    double norm,
-    const std::string& msg,
-    double eps = 1e-13)
-{
-    const bool isOk = std::abs(lhs.norm() - norm) < eps;
-    if (!isOk) {
-        std::ostringstream os;
-        os << "FAILED ASSERT: " << msg << std::endl;
-        os << "    lhs.norm() = " << Print3{lhs} << ".norm() = " << lhs.norm()
-           << std::endl;
-        os << "    expected = " << norm << std::endl;
-        os << "    err = " << lhs.norm() - norm << std::endl;
-        os << "    bnd = " << eps << std::endl;
-        std::string msg = os.str();
-        throw std::runtime_error(msg.c_str());
-        /* OSC_ASSERT(isOk && msg.c_str()); */
-    }
-}
+/* void AssertEq( */
+/*     const Vector3& lhs, */
+/*     double norm, */
+/*     const std::string& msg, */
+/*     double eps = 1e-13) */
+/* { */
+/*     const bool isOk = std::abs(lhs.norm() - norm) < eps; */
+/*     if (!isOk) { */
+/*         std::ostringstream os; */
+/*         os << "FAILED ASSERT: " << msg << std::endl; */
+/*         os << "    lhs.norm() = " << Print3{lhs} << ".norm() = " << lhs.norm() */
+/*            << std::endl; */
+/*         os << "    expected = " << norm << std::endl; */
+/*         os << "    err = " << lhs.norm() - norm << std::endl; */
+/*         os << "    bnd = " << eps << std::endl; */
+/*         std::string msg = os.str(); */
+/*         throw std::runtime_error(msg.c_str()); */
+/*         /1* OSC_ASSERT(isOk && msg.c_str()); *1/ */
+/*     } */
+/* } */
 
 void AssertEq(
     double lhs,
