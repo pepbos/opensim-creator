@@ -824,7 +824,7 @@ double calcPathErrorDerivative(
 double calcMaxAlignmentError(
         double angleDeg)
 {
-    return 1. - cos(angleDeg / 180. * M_PI);
+    return std::abs(1. - cos(angleDeg / 180. * M_PI));
 }
 
 template<typename VECTOR>
@@ -1098,6 +1098,7 @@ void updGeodesicStatus(
 
     if (geodesic.length < 0.) {
         geodesic.status |= Geodesic::Status::NegativeLength;
+        geodesic.length = 0.;
     }
 
     geodesic.status |= calcLiftoff(&*geodesic.samples.begin(), &*geodesic.samples.end(), prev, next);
