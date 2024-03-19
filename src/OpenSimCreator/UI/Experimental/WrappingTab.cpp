@@ -215,16 +215,60 @@ private:
         }
 
         // Create path anew, or start from previous.
+        if (m_SingleStep) {
+            m_FreezePath = false;
+        }
+
         if (!m_FreezePath) {
             if (m_CachePath) {
                 m_WrappingPath.endPoint = ComputePoint(m_EndPoint);
-                m_WrappingPath.updPath(GetSurface);
+                m_WrappingPath.updPath(GetSurface, 1e-6, 1);
             } else {
                 m_WrappingPath = WrappingPath(
                         m_StartPoint,
                         ComputePoint(m_EndPoint),
                         GetSurface);
             }
+            const size_t n = m_WrappingPath.segments.size();
+            for (size_t i = 0; i < 8; ++i) {
+                m_GeodesicVariations.at(i).resize(n);
+            }
+            for (size_t i = 0; i < 8; ++i) {
+                for (size_t j = 0; j < n; ++j) {
+                    GeodesicCorrection c = {0., 0., 0., 0.};
+                    c.at(i % 4) = (i >= 4) ? -m_VariationDelta : m_VariationDelta;
+                    m_GeodesicVariations.at(i).at(j) = m_WrappingPath.segments.at(j);
+                    getWrapSurfaceHelper(j)->applyVariation(m_GeodesicVariations.at(i).at(j),  c);
+                }
+            }
+
+        }
+
+        if (m_SingleStep) {
+            m_FreezePath = true;
+            m_SingleStep = false;
+
+            std::cout << "Single step!\n";
+            std::cout << "\n";
+            std::cout << "pathError: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
+            std::cout << "pathJacobian:\n";
+            std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
+            std::cout << "CORRECTION: " << m_WrappingPath.smoothness._pathCorrections.transpose() << "\n";
+
+            std::cout << "\n";
+
+            std::cout << "mat:\n";
+            std::cout << m_WrappingPath.smoothness._matSmall << "\n";
+            std::cout << "vec: " << m_WrappingPath.smoothness._vecSmall.transpose() << "\n";
+
+            std::cout << "\n";
+
+            std::cout << "status" << m_WrappingPath.status << "\n";
+            for (const Geodesic& s: m_WrappingPath.segments) {
+                std::cout << "    " << s << "\n";
+            }
+            std::cout << "\n";
+            std::cout << "\n";
         }
 
         bool error = m_WrappingPath.status > 0;
@@ -266,24 +310,12 @@ private:
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
             ui::Checkbox("Cache path", &m_CachePath);
             ui::Checkbox("Freeze", &m_FreezePath);
+            ui::Checkbox("Single", &m_SingleStep);
             ui::Checkbox("Singular", &m_Singular);
         }
         freezeClicked = m_FreezePath != freezeClicked;
         if (freezeClicked) {
 
-            std::cout << "Freeze! : error = \n";
-            std::cout << " path error: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
-            std::cout << " path jacobian:\n";
-            std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
-            std::cout << " path cor: " << m_WrappingPath.smoothness._pathCorrections.transpose() << "\n";
-            std::cout << " path mat:\n";
-            std::cout << m_WrappingPath.smoothness._mat << "\n";
-            std::cout << " path vec: " << m_WrappingPath.smoothness._vec.transpose() << "\n";
-
-            std::cout << "    " << m_WrappingPath.status << "\n";
-            for (const Geodesic& s: m_WrappingPath.segments) {
-                std::cout << "    " << s << "\n";
-            }
 
             m_ErrorDetected = false;
             /* WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* { */
@@ -444,6 +476,7 @@ private:
 
     bool m_CachePath = true;
     bool m_FreezePath = false;
+    bool m_SingleStep = false;
     bool m_Singular = false;
     bool m_ErrorDetected = false;
 
