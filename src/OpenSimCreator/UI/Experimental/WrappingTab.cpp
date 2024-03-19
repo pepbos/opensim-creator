@@ -252,6 +252,13 @@ private:
 
             std::cout << "Single step!\n";
             std::cout << "\n";
+
+            WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
+                return getWrapSurfaceHelper(i);
+            };
+            WrappingTester(m_WrappingPath, GetSurface, std::cout, 1e-4, 1e-3);
+
+            std::cout << "\n";
             std::cout << "pathError: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
             std::cout << "pathJacobian:\n";
             std::cout << m_WrappingPath.smoothness.updPathErrorJacobian() << "\n";
@@ -451,12 +458,9 @@ private:
             const Vector3 next = m_WrappingPath.endPoint;
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), m_RedColorMaterialProps);
 
-            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_BlackColorMaterialProps);
+            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_GreyColorMaterialProps);
 
-            DrawCurveSegmentMesh(
-                {0., 0., 0.},
-                ToVec3(ComputePoint(m_EndPoint)),
-                m_BlackColorMaterialProps);
+            DrawCurveSegmentMesh({0., 0., 0.}, ToVec3(ComputePoint(m_EndPoint)), m_GreyColorMaterialProps);
         }
 
         // Render variation curves.
@@ -469,7 +473,7 @@ private:
                             m_VariationColorMaterialProps);
                 }
             }
-            for (size_t i = 0; i < m_GeodesicVariations.size() && m_WrappingPath.segments.size(); ++i) {
+            for (size_t i = 0; i < m_GeodesicVariations.size() && i < m_WrappingPath.segments.size(); ++i) {
                 const Geodesic& s = m_WrappingPath.segments.at(i);
 
                 Vector3 v_P = {0., 0., 0.};
@@ -479,25 +483,47 @@ private:
                     v_Q += s.end.v.at(j) * m_Variation.at(j);
                 }
 
-                Graphics::DrawMesh(
-                        m_SphereMesh,
-                        {
-                        .scale    = {0.01, 0.01, 0.01},
-                        .position = ToVec3(s.start.position + v_P),
-                        },
-                        m_Material,
-                        m_Camera,
-                        m_VariationColorMaterialProps);
+                if (!m_GeodesicVariations.at(i).samples.empty()) {
+                    const Geodesic& g = m_GeodesicVariations.at(i);
+                    Graphics::DrawMesh(
+                            m_SphereMesh,
+                            {
+                            .scale    = {0.05, 0.05, 0.05},
+                            .position = ToVec3(g.start.position),
+                            },
+                            m_Material,
+                            m_Camera,
+                            m_VariationColorMaterialProps);
+                    Graphics::DrawMesh(
+                            m_SphereMesh,
+                            {
+                            .scale    = {0.05, 0.05, 0.05},
+                            .position = ToVec3(g.end.position),
+                            },
+                            m_Material,
+                            m_Camera,
+                            m_VariationColorMaterialProps);
+                }
 
                 Graphics::DrawMesh(
                         m_SphereMesh,
                         {
-                        .scale    = {0.01, 0.01, 0.01},
+                        .scale    = {0.05, 0.05, 0.05},
+                        .position = ToVec3(s.start.position + v_P),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_GreenColorMaterialProps);
+
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.05, 0.05, 0.05},
                         .position = ToVec3(s.end.position + v_Q),
                         },
                         m_Material,
                         m_Camera,
-                        m_VariationColorMaterialProps);
+                        m_GreenColorMaterialProps);
             }
         }
 
@@ -526,7 +552,7 @@ private:
     MeshBasicMaterial m_TransparantMaterial{};
     MeshBasicMaterial m_Material{};
 
-    Mesh m_SphereMesh = SphereGeometry(1.0f, 12, 12);
+    Mesh m_SphereMesh = SphereGeometry(1.0f, 24, 24);
     Mesh m_CylinderMesh = CylinderGeometry(
             1., 1., 1., 45, 1, false, Radians{0.}, Radians{2. * M_PI});
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
@@ -541,7 +567,7 @@ private:
         {Color::red()};
     MeshBasicMaterial::PropertyBlock m_GreyColorMaterialProps
         {Color::half_grey().with_alpha(0.2f)};
-    MeshBasicMaterial::PropertyBlock m_VariationColorMaterialProps {Color::green()};
+    MeshBasicMaterial::PropertyBlock m_VariationColorMaterialProps {Color::purple()};
 
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);

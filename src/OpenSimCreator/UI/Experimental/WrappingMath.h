@@ -742,8 +742,6 @@ inline WrappingPath::Status operator~(WrappingPath::Status s)
     return static_cast<WrappingPath::Status>(~static_cast<int>(s));
 }
 
-void WrappingTester(
-    const WrappingPath& path,
-    WrappingPath::GetSurfaceFn& GetSurface);
+bool WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSurface, std::ostream& os, double d, double eps);
 
 } // namespace osc

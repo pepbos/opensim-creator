@@ -2527,33 +2527,36 @@ void Surface::doSelfTest(
     }
 }
 
-void WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSurface)
+bool WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSurface, std::ostream& os, double d, double eps)
 {
-    GetSurface(0);
-    std::cout << "Disabled WrappinPathTester\n" << path.status << std::endl;
-    throw std::runtime_error("not yet implemented");
-
     WrappingPath pathZero = path;
-    const double d        = -1e-5;
+    calcPathErrorJacobian(pathZero);
 
     const size_t n = path.segments.size();
+    os << "Start test for path error jacobian:\n";
+    bool success = true;
     for (size_t i = 0; i < n; ++i) {
-        for (size_t j = 0; j < 4; ++j) {
+        os << "    Start testing Surface " << i << "\n";
+        for (size_t j = 0; j < 9; ++j) {
             WrappingPath pathOne = path;
 
             const Surface* surface = GetSurface(i);
 
             GeodesicCorrection correction{0., 0., 0., 0.};
-            correction.at(j) = d;
 
             Eigen::VectorXd correctionVector(n * 4);
             correctionVector.fill(0.);
-            correctionVector[i * 4 + j] = d;
 
-            Geodesic::BoundaryState start = path.segments.at(i).start;
+            if (j < 8) {
+                correction.at(j % 4) = (j < 4) ? d : -d;
+                correctionVector[i * 4 + (j%4)] = (j < 4) ? d : -d;
+            }
+            os << "        d" << i << " = " << correctionVector.transpose() << "\n";
+
+            Geodesic::BoundaryState start = pathOne.segments.at(i).start;
             applyNaturalGeodesicVariation(start, correction);
 
-            const double length = path.segments.at(i).length + correction.at(3);
+            const double length = pathOne.segments.at(i).length + correction.at(3);
             surface->calcGeodesic(start.position, start.frame.t, length, pathOne.segments.at(i));
 
             calcPathErrorJacobian(pathOne);
@@ -2564,20 +2567,21 @@ void WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSur
             Eigen::VectorXd dErr =
                 pathOne.smoothness._pathError - pathZero.smoothness._pathError;
 
-            std::cout << "dErrExpected = " << dErrExpected.transpose() / d
-                      << "\n";
-            std::cout << "dErr         = " << dErr.transpose() / d << "\n";
-            std::cout << "correctionr  = " << correctionVector.transpose() / d
-                      << "\n";
-            std::cout << "\n";
+            os << "        dErrExp" << i << " = " << dErrExpected.transpose() / d << "\n";
+            os << "        dErr   " << i << " = " << dErr.transpose() / d << "\n";
+            os << "        ErrZero" << i << " = " << pathZero.smoothness._pathError.transpose() << "\n";
+            os << "        ErrOne" << i << "  = " << pathOne.smoothness._pathError.transpose() << "\n";
 
             for (int k = 0; k < dErr.rows(); ++k) {
-                if (std::abs(dErrExpected[k] / d - dErr[k] / d) > 1e-3) {
-                    throw std::runtime_error("failed wrapping tester");
+                if (std::abs(dErrExpected[k] / d - dErr[k] / d) > eps) {
+                    os << "    FAILED TEST FOR SURFACE " << i << " with d = " << correctionVector.transpose() << "\n";
+                    success = false;
+                    break;
                 }
             }
         }
     }
+    return success;
 }
 
 } // namespace osc
