@@ -229,19 +229,21 @@ private:
                         ComputePoint(m_EndPoint),
                         GetSurface);
             }
-            const size_t n = m_WrappingPath.segments.size();
-            for (size_t i = 0; i < 8; ++i) {
-                m_GeodesicVariations.at(i).resize(n);
-            }
-            for (size_t i = 0; i < 8; ++i) {
-                for (size_t j = 0; j < n; ++j) {
-                    GeodesicCorrection c = {0., 0., 0., 0.};
-                    c.at(i % 4) = (i >= 4) ? -m_VariationDelta : m_VariationDelta;
-                    m_GeodesicVariations.at(i).at(j) = m_WrappingPath.segments.at(j);
-                    getWrapSurfaceHelper(j)->applyVariation(m_GeodesicVariations.at(i).at(j),  c);
-                }
-            }
 
+        }
+        // Variations
+        {
+            const size_t n = m_WrappingPath.segments.size();
+            m_GeodesicVariations.resize(n);
+            for (size_t j = 0; j < n; ++j) {
+                m_GeodesicVariations.at(j) = m_WrappingPath.segments.at(j);
+                const GeodesicCorrection c = {
+                    static_cast<double>(m_Variation.at(0)),
+                    static_cast<double>(m_Variation.at(1)),
+                    static_cast<double>(m_Variation.at(2)),
+                    static_cast<double>(m_Variation.at(3))};
+                getWrapSurfaceHelper(j)->applyVariation(m_GeodesicVariations.at(j),  c);
+            }
         }
 
         if (m_SingleStep) {
@@ -308,10 +310,16 @@ private:
         if (ui::Begin("viewer")) {
             ImGui::SliderAngle("phi", &m_EndPoint.phi);
             ImGui::SliderAngle("theta", &m_EndPoint.theta);
+
             ui::Checkbox("Cache path", &m_CachePath);
             ui::Checkbox("Freeze", &m_FreezePath);
             ui::Checkbox("Single", &m_SingleStep);
             ui::Checkbox("Singular", &m_Singular);
+
+            ImGui::SliderFloat("ds", &m_Variation.at(0), -1., 1.);
+            ImGui::SliderFloat("dB", &m_Variation.at(1), -1., 1.);
+            ImGui::SliderFloat("da", &m_Variation.at(2), -1., 1.);
+            ImGui::SliderFloat("dl", &m_Variation.at(3), -1., 1.);
         }
         freezeClicked = m_FreezePath != freezeClicked;
         if (freezeClicked) {
@@ -432,41 +440,42 @@ private:
         // Render variation curves.
         {
             for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
-                for (size_t j = 0; j < m_GeodesicVariations.at(i).size(); ++j) {
-                    for (size_t k = 1; k < m_GeodesicVariations.at(i).at(j).samples.size(); ++k) {
-                        DrawCurveSegmentMesh(
-                            ToVec3(m_GeodesicVariations.at(i).at(j).samples.at(k-1).first),
-                            ToVec3(m_GeodesicVariations.at(i).at(j).samples.at(k).first),
-                            m_VariationColorMaterialProps.at(i));
-                    }
+                for (size_t k = 1; k < m_GeodesicVariations.at(i).samples.size(); ++k) {
+                    DrawCurveSegmentMesh(
+                            ToVec3(m_GeodesicVariations.at(i).samples.at(k-1).first),
+                            ToVec3(m_GeodesicVariations.at(i).samples.at(k).first),
+                            m_VariationColorMaterialProps);
                 }
             }
-            for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
-                for (size_t j = 0; j < m_GeodesicVariations.at(i).size(); ++j) {
-                    const Geodesic& s = m_WrappingPath.segments.at(j);
-                    const Vector3 v_P = s.start.v.at(i%4) * ((i < 4) ? m_VariationDelta : -m_VariationDelta);
-                    const Vector3 v_Q = s.end.v.at(i%4) * ((i < 4) ? m_VariationDelta : -m_VariationDelta);
+            for (size_t i = 0; i < m_GeodesicVariations.size() && m_WrappingPath.segments.size(); ++i) {
+                const Geodesic& s = m_WrappingPath.segments.at(i);
 
-                    Graphics::DrawMesh(
-                            m_SphereMesh,
-                            {
-                            .scale    = {0.01, 0.01, 0.01},
-                            .position = ToVec3(s.start.position + v_P),
-                            },
-                            m_Material,
-                            m_Camera,
-                            m_VariationColorMaterialProps.at(i));
-
-                    Graphics::DrawMesh(
-                            m_SphereMesh,
-                            {
-                            .scale    = {0.01, 0.01, 0.01},
-                            .position = ToVec3(s.end.position + v_Q),
-                            },
-                            m_Material,
-                            m_Camera,
-                            m_VariationColorMaterialProps.at(i));
+                Vector3 v_P = {0., 0., 0.};
+                Vector3 v_Q = {0., 0., 0.};
+                for (size_t j = 0; j < 4; ++j) {
+                    v_P += s.start.v.at(j) * m_Variation.at(j);
+                    v_Q += s.end.v.at(j) * m_Variation.at(j);
                 }
+
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.01, 0.01, 0.01},
+                        .position = ToVec3(s.start.position + v_P),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_VariationColorMaterialProps);
+
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.01, 0.01, 0.01},
+                        .position = ToVec3(s.end.position + v_Q),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_VariationColorMaterialProps);
             }
         }
 
@@ -486,7 +495,9 @@ private:
     PathTerminalPoint m_EndPoint = {};
 
     WrappingPath m_WrappingPath = WrappingPath();
-    std::array<std::vector<Geodesic>, 8> m_GeodesicVariations;
+
+    std::array<float, 4> m_Variation = {0., 0., 0., 0.};
+    std::vector<Geodesic> m_GeodesicVariations;
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -508,20 +519,7 @@ private:
         {Color::red()};
     MeshBasicMaterial::PropertyBlock m_GreyColorMaterialProps
         {Color::half_grey().with_alpha(0.2f)};
-
-    double m_VariationDelta = 1e-1;
-    std::array<MeshBasicMaterial::PropertyBlock, 8> m_VariationColorMaterialProps
-        {
-            MeshBasicMaterial::PropertyBlock{Color::green()},
-            MeshBasicMaterial::PropertyBlock{Color::blue()},
-            MeshBasicMaterial::PropertyBlock{Color::purple()},
-            MeshBasicMaterial::PropertyBlock{Color::black()},
-
-            MeshBasicMaterial::PropertyBlock{Color::dark_green()},
-            MeshBasicMaterial::PropertyBlock{Color::cyan()},
-            MeshBasicMaterial::PropertyBlock{Color::orange()},
-            MeshBasicMaterial::PropertyBlock{Color::half_grey()},
-        };
+    MeshBasicMaterial::PropertyBlock m_VariationColorMaterialProps {Color::green()};
 
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
