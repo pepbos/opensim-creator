@@ -792,7 +792,7 @@ calcLocalImplicitGeodesic(
         length,
         l,
         "Total length does not match integrated length",
-        1e-6); // TODO this should be flagged, and with high precision.
+        1e-10); // TODO this should be flagged, and with high precision.
 
     return {xStart, xEnd};
 }
