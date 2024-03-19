@@ -398,35 +398,76 @@ private:
         }
 
         // render curve
-        {
-            Vector3 prev              = m_StartPoint;
-            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, bool red = true) {
-                Graphics::DrawMesh(
+        auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, const MeshBasicMaterial::PropertyBlock& color) {
+            Graphics::DrawMesh(
                     m_LineMesh,
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
                     m_Camera,
-                    red ? m_RedColorMaterialProps : m_BlackColorMaterialProps);
-            };
+                    color);
+        };
+        {
+            Vector3 prev              = m_StartPoint;
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
                 // Iterate over the logged points in the Geodesic.
                 for (const std::pair<Vector3, DarbouxFrame>& knot :
                      geodesic.samples) {
                     const Vector3 next = knot.first;
-                    DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+                    DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), m_RedColorMaterialProps);
                     prev = next;
                 }
             }
             const Vector3 next = m_WrappingPath.endPoint;
-            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), m_RedColorMaterialProps);
 
-            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, false);
+            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_BlackColorMaterialProps);
 
             DrawCurveSegmentMesh(
                 {0., 0., 0.},
                 ToVec3(ComputePoint(m_EndPoint)),
-                false);
+                m_BlackColorMaterialProps);
+        }
+
+        // Render variation curves.
+        {
+            for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
+                for (size_t j = 0; j < m_GeodesicVariations.at(i).size(); ++j) {
+                    for (size_t k = 1; k < m_GeodesicVariations.at(i).at(j).samples.size(); ++k) {
+                        DrawCurveSegmentMesh(
+                            ToVec3(m_GeodesicVariations.at(i).at(j).samples.at(k-1).first),
+                            ToVec3(m_GeodesicVariations.at(i).at(j).samples.at(k).first),
+                            m_VariationColorMaterialProps.at(i));
+                    }
+                }
+            }
+            for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
+                for (size_t j = 0; j < m_GeodesicVariations.at(i).size(); ++j) {
+                    const Geodesic& s = m_WrappingPath.segments.at(j);
+                    const Vector3 v_P = s.start.v.at(i%4) * ((i < 4) ? m_VariationDelta : -m_VariationDelta);
+                    const Vector3 v_Q = s.end.v.at(i%4) * ((i < 4) ? m_VariationDelta : -m_VariationDelta);
+
+                    Graphics::DrawMesh(
+                            m_SphereMesh,
+                            {
+                            .scale    = {0.01, 0.01, 0.01},
+                            .position = ToVec3(s.start.position + v_P),
+                            },
+                            m_Material,
+                            m_Camera,
+                            m_VariationColorMaterialProps.at(i));
+
+                    Graphics::DrawMesh(
+                            m_SphereMesh,
+                            {
+                            .scale    = {0.01, 0.01, 0.01},
+                            .position = ToVec3(s.end.position + v_Q),
+                            },
+                            m_Material,
+                            m_Camera,
+                            m_VariationColorMaterialProps.at(i));
+                }
+            }
         }
 
         Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
@@ -445,6 +486,7 @@ private:
     PathTerminalPoint m_EndPoint = {};
 
     WrappingPath m_WrappingPath = WrappingPath();
+    std::array<std::vector<Geodesic>, 8> m_GeodesicVariations;
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -466,6 +508,20 @@ private:
         {Color::red()};
     MeshBasicMaterial::PropertyBlock m_GreyColorMaterialProps
         {Color::half_grey().with_alpha(0.2f)};
+
+    double m_VariationDelta = 1e-1;
+    std::array<MeshBasicMaterial::PropertyBlock, 8> m_VariationColorMaterialProps
+        {
+            MeshBasicMaterial::PropertyBlock{Color::green()},
+            MeshBasicMaterial::PropertyBlock{Color::blue()},
+            MeshBasicMaterial::PropertyBlock{Color::purple()},
+            MeshBasicMaterial::PropertyBlock{Color::black()},
+
+            MeshBasicMaterial::PropertyBlock{Color::dark_green()},
+            MeshBasicMaterial::PropertyBlock{Color::cyan()},
+            MeshBasicMaterial::PropertyBlock{Color::orange()},
+            MeshBasicMaterial::PropertyBlock{Color::half_grey()},
+        };
 
     // scene state
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
