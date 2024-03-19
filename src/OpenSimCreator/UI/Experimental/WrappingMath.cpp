@@ -2044,7 +2044,7 @@ void applyNaturalGeodesicVariation(
 void Surface::applyVariation(Geodesic &geodesic, const GeodesicCorrection &var) const
 {
     applyNaturalGeodesicVariation(geodesic.start, var);
-    geodesic.length += var.back() - var.front();
+    geodesic.length += var.back();
     calcGeodesic(geodesic.start.position, geodesic.start.frame.t, geodesic.length, geodesic);
 }
 
