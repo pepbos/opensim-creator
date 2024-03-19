@@ -259,6 +259,28 @@ private:
 
             std::cout << "\n";
 
+            std::cout << "_costL:\n";
+            std::cout << m_WrappingPath.smoothness._costL << "\n";
+            std::cout << "_vecL: ";
+            std::cout << m_WrappingPath.smoothness._vecL.transpose() << "\n";
+            std::cout << "_lengthJacobian: ";
+            std::cout << m_WrappingPath.smoothness._lengthJacobian.transpose() << "\n";
+            std::cout << "_length: ";
+            std::cout << m_WrappingPath.smoothness._length << "\n";
+
+            std::cout << "_costP:\n";
+            std::cout << m_WrappingPath.smoothness._costP << "\n";
+            std::cout << "_costQ:\n";
+            std::cout << m_WrappingPath.smoothness._costQ << "\n";
+
+            std::cout << "\n";
+
+            std::cout << "_matSmall:\n";
+            std::cout << m_WrappingPath.smoothness._matSmall << "\n";
+            std::cout << "_vecSmall: " << m_WrappingPath.smoothness._vecSmall.transpose() << "\n";
+
+            std::cout << "\n";
+
             std::cout << "mat:\n";
             std::cout << m_WrappingPath.smoothness._mat << "\n";
             std::cout << "vec: " << m_WrappingPath.smoothness._vec.transpose() << "\n";

@@ -546,11 +546,18 @@ public:
     Eigen::VectorXd _pathError;
     Eigen::MatrixXd _pathErrorJacobian;
 
+    Eigen::MatrixXd _costP;
+    Eigen::MatrixXd _costQ;
+    Eigen::MatrixXd _costL;
+    Eigen::VectorXd _vecL;
+
     Eigen::MatrixXd _mat;
     Eigen::VectorXd _vec;
+    Eigen::VectorXd _solve;
 
     Eigen::MatrixXd _matSmall;
-    Eigen::MatrixXd _vecSmall;
+    Eigen::VectorXd _vecSmall;
+    Eigen::VectorXd _solveSmall;
 
     double _length = 0.;
     Eigen::VectorXd _lengthJacobian;
