@@ -1983,7 +1983,7 @@ void applyNaturalGeodesicVariation(
 {
     // Darboux frame:
     Vector3 t = geodesicStart.frame.t;
-    /* const Vector3& n = geodesicStart.frame.n; */
+    Vector3 n = geodesicStart.frame.n;
     const Vector3& b = geodesicStart.frame.b;
 
     Vector3 dp = correction.at(1) * b + correction.at(0) * t;
@@ -2001,8 +2001,16 @@ void applyNaturalGeodesicVariation(
         const double c   = correction.at(i);
 
         t += calcTangentDerivative(geodesicStart.frame, w * c);
+        n += calcNormalDerivative(geodesicStart.frame, w * c);
     }
-    geodesicStart.frame.t = t;
+    geodesicStart.frame = calcDarbouxFromTangentGuessAndNormal(t, n);
+}
+
+void Surface::applyVariation(Geodesic &geodesic, const GeodesicCorrection &var) const
+{
+    applyNaturalGeodesicVariation(geodesic.start, var);
+    geodesic.length += var.back() - var.front();
+    calcGeodesic(geodesic.start.position, geodesic.start.frame.t, geodesic.length, geodesic);
 }
 
 size_t countActive(const std::vector<Geodesic>& segments)
