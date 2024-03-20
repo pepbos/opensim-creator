@@ -2104,8 +2104,7 @@ void calcSegmentPathErrorJacobian(
     /* std::cout << "    l =" << l << "\n"; */
     /* std::cout << "    lengthJacobian =" << lengthJacobian.transpose() << "\n"; */
 
-    auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m) {
-        const double y = isFirst ? -1. : 1.;
+    auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m, double y) {
         pathError[row] = e.dot(m) + y;
 
         const Vector3 de = (m - e * e.dot(m)) / l;
@@ -2137,8 +2136,9 @@ void calcSegmentPathErrorJacobian(
         /* std::cout << "    pathErrorJcobian=\n" << pathErrorJacobian << "\n"; */
     };
 
-    UpdatePathErrorElementAndJacobian(K.frame.t);
-    /* UpdatePathErrorElementAndJacobian(K.frame.b); */
+    UpdatePathErrorElementAndJacobian(K.frame.t, isFirst ? -1. : 1.);
+    UpdatePathErrorElementAndJacobian(K.frame.n, 0.);
+    UpdatePathErrorElementAndJacobian(K.frame.b, 0.);
 }
 
 size_t calcPathErrorJacobian(WrappingPath& path)
