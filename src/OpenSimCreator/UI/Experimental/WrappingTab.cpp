@@ -232,7 +232,7 @@ private:
 
         }
         // Variations
-        {
+        if (m_ShowVariation) {
             const size_t n = m_WrappingPath.segments.size();
             m_GeodesicVariations.resize(n);
             for (size_t j = 0; j < n; ++j) {
@@ -345,10 +345,14 @@ private:
             ui::Checkbox("Single", &m_SingleStep);
             ui::Checkbox("Singular", &m_Singular);
 
-            ImGui::SliderFloat("ds", &m_Variation.at(0), -1., 1.);
-            ImGui::SliderFloat("dB", &m_Variation.at(1), -1., 1.);
-            ImGui::SliderFloat("da", &m_Variation.at(2), -1., 1.);
-            ImGui::SliderFloat("dl", &m_Variation.at(3), -1., 1.);
+            ui::Checkbox("Variation", &m_ShowVariation);
+            if (m_ShowVariation) {
+                ImGui::Text("Variation");
+                ImGui::SliderFloat("Tangential", &m_Variation.at(0), -1., 1.);
+                ImGui::SliderFloat("Binormal", &m_Variation.at(1), -1., 1.);
+                ImGui::SliderFloat("Directional", &m_Variation.at(2), -1., 1.);
+                ImGui::SliderFloat("Lengthening", &m_Variation.at(3), -1., 1.);
+            }
         }
         freezeClicked = m_FreezePath != freezeClicked;
         if (freezeClicked) {
@@ -363,18 +367,6 @@ private:
 
         // render sphere && ellipsoid
         {
-            /* Graphics::DrawMesh( */
-            /*     m_SphereMesh, */
-            /*     { */
-            /*         .scale    = Vec3{static_cast<float>( */
-            /*             m_AnalyticSphereSurface.getRadius())}, */
-            /*         .position = ToVec3( */
-            /*             m_AnalyticSphereSurface.getOffsetFrame().position), */
-            /*     }, */
-            /*     m_TransparantMaterial, */
-            /*     m_Camera, */
-            /*     m_BlueColorMaterialProps); */
-
             Graphics::DrawMesh(
                 m_SphereMesh,
                 {
@@ -464,7 +456,7 @@ private:
         }
 
         // Render variation curves.
-        {
+        if (m_ShowVariation) {
             for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
                 for (size_t k = 1; k < m_GeodesicVariations.at(i).samples.size(); ++k) {
                     DrawCurveSegmentMesh(
@@ -580,6 +572,7 @@ private:
     bool m_FreezePath = false;
     bool m_SingleStep = false;
     bool m_Singular = false;
+    bool m_ShowVariation = false;
     bool m_ErrorDetected = false;
 
     bool m_IsMouseCaptured = false;
