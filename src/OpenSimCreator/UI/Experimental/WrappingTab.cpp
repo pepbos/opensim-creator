@@ -367,17 +367,19 @@ private:
 
         // render sphere && ellipsoid
         {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .scale    = Vec3{static_cast<float>(
-                        m_ImplicitSphereSurface.getRadius())},
-                    .position = ToVec3(
-                        m_ImplicitSphereSurface.getOffsetFrame().position),
-                },
-                m_TransparantMaterial,
-                m_Camera,
-                m_GreenColorMaterialProps);
+            if (m_DrawSphere) {
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = Vec3{static_cast<float>(
+                                m_ImplicitSphereSurface.getRadius())},
+                        .position = ToVec3(
+                                m_ImplicitSphereSurface.getOffsetFrame().position),
+                        },
+                        m_TransparantMaterial,
+                        m_Camera,
+                        m_GreenColorMaterialProps);
+            }
 
             Graphics::DrawMesh(
                 m_SphereMesh,
@@ -403,6 +405,7 @@ private:
         }
 
         // Draw cylinder
+        if (m_DrawCylinder)
         {
             Rotation q = Rotation(Eigen::AngleAxisd(M_PI/2., Vector3{1., 0., 0.}));
             Quat qf = Quat{
@@ -576,6 +579,10 @@ private:
     bool m_ErrorDetected = false;
 
     bool m_IsMouseCaptured = false;
+
+    bool m_DrawCylinder = false;
+    bool m_DrawSphere = false;
+
     Eulers m_CameraEulers{};
 };
 
