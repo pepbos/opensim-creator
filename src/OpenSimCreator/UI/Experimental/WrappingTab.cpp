@@ -571,7 +571,7 @@ private:
     ImplicitEllipsoidSurface m_ImplicitEllipsoidSurface;
     ImplicitCylinderSurface m_ImplicitCylinderSurface;
 
-    bool m_CachePath = true;
+    bool m_CachePath = false;
     bool m_FreezePath = false;
     bool m_SingleStep = false;
     bool m_Singular = false;
