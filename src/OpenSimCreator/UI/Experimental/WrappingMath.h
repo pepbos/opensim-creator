@@ -144,7 +144,7 @@ inline Geodesic::Status operator~(Geodesic::Status s)
 inline Geodesic::Status& operator|=(Geodesic::Status& lhs, Geodesic::Status rhs)
 {
     using T = std::underlying_type_t<Geodesic::Status>;
-    lhs = static_cast<Geodesic::Status>(
+    lhs     = static_cast<Geodesic::Status>(
         static_cast<T>(lhs) | static_cast<T>(rhs));
     return lhs;
 }
@@ -200,19 +200,30 @@ public:
 
     bool isAboveSurface(Vector3 point, double bound) const;
 
-    size_t calcAccurateLocalSurfaceProjection(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const;
+    size_t calcAccurateLocalSurfaceProjection(
+        Vector3 pointInit,
+        Vector3& point,
+        DarbouxFrame& frame,
+        double eps,
+        size_t maxIter) const;
 
-    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var) const;
+    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var)
+        const;
 
 private:
     virtual void calcLocalGeodesicImpl(
-            Vector3 initPosition,
-            Vector3 initVelocity,
-            double length,
-            Geodesic& geodesic) const = 0;
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const = 0;
 
     // Required for touchdown.
-    virtual size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const = 0;
+    virtual size_t calcAccurateLocalSurfaceProjectionImpl(
+        Vector3 pointInit,
+        Vector3& point,
+        DarbouxFrame& frame,
+        double eps,
+        size_t maxIter) const = 0;
 
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
 
@@ -277,12 +288,17 @@ private:
         Vector3 position) const = 0;
 
     void calcLocalGeodesicImpl(
-            Vector3 initPosition,
-            Vector3 initVelocity,
-            double length,
-            Geodesic& geodesic) const override;
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
+    size_t calcAccurateLocalSurfaceProjectionImpl(
+        Vector3 pointInit,
+        Vector3& point,
+        DarbouxFrame& frame,
+        double eps,
+        size_t maxIter) const override;
 
     // TODO would become obsolete with variable step integration.
     size_t _integratorSteps = 100;
@@ -393,14 +409,19 @@ public:
 
 private:
     void calcLocalGeodesicImpl(
-            Vector3 initPosition,
-            Vector3 initVelocity,
-            double length,
-            Geodesic& geodesic) const override;
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
+    size_t calcAccurateLocalSurfaceProjectionImpl(
+        Vector3 pointInit,
+        Vector3& point,
+        DarbouxFrame& frame,
+        double eps,
+        size_t maxIter) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -471,14 +492,19 @@ public:
 
 private:
     void calcLocalGeodesicImpl(
-            Vector3 initPosition,
-            Vector3 initVelocity,
-            double length,
-            Geodesic& geodesic) const override;
+        Vector3 initPosition,
+        Vector3 initVelocity,
+        double length,
+        Geodesic& geodesic) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
+    size_t calcAccurateLocalSurfaceProjectionImpl(
+        Vector3 pointInit,
+        Vector3& point,
+        DarbouxFrame& frame,
+        double eps,
+        size_t maxIter) const override;
 
     double selfTestEquivalentRadius() const override
     {
@@ -576,10 +602,7 @@ struct WrappingPath
 
     WrappingPath() = default;
 
-    WrappingPath(
-        Vector3 pathStart,
-        Vector3 pathEnd,
-        GetSurfaceFn& GetSurface);
+    WrappingPath(Vector3 pathStart, Vector3 pathEnd, GetSurfaceFn& GetSurface);
 
     size_t updPath(
         GetSurfaceFn& GetSurface,
@@ -742,6 +765,11 @@ inline WrappingPath::Status operator~(WrappingPath::Status s)
     return static_cast<WrappingPath::Status>(~static_cast<int>(s));
 }
 
-bool WrappingTester(const WrappingPath& path, WrappingPath::GetSurfaceFn& GetSurface, std::ostream& os, double d, double eps);
+bool WrappingTester(
+    const WrappingPath& path,
+    WrappingPath::GetSurfaceFn& GetSurface,
+    std::ostream& os,
+    double d,
+    double eps);
 
 } // namespace osc
