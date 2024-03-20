@@ -285,7 +285,7 @@ private:
     size_t calcAccurateLocalSurfaceProjectionImpl(Vector3 pointInit, Vector3& point, DarbouxFrame& frame, double eps, size_t maxIter) const override;
 
     // TODO would become obsolete with variable step integration.
-    size_t _integratorSteps = 1000;
+    size_t _integratorSteps = 100;
 };
 
 //==============================================================================
