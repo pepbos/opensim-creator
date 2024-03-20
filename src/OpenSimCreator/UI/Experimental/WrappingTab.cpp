@@ -309,7 +309,7 @@ private:
             error |= (s.status & Geodesic::Status::NextLineSegmentInsideSurface) > 0;
             /* error |= (s.status & Geodesic::Status::NegativeLength) > 0; */
             /* error |= (s.status & Geodesic::Status::LiftOff) > 0; */
-            error |= (s.status & Geodesic::Status::TouchDownFailed) > 0;
+            /* error |= (s.status & Geodesic::Status::TouchDownFailed) > 0; */
             /* error |= (s.status & Geodesic::Status::IntegratorFailed) > 0; */
         }
         if (error && !m_ErrorDetected) {
