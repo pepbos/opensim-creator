@@ -515,6 +515,54 @@ private:
 };
 
 //==============================================================================
+//                      IMPLICIT TORUS SURFACE
+//==============================================================================
+
+// Concrete component.
+class ImplicitTorusSurface : public ImplicitSurface
+{
+public:
+    ImplicitTorusSurface() = default;
+
+    explicit ImplicitTorusSurface(double smallRadius, double bigRadius) :
+        _smallRadius(smallRadius),
+        _bigRadius(bigRadius)
+    {}
+
+    double getBigRadius() const
+    {
+        return _smallRadius;
+    }
+
+    double getSmallRadius() const
+    {
+        return _bigRadius;
+    }
+
+    void setRadii(double a, double b)
+    {
+        _smallRadius = std::min(std::abs(a), std::abs(b));
+        _bigRadius = std::max(std::abs(a), std::abs(b));
+    }
+
+private:
+    // Implicit surface constraint.
+    double calcSurfaceConstraintImpl(Vector3 position) const override;
+    Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
+    Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
+
+    bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+
+    double selfTestEquivalentRadius() const override
+    {
+        return _smallRadius;
+    }
+
+    double _smallRadius = 0.1;
+    double _bigRadius = 1.;
+};
+
+//==============================================================================
 //      WRAPPING PATH
 //==============================================================================
 

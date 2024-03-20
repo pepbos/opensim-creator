@@ -1782,6 +1782,71 @@ bool AnalyticCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound)
 }
 
 //==============================================================================
+//                      IMPLICIT TORUS SURFACE
+//==============================================================================
+
+double ImplicitTorusSurface::calcSurfaceConstraintImpl(Vector3 position) const
+{
+    const Vector3& p = position;
+    const double x = p.x();
+    const double y = p.y();
+
+    const double r = _smallRadius;
+    const double R = _bigRadius;
+
+    const double c = (p.dot(p) + R*R - r*r);
+    return c*c - 4. * R*R * (x*x + y*y);
+}
+
+Vector3 ImplicitTorusSurface::calcSurfaceConstraintGradientImpl(Vector3 position) const
+{
+    const Vector3& p = position;
+    const double x = p.x();
+    const double y = p.y();
+
+    const double r = _smallRadius;
+    const double R = _bigRadius;
+
+    const double c = (p.dot(p) + R*R - r*r);
+    return 4.*c*p - 8. * R*R * Vector3{x, y, 0.};
+}
+
+ImplicitSurface::Hessian ImplicitTorusSurface::calcSurfaceConstraintHessianImpl(Vector3 position) const
+{
+    ImplicitSurface::Hessian hessian;
+
+    const Vector3& p = position;
+
+    const double r = _smallRadius;
+    const double R = _bigRadius;
+
+    const double c = (p.dot(p) + R*R - r*r);
+
+    hessian.setIdentity();
+    hessian *= 4. * c;
+
+    hessian += 8. * p * p.transpose();
+
+    hessian(0,0) -= 8. * R*R;
+    hessian(1,1) -= 8. * R*R;
+
+    return hessian;
+}
+
+bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
+{
+    const double x = point.x();
+    const double y = point.y();
+    const double z = point.z();
+
+    const double r = _smallRadius + bound;
+    const double R = _bigRadius;
+
+    const double c =  (sqrt(x*x + y*y) - R);
+    return c*c + z*z - r*r > 0.;
+}
+
+//==============================================================================
 //                      PATH CONTINUITY ERROR
 //==============================================================================
 
