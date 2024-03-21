@@ -172,8 +172,10 @@ private:
         }
         case ShowSurface::ImplicitSphere: {
             m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
-            m_ShowSurface = ShowSurface::AnalyticSphere;
+            if (m_RunTestReport) {
+                RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
+                m_RunTestReport = false;
+            }
             break;
         }
         case ShowSurface::ImplicitEllipsoid: {
@@ -206,6 +208,7 @@ private:
         }
 
         if (ImGui::Begin("viewer")) {
+            ImGui::Checkbox("Report", &m_RunTestReport);
             ImGui::SliderAngle("phi", &m_StartPoint.angle.at(0));
             ImGui::SliderAngle("theta", &m_StartPoint.angle.at(1));
             ImGui::SliderAngle("psi", &m_StartPoint.angle.at(2));
@@ -213,6 +216,7 @@ private:
         }
 
         // render mesh
+
         switch (m_ShowSurface) {
         case ShowSurface::AnalyticSphere: {
             Graphics::DrawMesh(
@@ -342,6 +346,7 @@ private:
     StartPoint m_StartPoint = {};
 
     Geodesic m_Geodesic = {};
+    Geodesic m_TestGeodesic = {};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -392,6 +397,7 @@ private:
     Eulers m_CameraEulers{};
 
     ShowSurface m_ShowSurface = ShowSurface::ImplicitSphere;
+    bool m_RunTestReport = false;
 };
 
 // public API
