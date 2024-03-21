@@ -174,6 +174,7 @@ private:
             m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
             if (m_RunTestReport) {
                 RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
+                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitSphereSurface, m_Geodesic.start.position, m_Geodesic.start.frame, m_Geodesic.length);
                 m_RunTestReport = false;
             }
             break;
@@ -300,39 +301,67 @@ private:
 
         // render curve
         {
-            const Geodesic& g         = m_Geodesic;
-            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, bool red = true) {
+            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1,
+                    const MeshBasicMaterial::PropertyBlock& clr){
                 Graphics::DrawMesh(
                     m_LineMesh,
                     {.scale = p1 - p0, .position = p0},
                     m_Material,
-                    m_Camera,
-                    red ? m_RedColorMaterialProps : m_BlackColorMaterialProps);
+                    m_Camera, clr);
             };
-            Vector3 prev = g.start.position;
-            DrawCurveSegmentMesh(
-                ToVec3(ComputePoint(m_StartPoint)),
-                ToVec3(prev),
-                false);
-
-            // Draw no
-            DrawCurveSegmentMesh(
-                ToVec3(prev),
-                ToVec3(prev + g.samples.front().second.t),
-                false);
-            // Iterate over the logged points in the Geodesic.
             const double tLen = 1e-1;
-            for (const std::pair<Vector3, DarbouxFrame>& knot : g.samples) {
-                const Vector3 next = knot.first;
-                DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+            auto DrawGeodesic = [&](
+                    const std::vector<Geodesic::Sample>& samples,
+                    const MeshBasicMaterial::PropertyBlock& clr_c,
+                    const MeshBasicMaterial::PropertyBlock& clr_t,
+                    const MeshBasicMaterial::PropertyBlock& clr_n,
+                    const MeshBasicMaterial::PropertyBlock& clr_b, size_t wheel = 25) -> void
+            {
+                if (samples.empty()) return;
+                // Iterate over the logged points in the Geodesic.
+                Vector3 prev = samples.front().first;
+                size_t i = 0;
+                for (const Geodesic::Sample& y : samples) {
+                    const Vector3 next = y.first;
+                    if (i == 0) {
+                    DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), clr_c);
+                        DrawCurveSegmentMesh(
+                                ToVec3(next - y.second.t * tLen),
+                                ToVec3(next + y.second.t * tLen),
+                                clr_t);
+                        DrawCurveSegmentMesh(
+                                ToVec3(next - y.second.n * tLen),
+                                ToVec3(next + y.second.n * tLen),
+                                clr_n);
+                        DrawCurveSegmentMesh(
+                                ToVec3(next - y.second.b * tLen),
+                                ToVec3(next + y.second.b * tLen),
+                                clr_b);
+                    }
+                    prev = next;
+                    i = (i + 1) % wheel;
+                }
+            };
+            if (!m_Geodesic.samples.empty()) {
                 DrawCurveSegmentMesh(
-                    ToVec3(next - knot.second.b * tLen),
-                    ToVec3(next + knot.second.b * tLen),
-                    false);
-                prev = next;
+                        ToVec3(ComputePoint(m_StartPoint)),
+                        ToVec3(m_Geodesic.samples.front().first),
+                        m_PurpleColorMaterialProps);
+                DrawGeodesic(m_Geodesic.samples,
+                        m_RedColorMaterialProps,
+                        m_BlueColorMaterialProps,
+                        m_BlueColorMaterialProps,
+                        m_YellowColorMaterialProps);
+                DrawCurveSegmentMesh(
+                        ToVec3(ComputePoint(m_StartPoint)),
+                        ToVec3(m_Geodesic.samples.front().first),
+                        m_PurpleColorMaterialProps);
             }
-            const Vector3 next = g.end.position;
-            DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next));
+            DrawGeodesic(m_TestGeodesic,
+                    m_OrangeColorMaterialProps,
+                    m_DarkGreenColorMaterialProps,
+                    m_PurpleColorMaterialProps,
+                    m_CyanColorMaterialProps);
         }
 
         Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
@@ -346,7 +375,7 @@ private:
     StartPoint m_StartPoint = {};
 
     Geodesic m_Geodesic = {};
-    Geodesic m_TestGeodesic = {};
+    std::vector<Geodesic::Sample> m_TestGeodesic = {};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
@@ -370,16 +399,20 @@ private:
     Mesh m_LineMesh  = GenerateXYZToXYZLineMesh();
     Mesh m_TorusMesh = TorusGeometry(1., 0.1f);
 
-    MaterialPropertyBlock m_BlackColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 0.0f, 1.0f});
-    MaterialPropertyBlock m_BlueColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.0f, 0.5f, 0.5f});
-    MaterialPropertyBlock m_GreenColorMaterialProps =
-        GeneratePropertyBlock({0.0f, 0.2f, 0.0f, 0.2f});
-    MaterialPropertyBlock m_RedColorMaterialProps =
-        GeneratePropertyBlock({1.0f, 0.0f, 0.0f, 1.0f});
     MaterialPropertyBlock m_GreyColorMaterialProps =
-        GeneratePropertyBlock({0.5f, 0.5f, 0.5f, 0.5f});
+        GeneratePropertyBlock({0.2f, 0.2f, 0.2f, 0.2f});
+    MaterialPropertyBlock m_GreenColorMaterialProps = GeneratePropertyBlock({0.0f, 0.2f, 0.0f, 0.2f});
+
+    MeshBasicMaterial::PropertyBlock m_PurpleColorMaterialProps {Color::purple()};
+    MeshBasicMaterial::PropertyBlock m_OrangeColorMaterialProps {Color::orange()};
+    MeshBasicMaterial::PropertyBlock m_BlueColorMaterialProps {Color::blue()};
+    MeshBasicMaterial::PropertyBlock m_YellowColorMaterialProps {Color::yellow()};
+    MeshBasicMaterial::PropertyBlock m_BlackColorMaterialProps {Color{0.0f, 0.0f, 0.0f, 1.0f}};
+    /* MeshBasicMaterial::PropertyBlock m_GreenColorMaterialProps */ 
+    /*     {Color::dark_green().with_alpha(0.2f)}; */
+    MeshBasicMaterial::PropertyBlock m_DarkGreenColorMaterialProps {Color::dark_green()};
+    MeshBasicMaterial::PropertyBlock m_RedColorMaterialProps {Color::red()};
+    MeshBasicMaterial::PropertyBlock m_CyanColorMaterialProps {Color::cyan()};
 
     // scene state
     AnalyticCylinderSurface m_AnalyticCylinderSurface =

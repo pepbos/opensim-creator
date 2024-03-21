@@ -87,4 +87,10 @@ bool RunImplicitGeodesicTest(
     const std::string& name,
     std::ostream& os);
 
+std::vector<Geodesic::Sample> calcImplicitTestSamples(
+    const ImplicitSurface& s,
+    Vector3 p,
+    DarbouxFrame f,
+    double l, size_t steps = 1000);
+
 } // namespace osc

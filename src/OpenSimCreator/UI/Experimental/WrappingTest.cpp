@@ -526,4 +526,20 @@ bool RunAllWrappingTests(std::ostream& os)
     return success;
 }
 
+std::vector<Geodesic::Sample> calcImplicitTestSamples(
+    const ImplicitSurface& s,
+    Vector3 p,
+    DarbouxFrame f,
+    double l,
+    size_t steps)
+{
+    Trihedron K_P {std::move(p), f.t, f.n, f.b};
+    std::vector<Geodesic::Sample> samples;
+    for (const Trihedron& K: calcImplicitGeodesic(s, K_P, l, steps))
+    {
+        samples.push_back({K.p, {K.t, K.n, K.b}});
+    }
+    return samples;
+}
+
 } // namespace osc

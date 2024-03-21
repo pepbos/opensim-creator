@@ -359,7 +359,7 @@ private:
         size_t maxIter) const override;
 
     // TODO would become obsolete with variable step integration.
-    size_t _integratorSteps = 100;
+    size_t _integratorSteps = 1000;
 };
 
 //==============================================================================
