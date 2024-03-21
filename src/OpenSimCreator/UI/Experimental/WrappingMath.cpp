@@ -571,11 +571,12 @@ Vector3 calcSurfaceNormal(
 
 Vector3 calcAcceleration(
     const ImplicitSurface& s,
-    const ImplicitGeodesicState& q)
+    Vector3 point,
+    Vector3 tangent)
 {
     // TODO Writing it out saves a root, but optimizers are smart.
     // Sign flipped compared to thesis: kn = negative, see eq 3.63
-    return calcNormalCurvature(s, q.position, q.velocity) * calcSurfaceNormal(s, q.position);
+    return calcNormalCurvature(s, point, std::move(tangent)) * calcSurfaceNormal(s, point);
 }
 
 double calcGaussianCurvature(
@@ -709,7 +710,7 @@ void RungeKutta4(
             -> ImplicitGeodesicStateDerivative {
             return calcImplicitGeodesicStateDerivative(
                 qk,
-                calcAcceleration(s, qk),
+                calcAcceleration(s, qk.position, qk.velocity),
                 calcGaussianCurvature(s, qk));
         });
 }
@@ -1247,6 +1248,12 @@ double ImplicitSurface::testCalcNormalCurvature(Vector3 point, Vector3 tangent) 
 Vector3 ImplicitSurface::testCalcSurfaceNormal(Vector3 point) const
 {
     return calcSurfaceNormal(*this, std::move(point));
+}
+
+// TODO DO NOT USE THIS. FOR TESTING ONLY.
+Vector3 ImplicitSurface::testCalcAcceleration(Vector3 point, Vector3 tangent) const
+{
+    return calcAcceleration(*this, std::move(point), std::move(tangent));
 }
 
 //==============================================================================

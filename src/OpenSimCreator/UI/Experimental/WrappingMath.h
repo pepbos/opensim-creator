@@ -336,6 +336,8 @@ public:
     // Unsafe: for testing only.
     Vector3 testCalcSurfaceNormal(Vector3 point) const;
 
+    Vector3 testCalcAcceleration(Vector3 point, Vector3 tangent) const;
+
 
 private:
     // Implicit surface constraint.

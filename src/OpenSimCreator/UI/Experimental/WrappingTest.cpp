@@ -35,10 +35,13 @@ struct Trihedron
         K.b = K.t.cross(K.n);
         K.b = K.b / K.b.norm();
 
+        K.v = K.t;
+
         return K;
     }
 
     Vector3 p = {NAN, NAN, NAN};
+    Vector3 v = {NAN, NAN, NAN};
     Vector3 t = {NAN, NAN, NAN};
     Vector3 n = {NAN, NAN, NAN};
     Vector3 b = {NAN, NAN, NAN};
@@ -47,6 +50,7 @@ struct Trihedron
 struct TrihedronDerivative
 {
     Vector3 pDot = {NAN, NAN, NAN};
+    Vector3 vDot = {NAN, NAN, NAN};
     Vector3 tDot = {NAN, NAN, NAN};
     Vector3 nDot = {NAN, NAN, NAN};
     Vector3 bDot = {NAN, NAN, NAN};
@@ -54,12 +58,16 @@ struct TrihedronDerivative
 
 TrihedronDerivative calcTrihedronDerivative(
     const Trihedron& y,
+    Vector3 a,
     double kn,
     double tau_g)
 {
+    /* std::cout << "tau_g = " << tau_g << "\n"; */
+    /* std::cout << "a = " << a << "\n"; */
     TrihedronDerivative dy;
 
-    dy.pDot = y.t;
+    dy.pDot = y.v;
+    dy.vDot = std::move(a);
     dy.tDot = kn * y.n;
     dy.nDot = -kn * y.t - tau_g * y.b;
     dy.bDot = tau_g * y.n;
@@ -71,6 +79,7 @@ Trihedron operator*(double dt, TrihedronDerivative& dy)
 {
     Trihedron y;
     y.p = dt * dy.pDot;
+    y.v = dt * dy.vDot;
     y.t = dt * dy.tDot;
     y.n = dt * dy.nDot;
     y.b = dt * dy.bDot;
@@ -81,6 +90,7 @@ Trihedron operator+(const Trihedron& lhs, const Trihedron& rhs)
 {
     Trihedron y;
     y.p = lhs.p + rhs.p;
+    y.v = lhs.v + rhs.v;
     y.t = lhs.t + rhs.t;
     y.n = lhs.n + rhs.n;
     y.b = lhs.b + rhs.b;
@@ -96,8 +106,9 @@ void TrihedronStep(const ImplicitSurface& s, Trihedron& q, double& l, double dl)
         [&](const Trihedron& qk) -> TrihedronDerivative {
             return calcTrihedronDerivative(
                 qk,
-                s.testCalcNormalCurvature(qk.p, qk.t),
-                s.testCalcGeodesicTorsion(qk.p, qk.t));
+                s.testCalcAcceleration(qk.p, qk.v),
+                s.testCalcNormalCurvature(qk.p, qk.v),
+                s.testCalcGeodesicTorsion(qk.p, qk.v));
         });
 }
 
@@ -165,7 +176,7 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
     const size_t n = bnds.integratorSteps;
 
     // Initial trihedron.
-    Trihedron K_P {g.start.position, g.start.frame.t, g.start.frame.n, g.start.frame.b};
+    Trihedron K_P {g.start.position, g.start.frame.t, g.start.frame.t, g.start.frame.n, g.start.frame.b};
 
     // Final trihedron.
     std::vector<Trihedron> samples = calcImplicitGeodesic(s, K_P, l, n);
@@ -207,6 +218,7 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
         {
             Trihedron K_est;
             K_est.p = prev.p;
+            K_est.v = prev.v;
             K_est.t = (next.p - prev.p) / (next.p - prev.p).norm();
             K_est.n = s.testCalcSurfaceNormal(prev.p);
             K_est.b = K_est.t.cross(K_est.n);
@@ -533,7 +545,7 @@ std::vector<Geodesic::Sample> calcImplicitTestSamples(
     double l,
     size_t steps)
 {
-    Trihedron K_P {std::move(p), f.t, f.n, f.b};
+    Trihedron K_P {std::move(p), std::move(f.t), f.t, f.n, f.b};
     std::vector<Geodesic::Sample> samples;
     for (const Trihedron& K: calcImplicitGeodesic(s, K_P, l, steps))
     {
