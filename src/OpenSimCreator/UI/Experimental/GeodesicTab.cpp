@@ -181,6 +181,11 @@ private:
         }
         case ShowSurface::ImplicitEllipsoid: {
             m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l, m_Geodesic);
+            if (m_RunTestReport) {
+                RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_Geodesic, bnds, "Ellipsoid", std::cout);
+                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitEllipsoidSurface, m_Geodesic.start.position, m_Geodesic.start.frame, m_Geodesic.length);
+                m_RunTestReport = false;
+            }
             break;
         }
         case ShowSurface::ImplicitCylinder: {
@@ -251,7 +256,7 @@ private:
             Graphics::DrawMesh(
                 m_SphereMesh,
                 {
-                    .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii()),
+                    .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii() * 0.9),
                     .position = ToVec3(
                         m_ImplicitEllipsoidSurface.getOffsetFrame().position),
                 },
@@ -429,7 +434,7 @@ private:
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 
-    ShowSurface m_ShowSurface = ShowSurface::ImplicitSphere;
+    ShowSurface m_ShowSurface = ShowSurface::ImplicitEllipsoid;
     bool m_RunTestReport = false;
 };
 
