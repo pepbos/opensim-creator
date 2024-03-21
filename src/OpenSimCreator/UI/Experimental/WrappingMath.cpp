@@ -255,48 +255,6 @@ bool AssertEq(
 
 } // namespace
 
-//==============================================================================
-//                      RUNGE KUTTA 4
-//==============================================================================
-namespace
-{
-
-template <typename Y, typename D, typename DY = Y>
-void RungeKutta4(Y& y, double& t, double dt, std::function<D(const Y&)> f)
-{
-    D k0, k1, k2, k3;
-
-    {
-        const Y& yk = y;
-        k0          = f(yk);
-    }
-
-    {
-        const double h = dt / 2.;
-        Y yk           = y + (h * k0);
-        k1             = f(yk);
-    }
-
-    {
-        const double h = dt / 2.;
-        Y yk           = y + (h * k1);
-        k2             = f(yk);
-    }
-
-    {
-        const double h = dt;
-        Y yk           = y + (h * k2);
-        k3             = f(yk);
-    }
-
-    const double w = dt / 6.;
-
-    y = y + (w * k0 + (w * 2.) * k1 + (w * 2.) * k2 + w * k3);
-    t += dt;
-}
-
-} // namespace
-
 namespace
 {
 //==============================================================================
@@ -576,10 +534,11 @@ Mat3x3 calcAdjoint(const Mat3x3& mat)
 
 double calcNormalCurvature(
     const ImplicitSurface& s,
-    const ImplicitGeodesicState& q)
+    Vector3 point,
+    Vector3 tangent)
 {
-    const Vector3& p  = q.position;
-    const Vector3& v  = q.velocity;
+    const Vector3& p  = point;
+    const Vector3& v  = tangent;
     const Vector3 g   = s.calcSurfaceConstraintGradient(p);
     const Vector3 h_v = s.calcSurfaceConstraintHessian(p) * v;
     // Sign flipped compared to thesis: kn = negative, see eq 3.63
@@ -588,11 +547,12 @@ double calcNormalCurvature(
 
 double calcGeodesicTorsion(
     const ImplicitSurface& s,
-    const ImplicitGeodesicState& q)
+    Vector3 point,
+    Vector3 tangent)
 {
     // TODO verify this!
-    const Vector3& p  = q.position;
-    const Vector3& v  = q.velocity;
+    const Vector3& p  = point;
+    const Vector3& v  = tangent;
     const Vector3 g   = s.calcSurfaceConstraintGradient(p);
     const Vector3 h_v = s.calcSurfaceConstraintHessian(p) * v;
     const Vector3 gxv = g.cross(v);
@@ -602,9 +562,9 @@ double calcGeodesicTorsion(
 // TODO use normalized vector.
 Vector3 calcSurfaceNormal(
     const ImplicitSurface& s,
-    const ImplicitGeodesicState& q)
+    Vector3 point)
 {
-    const Vector3& p       = q.position;
+    const Vector3& p       = point;
     const Vector3 gradient = s.calcSurfaceConstraintGradient(p);
     return gradient / gradient.norm();
 }
@@ -615,7 +575,7 @@ Vector3 calcAcceleration(
 {
     // TODO Writing it out saves a root, but optimizers are smart.
     // Sign flipped compared to thesis: kn = negative, see eq 3.63
-    return calcNormalCurvature(s, q) * calcSurfaceNormal(s, q);
+    return calcNormalCurvature(s, q.position, q.velocity) * calcSurfaceNormal(s, q.position);
 }
 
 double calcGaussianCurvature(
@@ -639,7 +599,7 @@ DarbouxFrame calcDarbouxFrame(
     const ImplicitSurface& s,
     const ImplicitGeodesicState& q)
 {
-    return {q.velocity, calcSurfaceNormal(s, q)};
+    return {q.velocity, calcSurfaceNormal(s, q.position)};
 }
 
 //==============================================================================
@@ -717,10 +677,9 @@ Geodesic::BoundaryState calcGeodesicBoundaryState(
         isEnd ? y.frame.t : Vector3{0., 0., 0.},
     };
 
-    const double tau_g   = calcGeodesicTorsion(s, x);
-    const double kappa_n = calcNormalCurvature(s, x);
-    ImplicitGeodesicState qB{x.position, y.frame.b};
-    const double kappa_a = calcNormalCurvature(s, qB);
+    const double tau_g   = calcGeodesicTorsion(s, x.position, x.velocity);
+    const double kappa_n = calcNormalCurvature(s, x.position, x.velocity);
+    const double kappa_a = calcNormalCurvature(s, x.position, y.frame.b);
 
     y.w = {
         Vector3{tau_g, 0., kappa_n},
@@ -1270,6 +1229,24 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     geodesic.start  = calcGeodesicBoundaryState(*this, out.first, false);
     geodesic.end    = calcGeodesicBoundaryState(*this, out.second, true);
     geodesic.length = length;
+}
+
+// TODO DO NOT USE THIS. FOR TESTING ONLY.
+double ImplicitSurface::testCalcGeodesicTorsion(Vector3 point, Vector3 tangent) const
+{
+    return calcGeodesicTorsion(*this, std::move(point), std::move(tangent));
+}
+
+// TODO DO NOT USE THIS. FOR TESTING ONLY.
+double ImplicitSurface::testCalcNormalCurvature(Vector3 point, Vector3 tangent) const
+{
+    return calcNormalCurvature(*this, std::move(point), std::move(tangent));
+}
+
+// TODO DO NOT USE THIS. FOR TESTING ONLY.
+Vector3 ImplicitSurface::testCalcSurfaceNormal(Vector3 point) const
+{
+    return calcSurfaceNormal(*this, std::move(point));
 }
 
 //==============================================================================

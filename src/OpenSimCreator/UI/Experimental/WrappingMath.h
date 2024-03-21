@@ -28,6 +28,45 @@ struct Transf
     Vector3 position{0., 0., 0.};
 };
 
+//==============================================================================
+//                      RUNGE KUTTA 4
+//==============================================================================
+
+// Just here for this test sketch.
+template <typename Y, typename D, typename DY = Y>
+void RungeKutta4(Y& y, double& t, double dt, std::function<D(const Y&)> f)
+{
+    D k0, k1, k2, k3;
+
+    {
+        const Y& yk = y;
+        k0          = f(yk);
+    }
+
+    {
+        const double h = dt / 2.;
+        Y yk           = y + (h * k0);
+        k1             = f(yk);
+    }
+
+    {
+        const double h = dt / 2.;
+        Y yk           = y + (h * k1);
+        k2             = f(yk);
+    }
+
+    {
+        const double h = dt;
+        Y yk           = y + (h * k2);
+        k3             = f(yk);
+    }
+
+    const double w = dt / 6.;
+
+    y = y + (w * k0 + (w * 2.) * k1 + (w * 2.) * k2 + w * k3);
+    t += dt;
+}
+
 // TODO hold Simbody::Rotation inside?
 struct DarbouxFrame
 {
@@ -278,6 +317,25 @@ public:
     double calcSurfaceConstraint(Vector3 position) const;
     Vector3 calcSurfaceConstraintGradient(Vector3 position) const;
     Hessian calcSurfaceConstraintHessian(Vector3 position) const;
+
+    // TODO DO NOT USE THIS. FOR TESTING ONLY.
+    // Computes the normal curvature. Arguments are in global coordinates.
+    // Does not project the point and tangent to the surface.
+    // Unsafe: for testing only.
+    double testCalcNormalCurvature(Vector3 point, Vector3 tangent) const;
+
+    // TODO DO NOT USE THIS. FOR TESTING ONLY.
+    // Computes the geodesic torsion. Arguments are in global coordinates.
+    // Does not project the point and tangent to the surface.
+    // Unsafe: for testing only.
+    double testCalcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
+
+    // TODO DO NOT USE THIS. FOR TESTING ONLY.
+    // Computes the surface normal direction Argument is in global coordinates.
+    // Does not project the point to the surface.
+    // Unsafe: for testing only.
+    Vector3 testCalcSurfaceNormal(Vector3 point) const;
+
 
 private:
     // Implicit surface constraint.
