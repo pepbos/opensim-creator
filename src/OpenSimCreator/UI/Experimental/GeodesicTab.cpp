@@ -1,5 +1,6 @@
 #include "GeodesicTab.h"
 
+#include "OpenSimCreator/UI/Experimental/WrappingTest.h"
 #include "WrappingMath.h"
 #include <Eigen/src/Geometry/AngleAxis.h>
 #include <SDL_events.h>
@@ -162,6 +163,7 @@ private:
         Vector3 p0 = ComputePoint(m_StartPoint);
         Vector3 v0 = ComputeVelocity(m_StartPoint);
         double l   = m_StartPoint.length;
+        const GeodesicTestBounds bnds;
 
         switch (m_ShowSurface) {
         case ShowSurface::AnalyticSphere: {
@@ -170,6 +172,8 @@ private:
         }
         case ShowSurface::ImplicitSphere: {
             m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
+            RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
+            m_ShowSurface = ShowSurface::AnalyticSphere;
             break;
         }
         case ShowSurface::ImplicitEllipsoid: {
@@ -387,7 +391,7 @@ private:
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 
-    ShowSurface m_ShowSurface = ShowSurface::ImplicitTorus;
+    ShowSurface m_ShowSurface = ShowSurface::ImplicitSphere;
 };
 
 // public API

@@ -78,6 +78,7 @@ bool RunImplicitGeodesicTest(
     const ImplicitSurface& s,
     const Geodesic& g,
     GeodesicTestBounds bnds,
+    const std::string& name,
     std::ostream& os);
 
 } // namespace osc

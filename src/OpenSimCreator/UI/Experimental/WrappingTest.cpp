@@ -490,7 +490,7 @@ bool RunImplicitGeodesicTest(
         const ImplicitSurface& s,
         const Geodesic& g,
         GeodesicTestBounds bnds,
-        std::string& name,
+        const std::string& name,
         std::ostream& os)
 {
     TestRapport o(name);
