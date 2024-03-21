@@ -343,15 +343,17 @@ void RunImplicitGeodesicVariationTest(
 namespace osc
 {
 
-    TestRapport::TestRapport(const std::string& name)
+    TestRapport::TestRapport(const std::string& name) : _name(name)
     {
-        size_t n = 10;
+        _oss << "\n";
+        size_t n = 50;
         for (size_t i = 0; i < n; ++i) _oss << '=';
         _oss << "\n";
 
-        _oss << "==== START TEST RAPPORT FOR: " << name << " ====\n";
+        _oss << "==== START TEST RAPPORT FOR: " << _name << " ====\n";
 
         for (size_t i = 0; i < n; ++i) _oss << '=';
+        _oss << "\n";
         _oss << "\n";
     }
 
@@ -404,12 +406,22 @@ namespace osc
     void TestRapport::finalize() {
         newSubSection("");
         newSection("");
-        _oss << "FINISHED TEST RAPPORT for " << _name << ": ";
+
+        _oss << "\n";
+        size_t n = 50;
+        for (size_t i = 0; i < n; ++i) _oss << '=';
+        _oss << "\n";
+
+        _oss << "==== FINISHED TEST RAPPORT FOR: " << _name << ": ";
+
         if (_success) {
             _oss << " success\n";
         } else {
             _oss << " FAILED\n";
         }
+
+        for (size_t i = 0; i < n; ++i) _oss << '=';
+        _oss << "\n";
     }
 
     void TestRapport::assertEq(
