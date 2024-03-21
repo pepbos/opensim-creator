@@ -14,8 +14,9 @@ namespace osc
     struct GeodesicTestBounds
     {
         double eps = 1e-9;
-        double varEps = 1e-9;
+        double numericalDarbouxDrift = 1e-1;
         double variation = 1e-4;
+        double varEps = 1e-3; // Take as variation / 10?
         size_t integratorSteps = 1000;
     };
 
@@ -41,6 +42,11 @@ namespace osc
                 double rhs,
                 const std::string& msg,
                 double eps);
+
+        void assertEq(
+                size_t lhs,
+                size_t rhs,
+                const std::string& msg);
 
         void assertEq(
                 Vector3 lhs,

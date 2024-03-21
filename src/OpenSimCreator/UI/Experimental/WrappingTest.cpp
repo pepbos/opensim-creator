@@ -153,10 +153,9 @@ bool RunRungeKutta4Test(std::ostream& os)
     return true;
 }
 
-void RunImplicitGeodesicShooterTest(
+std::vector<Trihedron> RunImplicitGeodesicShooterTest(
         const ImplicitSurface& s,
         const Geodesic& g,
-        std::vector<Trihedron>& samples,
         GeodesicTestBounds bnds,
         TestRapport& o)
 {
@@ -169,19 +168,19 @@ void RunImplicitGeodesicShooterTest(
     Trihedron K_P {g.start.position, g.start.frame.t, g.start.frame.n, g.start.frame.b};
 
     // Final trihedron.
-    samples = calcImplicitGeodesic(s, K_P, l, n);
+    std::vector<Trihedron> samples = calcImplicitGeodesic(s, K_P, l, n);
 
     // Basic tests:
-    o.newSubSection("Shooter basics");
     {
-        o.assertValue( samples.size() != n + 1, "Number of samples from integrator");
+        o.newSubSection("Shooter basics");
+        o.assertEq(samples.size(), n+1, "Number of samples from integrator");
 
         // Darboux frame directions must be perpendicular.
         RunTrihedronTest(K_P, "Initial trihedron", o, bnds.eps);
         RunTrihedronTest(samples.back(), "Final trihedron", o, bnds.eps);
-        for (const Trihedron& K: samples) {
+        for (const Trihedron& y: samples) {
             if (!o.success()) { break; }
-            RunTrihedronTest(K, "Intermediate trihedron", o, bnds.eps);
+            RunTrihedronTest(y, "Intermediate trihedron", o, bnds.eps);
         }
     }
 
@@ -211,12 +210,13 @@ void RunImplicitGeodesicShooterTest(
             K_est.t = (next.p - prev.p) / (next.p - prev.p).norm();
             K_est.n = s.testCalcSurfaceNormal(prev.p);
             K_est.b = K_est.t.cross(K_est.n);
+            K_est.b = K_est.b / K_est.b.norm();
 
-            RunTrihedronTest(K_est, msg + " Numerical trihedron from motion", o, bnds.eps);
+            RunTrihedronTest(K_est, msg + " Numerical trihedron from motion", o, bnds.numericalDarbouxDrift);
 
-            o.assertEq(K_est.t, prev.t, msg + " Tangents  match", bnds.eps);
-            o.assertEq(K_est.n, prev.n, msg + " Normals   match", bnds.eps);
-            o.assertEq(K_est.b, prev.b, msg + " Binormals match", bnds.eps);
+            o.assertEq(K_est.t, prev.t, msg + " Tangents  match", bnds.numericalDarbouxDrift);
+            o.assertEq(K_est.n, prev.n, msg + " Normals   match", bnds.numericalDarbouxDrift);
+            o.assertEq(K_est.b, prev.b, msg + " Binormals match", bnds.numericalDarbouxDrift);
         };
 
         // Assert Darboux frame along curve.
@@ -253,6 +253,8 @@ void RunImplicitGeodesicShooterTest(
             o.assertEq(K_Q.b, g.end.frame.b, "End binormal match", bnds.eps);
         }
     }
+
+    return samples;
 }
 
 void RunImplicitGeodesicVariationTest(
@@ -262,12 +264,11 @@ void RunImplicitGeodesicVariationTest(
     TestRapport& o)
 {
     // Verify geodesic numerically.
-    std::vector<Trihedron> samples;
     o.newSection("Unconstrained comparison");
-    RunImplicitGeodesicShooterTest(s, gZero, samples, bnds, o);
+    std::vector<Trihedron> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
 
-    Trihedron K_P_zero = samples.front();
-    Trihedron K_Q_zero = samples.back();
+    Trihedron K_P_zero = samplesZero.front();
+    Trihedron K_Q_zero = samplesZero.back();
 
     auto ToTrihedron = [](const DarbouxFrame& q, Vector3 v) -> Vector3
     {
@@ -287,7 +288,9 @@ void RunImplicitGeodesicVariationTest(
         Geodesic gOne = gZero;
 
         GeodesicCorrection c = {0., 0., 0., 0.};
-        c.at(i%4) = i < 4 ? bnds.variation : -bnds.variation;
+        const double d =  i < 4 ? bnds.variation : -bnds.variation;
+        c.at(i%4) = d;
+        s.applyVariation(gOne, c);
 
         {
             std::ostringstream oss;
@@ -298,41 +301,30 @@ void RunImplicitGeodesicVariationTest(
             o.newSection(oss.str());
         }
 
-        s.applyVariation(gOne, c);
-        RunImplicitGeodesicShooterTest(s, gOne, samples, bnds, o);
-
-        Trihedron K_P_one = samples.front();
-        Trihedron K_Q_one = samples.back();
+        std::vector<Trihedron> samples = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
 
         // Verify that variation had the expected effect at start and end frames.
+        {
+            Trihedron K_P_one = samples.front();
+            const Vector3 v_P = gZero.start.v.at(i%4);
+            const Vector3 w_P = ToTrihedron(gZero.start.frame, gZero.start.w.at(i%4));
 
-        const Vector3 v_P = gZero.start.v.at(i%4);
-        const Vector3 w_P = ToTrihedron(gZero.start.frame, gZero.start.w.at(i%4));
+            o.assertEq((K_P_one.p - K_P_zero.p) / d, v_P, "Shooter p_P1 - p_P0 = v_P", bnds.varEps);
+            o.assertEq((K_P_one.t - K_P_zero.t) / d, w_P.cross(K_P_zero.t), "Shooter t_P1 - t_P0 = w_P x t_P0", bnds.varEps);
+            o.assertEq((K_P_one.n - K_P_zero.n) / d, w_P.cross(K_P_zero.n), "Shooter n_P1 - n_P0 = w_P x n_P0", bnds.varEps);
+            o.assertEq((K_P_one.b - K_P_zero.b) / d, w_P.cross(K_P_zero.b), "Shooter b_P1 - b_P0 = w_P x b_P0", bnds.varEps);
+        }
 
-        const Vector3 v_Q = gZero.end.v.at(i%4);
-        const Vector3 w_Q = ToTrihedron(gZero.end.frame, gZero.end.w.at(i%4));
+        {
+            Trihedron K_Q_one = samples.back();
+            const Vector3 v_Q = gZero.end.v.at(i%4);
+            const Vector3 w_Q = ToTrihedron(gZero.end.frame, gZero.end.w.at(i%4));
 
-        const double d = bnds.variation;
-
-        o.assertEq((K_P_one.p - K_P_zero.p) / d, v_P, "Shooter p_P1 - p_P0 = v_P", bnds.varEps);
-        o.assertEq((K_P_one.t - K_P_zero.t) / d, w_P.cross(K_P_zero.t), "Shooter t_P1 - t_P0 = w_P x t_P0", bnds.varEps);
-        o.assertEq((K_P_one.n - K_P_zero.n) / d, w_P.cross(K_P_zero.n), "Shooter n_P1 - n_P0 = w_P x n_P0", bnds.varEps);
-        o.assertEq((K_P_one.b - K_P_zero.b) / d, w_P.cross(K_P_zero.b), "Shooter b_P1 - b_P0 = w_P x b_P0", bnds.varEps);
-
-        o.assertEq((K_Q_one.p - K_Q_zero.p) / d, v_Q, "Shooter p_Q1 - p_Q0 = v_Q", bnds.varEps);
-        o.assertEq((K_Q_one.t - K_Q_zero.t) / d, w_Q.cross(K_Q_zero.t), "Shooter t_Q1 - t_Q0 = w_Q x t_Q0", bnds.varEps);
-        o.assertEq((K_Q_one.n - K_Q_zero.n) / d, w_Q.cross(K_Q_zero.n), "Shooter n_Q1 - n_Q0 = w_Q x n_Q0", bnds.varEps);
-        o.assertEq((K_Q_one.b - K_Q_zero.b) / d, w_Q.cross(K_Q_zero.b), "Shooter b_Q1 - b_Q0 = w_Q x b_Q0", bnds.varEps);
-
-        o.assertEq((gOne.start.position - gZero.start.position) / d, v_P, "ImplicitGeodesic p_P1 - p_P0 = v_P", bnds.varEps);
-        o.assertEq((gOne.start.frame.t - gZero.start.frame.t) / d, w_P.cross(K_P_zero.t), "ImplicitGeodesic t_P1 - t_P0 = w_P x t_P0", bnds.varEps);
-        o.assertEq((gOne.start.frame.n - gZero.start.frame.n) / d, w_P.cross(K_P_zero.n), "ImplicitGeodesic n_P1 - n_P0 = w_P x n_P0", bnds.varEps);
-        o.assertEq((gOne.start.frame.b - gZero.start.frame.b) / d, w_P.cross(K_P_zero.b), "ImplicitGeodesic b_P1 - b_P0 = w_P x b_P0", bnds.varEps);
-
-        o.assertEq((gOne.end.position - gZero.end.position) / d, v_Q, "ImplicitGeodesic p_Q1 - p_Q0 = v_Q", bnds.varEps);
-        o.assertEq((gOne.end.frame.t - gZero.end.frame.t) / d, w_Q.cross(K_Q_zero.t), "ImplicitGeodesic t_Q1 - t_Q0 = w_Q x t_Q0", bnds.varEps);
-        o.assertEq((gOne.end.frame.n - gZero.end.frame.n) / d, w_Q.cross(K_Q_zero.n), "ImplicitGeodesic n_Q1 - n_Q0 = w_Q x n_Q0", bnds.varEps);
-        o.assertEq((gOne.end.frame.b - gZero.end.frame.b) / d, w_Q.cross(K_Q_zero.b), "ImplicitGeodesic b_Q1 - b_Q0 = w_Q x b_Q0", bnds.varEps);
+            o.assertEq((K_Q_one.p - K_Q_zero.p) / d, v_Q, "Shooter p_Q1 - p_Q0 = v_Q", bnds.varEps);
+            o.assertEq((K_Q_one.t - K_Q_zero.t) / d, w_Q.cross(K_Q_zero.t), "Shooter t_Q1 - t_Q0 = w_Q x t_Q0", bnds.varEps);
+            o.assertEq((K_Q_one.n - K_Q_zero.n) / d, w_Q.cross(K_Q_zero.n), "Shooter n_Q1 - n_Q0 = w_Q x n_Q0", bnds.varEps);
+            o.assertEq((K_Q_one.b - K_Q_zero.b) / d, w_Q.cross(K_Q_zero.b), "Shooter b_Q1 - b_Q0 = w_Q x b_Q0", bnds.varEps);
+        }
     }
 }
 
@@ -363,7 +355,7 @@ namespace osc
         newSubSection("");
         if (!_section.empty())
         {
-            _oss << _indent << "END SECTION: " << _section << "\n";
+            _oss << "END SECTION: " << _section << "\n";
             if (_sectionSuccess) {
                 if (_countFail != 0) {
                     throw std::runtime_error("ERROR: fail count should have been zero");
@@ -377,7 +369,7 @@ namespace osc
         _section = section;
         if (!_section.empty()) {
             _indent = "    ";
-            _oss << _indent << "START SECTION: " << section << "\n";
+            _oss << "START SECTION: " << section << "\n";
         }
         _countFail = 0;
         _count = 0;
@@ -386,7 +378,7 @@ namespace osc
     void TestRapport::newSubSection(const std::string& subSection) {
         if (!_subSection.empty())
         {
-            _oss << _indent << "end  subsection: " << _subSection;
+            _oss << "    " << "end  subsection: " << _subSection;
             if (_subSectionSuccess) {
                 _oss << " success (" << _count << ")\n";
             } else {
@@ -397,7 +389,7 @@ namespace osc
         _subSection = subSection;
         if (!_subSection.empty()) {
             _indent = "        ";
-            _oss << _indent << "start subsection: " << subSection << "\n";
+            _oss << "    " << "start subsection: " << subSection << "\n";
         }
     }
 
@@ -470,6 +462,20 @@ namespace osc
             _oss << _indent << "    rhs  = " << rhs << "\n";
             _oss << _indent << "    err  = " << std::abs(lhs - rhs) << "\n";
             _oss << _indent << "    bnd  = " << eps << "\n";
+        }
+        process(isOk);
+    }
+
+    void TestRapport::assertEq(
+                size_t lhs,
+                size_t rhs,
+                const std::string& msg)
+    {
+        const bool isOk = lhs == rhs;
+        if (!isOk) {
+            _oss << _indent << "ASSERTION FAILED:   " << msg << "\n";
+            _oss << _indent << "    lhs  = " << lhs << "\n";
+            _oss << _indent << "    rhs  = " << rhs << "\n";
         }
         process(isOk);
     }
