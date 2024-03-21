@@ -226,6 +226,8 @@ add_library(OpenSimCreator STATIC
     UI/Experimental/WrappingTab.h
     UI/Experimental/WrappingMath.cpp
     UI/Experimental/WrappingMath.h
+    UI/Experimental/WrappingTest.cpp
+    UI/Experimental/WrappingTest.h
 
     UI/FrameDefinition/FrameDefinitionTab.cpp
     UI/FrameDefinition/FrameDefinitionTab.h
