@@ -107,7 +107,7 @@ std::vector<Trihedron> calcImplicitGeodesic(
     double l,
     size_t n)
 {
-    std::vector<Trihedron> samples(n);
+    std::vector<Trihedron> samples;
     samples.push_back(q);
 
     double dl = l / static_cast<double>(n);
