@@ -43,13 +43,6 @@ Vec3 ToVec3(const Vector3& v)
 
 constexpr CStringView c_TabStringID = "OpenSim/Experimental/Geodesic";
 
-MaterialPropertyBlock GeneratePropertyBlock(Color const& color)
-{
-    MaterialPropertyBlock p;
-    p.setColor("uColor", color);
-    return p;
-}
-
 struct StartPoint
 {
     double radius              = 1.;
@@ -331,15 +324,15 @@ private:
                     if (i == 0) {
                     DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), clr_c);
                         DrawCurveSegmentMesh(
-                                ToVec3(next - y.second.t * tLen),
+                                ToVec3(next),
                                 ToVec3(next + y.second.t * tLen),
                                 clr_t);
                         DrawCurveSegmentMesh(
-                                ToVec3(next - y.second.n * tLen),
+                                ToVec3(next),
                                 ToVec3(next + y.second.n * tLen),
                                 clr_n);
                         DrawCurveSegmentMesh(
-                                ToVec3(next - y.second.b * tLen),
+                                ToVec3(next),
                                 ToVec3(next + y.second.b * tLen),
                                 clr_b);
                     }
@@ -354,9 +347,9 @@ private:
                         m_PurpleColorMaterialProps);
                 DrawGeodesic(m_Geodesic.samples,
                         m_RedColorMaterialProps,
+                        m_GreenColorMaterialProps,
                         m_BlueColorMaterialProps,
-                        m_BlueColorMaterialProps,
-                        m_YellowColorMaterialProps);
+                        m_GreyColorMaterialProps);
                 DrawCurveSegmentMesh(
                         ToVec3(ComputePoint(m_StartPoint)),
                         ToVec3(m_Geodesic.samples.front().first),
@@ -384,12 +377,7 @@ private:
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
-    Material m_Material{
-        Shader{
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.vert"),
-               m_Loader.slurp("oscar_demos/shaders/SolidColor.frag"),
-               }
-    };
+    MeshBasicMaterial m_Material{};
 
     Mesh m_SphereMesh   = SphereGeometry(1.0f, 12, 12);
     Mesh m_CylinderMesh = CylinderGeometry(
@@ -404,10 +392,13 @@ private:
     Mesh m_LineMesh  = GenerateXYZToXYZLineMesh();
     Mesh m_TorusMesh = TorusGeometry(1., 0.1f);
 
-    MaterialPropertyBlock m_GreyColorMaterialProps =
-        GeneratePropertyBlock({0.2f, 0.2f, 0.2f, 0.2f});
-    MaterialPropertyBlock m_GreenColorMaterialProps = GeneratePropertyBlock({0.0f, 0.2f, 0.0f, 0.2f});
+    /* MaterialPropertyBlock m_GreyColorMaterialProps = */
+    /*     GeneratePropertyBlock(); */
+    /* MaterialPropertyBlock m_GreenColorMaterialProps = GeneratePropertyBlock({0.0f, 0.2f, 0.0f, 0.2f}); */
+    MeshBasicMaterial::PropertyBlock m_GreenColorMaterialProps
+        {Color::dark_green().with_alpha(0.2f)};
 
+    MeshBasicMaterial::PropertyBlock m_GreyColorMaterialProps {Color{0.2f, 0.2f, 0.2f, 0.2f}};
     MeshBasicMaterial::PropertyBlock m_PurpleColorMaterialProps {Color::purple()};
     MeshBasicMaterial::PropertyBlock m_OrangeColorMaterialProps {Color::orange()};
     MeshBasicMaterial::PropertyBlock m_BlueColorMaterialProps {Color::blue()};
