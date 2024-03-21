@@ -69,7 +69,7 @@ namespace osc
         bool _sectionSuccess = true;
         bool _subSectionSuccess = true;
         size_t _countFail = 0;
-        size_t _countSuccess = 0;
+        size_t _count = 0;
     };
 
 bool RunAllWrappingTests(std::ostream& os);

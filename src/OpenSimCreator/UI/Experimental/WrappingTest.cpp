@@ -360,42 +360,44 @@ namespace osc
     }
 
     void TestRapport::newSection(const std::string& section) {
+        newSubSection("");
         if (!_section.empty())
         {
-            _oss << _indent << "END SECTION: " << _section;
+            _oss << _indent << "END SECTION: " << _section << "\n";
             if (_sectionSuccess) {
-                _oss << " SUCCESS (" << _countSuccess << ")\n";
+                if (_countFail != 0) {
+                    throw std::runtime_error("ERROR: fail count should have been zero");
+                }
+                _oss << " success (" << _count << ")\n";
             } else {
-                _oss << " FAILED (" << _countFail << "/" << _countSuccess << ")\n";
+                _oss << " FAILED (" << _countFail << "/" << _count + _countFail << ")\n";
             }
         }
         _sectionSuccess = true;
-        _subSectionSuccess = true;
         _section = section;
-        _subSection = "";
-        if (!section.empty()) {
+        if (!_section.empty()) {
             _indent = "    ";
-            _oss << _indent << "START SECTION: " << section;
+            _oss << _indent << "START SECTION: " << section << "\n";
         }
         _countFail = 0;
-        _countSuccess = 0;
+        _count = 0;
     }
 
     void TestRapport::newSubSection(const std::string& subSection) {
         if (!_subSection.empty())
         {
-            _oss << _indent << "end section: " << _subSection;
+            _oss << _indent << "end  subsection: " << _subSection;
             if (_subSectionSuccess) {
-                _oss << " success (" << _countSuccess << ")\n";
+                _oss << " success (" << _count << ")\n";
             } else {
-                _oss << " failed (" << _countFail << "/" << _countSuccess << ")\n";
+                _oss << " FAILED (" << _countFail << "/" << _count << ")\n";
             }
         }
         _subSectionSuccess = true;
         _subSection = subSection;
-        if (!subSection.empty()) {
+        if (!_subSection.empty()) {
             _indent = "        ";
-            _oss << _indent << "start section: " << subSection;
+            _oss << _indent << "start subsection: " << subSection << "\n";
         }
     }
 
@@ -404,7 +406,7 @@ namespace osc
         newSection("");
         _oss << "FINISHED TEST RAPPORT for " << _name << ": ";
         if (_success) {
-            _oss << " SUCCESS\n";
+            _oss << " success\n";
         } else {
             _oss << " FAILED\n";
         }
@@ -475,15 +477,12 @@ namespace osc
     void TestRapport::process(bool result)
     {
         _subSectionSuccess &= result;
-        if (_subSection.empty()) {
-            _sectionSuccess &= result;
-        }
+        _sectionSuccess &= result;
         _success &= result;
-        if (result) {
-            ++_countSuccess;
-        } else {
+        if (!result) {
             ++_countFail;
         }
+        ++_count;
     }
 
 bool RunImplicitGeodesicTest(
