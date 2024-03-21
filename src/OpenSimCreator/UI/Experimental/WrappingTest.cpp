@@ -123,13 +123,11 @@ std::vector<Trihedron> calcImplicitGeodesic(
 //                      UNIT TESTING
 //==============================================================================
 
-bool RunTrihedronTest(const Trihedron& K, const std::string& msg, TestRapport& o, double eps)
+bool RunTrihedronTest(const Trihedron& y, const std::string& msg, TestRapport& o, double eps)
 {
-    o.newSubSection("Darboux axes valid");
-
-    auto& t = K.t;
-    auto& n = K.n;
-    auto& b = K.b;
+    const Vector3& t = y.t;
+    const Vector3& n = y.n;
+    const Vector3& b = y.b;
 
     bool success = true;
 
