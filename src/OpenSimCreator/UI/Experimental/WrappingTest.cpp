@@ -168,10 +168,7 @@ void RunImplicitGeodesicShooterTest(
     const size_t n = bnds.integratorSteps;
 
     // Initial trihedron.
-    Trihedron K_P = Trihedron::FromPointAndTangentGuessAndNormal(
-        p_P,
-        v_P,
-        s.testCalcSurfaceNormal(p_P));
+    Trihedron K_P {g.start.position, g.start.frame.t, g.start.frame.n, g.start.frame.b};
 
     // Final trihedron.
     samples = calcImplicitGeodesic(s, K_P, l, n);
@@ -183,36 +180,57 @@ void RunImplicitGeodesicShooterTest(
 
         // Darboux frame directions must be perpendicular.
         RunTrihedronTest(K_P, "Initial trihedron", o, bnds.eps);
+        RunTrihedronTest(samples.back(), "Final trihedron", o, bnds.eps);
         for (const Trihedron& K: samples) {
-            RunTrihedronTest(K, "Sample trihedron", o, bnds.eps);
+            if (!o.success()) { break; }
+            RunTrihedronTest(K, "Intermediate trihedron", o, bnds.eps);
         }
     }
 
-    // Normal curvature and geodesic torsion tests.
-    o.newSubSection("Shooter curvatuve");
+    o.newSubSection("Shooter surface drift");
     {
-        // Points lie on surface?
-        o.assertEq(s.calcSurfaceConstraint(p_P), 0., "Start position on surface", bnds.eps);
+        // Assert if points lie on the surface.
+        o.assertEq(s.calcSurfaceConstraint(samples.front().p), 0., "Start position on surface", bnds.eps);
+        o.assertEq(s.calcSurfaceConstraint(samples.back().p), 0., "End position on surface", bnds.eps);
         for (const Trihedron& K: samples) {
-            o.assertEq(s.calcSurfaceConstraint(K.p), 0., "Sample position on surface", bnds.eps);
+            if (!o.success()) { break; }
+            o.assertEq(s.calcSurfaceConstraint(K.p), 0., "Intermediate position on surface", bnds.eps);
         }
 
-        // Tangents along curve?
-        Trihedron prev = K_P;
-        for (size_t i = 1; i < samples.size(); ++i) {
-            const Trihedron& next = samples.at(i);
+    }
 
+    o.newSubSection("Shooter darboux drift");
+    if (samples.size() > 2)
+    {
+
+        auto TrihedronAssertionHelper = [&](
+                const Trihedron& prev,
+                const Trihedron& next,
+                const std::string msg)
+        {
             Trihedron K_est;
             K_est.p = prev.p;
             K_est.t = (next.p - prev.p) / (next.p - prev.p).norm();
             K_est.n = s.testCalcSurfaceNormal(prev.p);
             K_est.b = K_est.t.cross(K_est.n);
 
-            RunTrihedronTest(K_est, "Numerical trihedron from motion", o, bnds.eps);
+            RunTrihedronTest(K_est, msg + " Numerical trihedron from motion", o, bnds.eps);
 
-            o.assertEq(K_est.t, prev.t, "Tangents  match", bnds.eps);
-            o.assertEq(K_est.n, prev.n, "Normals   match", bnds.eps);
-            o.assertEq(K_est.b, prev.b, "Binormals match", bnds.eps);
+            o.assertEq(K_est.t, prev.t, msg + " Tangents  match", bnds.eps);
+            o.assertEq(K_est.n, prev.n, msg + " Normals   match", bnds.eps);
+            o.assertEq(K_est.b, prev.b, msg + " Binormals match", bnds.eps);
+        };
+
+        // Assert Darboux frame along curve.
+
+        TrihedronAssertionHelper(samples.front(), samples.at(1), "Start");
+        TrihedronAssertionHelper(samples.at(samples.size() - 2), samples.back(), "End");
+
+        Trihedron prev = samples.front();
+        for (size_t i = 1; i < samples.size(); ++i) {
+            if (!o.success()) { break; }
+            const Trihedron& next = samples.at(i);
+            TrihedronAssertionHelper(prev, next, "Intermediate");
             prev = next;
         }
     }
@@ -239,17 +257,15 @@ void RunImplicitGeodesicShooterTest(
     }
 }
 
-bool RunImplicitGeodesicVariationTest(
+void RunImplicitGeodesicVariationTest(
     const ImplicitSurface& s,
     const Geodesic& gZero,
     GeodesicTestBounds bnds,
     TestRapport& o)
 {
-    bool success = true;
-
     // Verify geodesic numerically.
     std::vector<Trihedron> samples;
-    o.newSection("Verify current geodesic");
+    o.newSection("Unconstrained comparison");
     RunImplicitGeodesicShooterTest(s, gZero, samples, bnds, o);
 
     Trihedron K_P_zero = samples.front();
@@ -260,9 +276,15 @@ bool RunImplicitGeodesicVariationTest(
         return q.t * v[0] + q.n * v[1] + q.b * v[2];
     };
 
+    // Stop if already failed.
+    if (!o.success()) {
+        return;
+    }
+
     // Variation test.
     for (size_t i = 0; i < 8; ++i)
     {
+
         // Make a copy of the geodesic.
         Geodesic gOne = gZero;
 
@@ -314,8 +336,6 @@ bool RunImplicitGeodesicVariationTest(
         o.assertEq((gOne.end.frame.n - gZero.end.frame.n) / d, w_Q.cross(K_Q_zero.n), "ImplicitGeodesic n_Q1 - n_Q0 = w_Q x n_Q0", bnds.varEps);
         o.assertEq((gOne.end.frame.b - gZero.end.frame.b) / d, w_Q.cross(K_Q_zero.b), "ImplicitGeodesic b_Q1 - b_Q0 = w_Q x b_Q0", bnds.varEps);
     }
-
-    return success;
 }
 
 } // namespace
