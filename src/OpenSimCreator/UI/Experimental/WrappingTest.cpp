@@ -461,7 +461,8 @@ void BinormalVariationTest(
 
     std::vector<Trihedron> samplesOne = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
 
-    o.newSubSection(msg + " => shooter delta = v_P, p_P");
+    o._verbose = true;
+    o.newSubSection(msg + " => shooter v_P, w_P");
     {
         const Trihedron& K_P_zero = samplesZero.front();
         const Trihedron& K_P_one = samplesOne.front();
@@ -469,15 +470,15 @@ void BinormalVariationTest(
         o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Shooter w_P", bnds.eps);
     }
 
-    o.newSubSection(msg + " => shooter delta = v_Q, p_Q");
+    o.newSubSection(msg + " => shooter v_Q, w_Q");
     {
-        const Trihedron& K_Q_zero = samplesZero.front();
-        const Trihedron& K_Q_one = samplesOne.front();
+        const Trihedron& K_Q_zero = samplesZero.back();
+        const Trihedron& K_Q_one = samplesOne.back();
         o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.eps);
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.eps);
     }
 
-    o.newSubSection(msg + " => geodesic delta = v_P, p_P");
+    o.newSubSection(msg + " => geodesic v_P, w_P");
     {
         const DarbouxFrame& K_P_zero = gZero.start.frame;
         const DarbouxFrame& K_P_one = gOne.start.frame;
@@ -486,7 +487,7 @@ void BinormalVariationTest(
         o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Geodesic w_P", bnds.eps);
     }
 
-    o.newSubSection(msg + " => geodesic delta = v_Q, p_Q");
+    o.newSubSection(msg + " => geodesic v_Q, w_Q");
     {
         const DarbouxFrame& K_Q_zero = gZero.end.frame;
         const DarbouxFrame& K_Q_one = gOne.end.frame;
@@ -494,6 +495,7 @@ void BinormalVariationTest(
         o.assertEq(ToDarbouxFrame(K_Q_zero, dp) / d, v_Q,                           "Geodesic v_Q", bnds.eps);
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.eps);
     }
+    o._verbose = false;
 }
 
 void RunImplicitGeodesicVariationTest(
@@ -507,13 +509,13 @@ void RunImplicitGeodesicVariationTest(
     std::vector<Trihedron> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
 
     o.newSection("Tangential variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var ds", 0, o);
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "ds", 0, o);
     o.newSection("Binormal variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var dB", 1, o);
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "dB", 1, o);
     o.newSection("Directional variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var do", 2, o);
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "do", 2, o);
     o.newSection("Lengthening variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var dl", 3, o);
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "dl", 3, o);
     return;
     TangentialVariationTest(s, gZero, samplesZero, bnds, o);
 
