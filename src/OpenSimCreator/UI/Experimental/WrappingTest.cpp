@@ -479,16 +479,16 @@ void BinormalVariationTest(
     {
         const Trihedron& K_P_zero = samplesZero.front();
         const Trihedron& K_P_one = samplesOne.front();
-        o.assertEq(ToTriFrame(K_P_zero, K_P_one.p - K_P_zero.p) / d, v_P,       "Shooter v_P", bnds.eps);
-        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Shooter w_P", bnds.eps);
+        o.assertEq(ToTriFrame(K_P_zero, K_P_one.p - K_P_zero.p) / d, v_P,       "Shooter v_P", bnds.varEps);
+        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Shooter w_P", bnds.varEps);
     }
 
     o.newSubSection(msg + " => shooter v_Q, w_Q");
     {
         const Trihedron& K_Q_zero = samplesZero.back();
         const Trihedron& K_Q_one = samplesOne.back();
-        o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.eps);
-        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.eps);
+        o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.varEps);
+        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.varEps);
     }
 
     o.newSubSection(msg + " => geodesic v_P, w_P");
@@ -496,8 +496,8 @@ void BinormalVariationTest(
         const DarbouxFrame& K_P_zero = gZero.start.frame;
         const DarbouxFrame& K_P_one = gOne.start.frame;
         const Vector3 dp = gOne.start.position - gZero.start.position;
-        o.assertEq(ToDarbouxFrame(K_P_zero, dp) / d, v_P,                           "Geodesic v_P", bnds.eps);
-        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Geodesic w_P", bnds.eps);
+        o.assertEq(ToDarbouxFrame(K_P_zero, dp) / d, v_P,                           "Geodesic v_P", bnds.varEps);
+        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Geodesic w_P", bnds.varEps);
     }
 
     o.newSubSection(msg + " => geodesic v_Q, w_Q");
@@ -505,8 +505,8 @@ void BinormalVariationTest(
         const DarbouxFrame& K_Q_zero = gZero.end.frame;
         const DarbouxFrame& K_Q_one = gOne.end.frame;
         const Vector3 dp = gOne.end.position - gZero.end.position;
-        o.assertEq(ToDarbouxFrame(K_Q_zero, dp) / d, v_Q,                           "Geodesic v_Q", bnds.eps);
-        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.eps);
+        o.assertEq(ToDarbouxFrame(K_Q_zero, dp) / d, v_Q,                           "Geodesic v_Q", bnds.varEps);
+        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.varEps);
     }
     o._verbose = false;
 }
