@@ -157,6 +157,60 @@ bool RunTrihedronTest(const Trihedron& y, const std::string& msg, TestRapport& o
     return success;
 }
 
+using Mat33d = Eigen::Matrix<double, 3,3>;
+
+Vector3 untilde(const Mat33d& mat) {
+    return {-mat(1,2), mat(0,2), -mat(0,1)};
+}
+
+Mat33d AsMat3(const DarbouxFrame& q) {
+    Mat33d mat;
+    mat(0,0) = q.t(0);
+    mat(1,0) = q.t(1);
+    mat(2,0) = q.t(2);
+
+    mat(0,1) = q.n(0);
+    mat(1,1) = q.n(1);
+    mat(2,1) = q.n(2);
+
+    mat(0,2) = q.b(0);
+    mat(1,2) = q.b(1);
+    mat(2,2) = q.b(2);
+    return mat;
+}
+
+Mat33d AsMat3(const Trihedron& q) {
+    Mat33d mat;
+    mat(0,0) = q.t(0);
+    mat(1,0) = q.t(1);
+    mat(2,0) = q.t(2);
+
+    mat(0,1) = q.n(0);
+    mat(1,1) = q.n(1);
+    mat(2,1) = q.n(2);
+
+    mat(0,2) = q.b(0);
+    mat(1,2) = q.b(1);
+    mat(2,2) = q.b(2);
+    return mat;
+}
+
+Vector3 calcApproxRate(const DarbouxFrame& prev, const DarbouxFrame& next, double dt) {
+    Mat33d a = AsMat3(prev);
+    Mat33d b = AsMat3(next);
+    Mat33d Rdot = b - a;
+    Mat33d RTRdot = a.transpose() * Rdot;
+    return untilde(RTRdot) / dt;
+}
+
+Vector3 calcApproxRate(const Trihedron& prev, const Trihedron& next, double dt) {
+    Mat33d a = AsMat3(prev);
+    Mat33d b = AsMat3(next);
+    Mat33d Rdot = b - a;
+    Mat33d RTRdot = a.transpose() * Rdot;
+    return untilde(RTRdot) / dt;
+}
+
 bool RunRungeKutta4Test(std::ostream& os)
 {
     os << "Start all wrapping tests";
@@ -313,13 +367,13 @@ void TangentialVariationTest(
     o.newSubSection("Variation ds => v_P and w_P");
     {
         o.assertEq(v_P, Vector3{1., 0., 0.},      "Variation v_P = {1,   0,  0}", bnds.eps);
-        o.assertEq(w_P, Vector3{tau_P, 0., kn_P}, "Variation w_P = {0,   kn, 0}", bnds.eps);
+        o.assertEq(w_P, Vector3{tau_P, 0., kn_P}, "Variation w_P = {tau, 0, kn}", bnds.eps);
     }
 
     o.newSubSection("Variation ds => v_Q and w_Q");
     {
         o.assertEq(v_Q, Vector3{1., 0., 0.},      "Variation v_Q = {1,   0,  0}", bnds.eps);
-        o.assertEq(w_Q, Vector3{tau_Q, 0., kn_Q}, "Variation w_Q = {0,   kn, 0}", bnds.eps);
+        o.assertEq(w_Q, Vector3{tau_Q, 0., kn_Q}, "Variation w_Q = {tau, 0, kn}", bnds.eps);
     }
 
     o.newSubSection("Variation ds => shooter delta = v_P, p_P");
@@ -365,6 +419,83 @@ void TangentialVariationTest(
     }
 }
 
+void BinormalVariationTest(
+    const ImplicitSurface& s,
+    const Geodesic& gZero,
+    std::vector<Trihedron> samplesZero,
+    GeodesicTestBounds bnds,
+    const std::string& msg,
+    size_t idx,
+    TestRapport& o)
+{
+    auto ToDarbouxFrame = [&](const DarbouxFrame q, Vector3 v) -> Vector3
+    {
+        return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
+    };
+
+    const Vector3& v_P = ToDarbouxFrame(gZero.start.frame, gZero.start.v.at(idx));
+    const Vector3& w_P = gZero.start.w.at(idx);
+    const double kn_P = s.testCalcNormalCurvature(gZero.start.position, gZero.start.frame.t);
+    const double tau_P = s.testCalcGeodesicTorsion(gZero.start.position, gZero.start.frame.t);
+
+    const Vector3& v_Q = ToDarbouxFrame(gZero.end.frame, gZero.end.v.at(idx));
+    const Vector3& w_Q = gZero.end.w.at(idx);
+    const double kn_Q = s.testCalcNormalCurvature(gZero.end.position, gZero.end.frame.t);
+    const double tau_Q = s.testCalcGeodesicTorsion(gZero.end.position, gZero.end.frame.t);
+
+    o._oss << o._indent << "kn_P  = " << kn_P << "\n";
+    o._oss << o._indent << "tau_P = " << tau_P << "\n";
+    o._oss << o._indent << "kn_Q  = " << kn_Q << "\n";
+    o._oss << o._indent << "tau_Q = " << tau_Q << "\n";
+
+    const double d = bnds.variation;
+    GeodesicCorrection c = {0., 0., 0., 0.};
+    c.at(idx) = d;
+    Geodesic gOne = gZero;
+    s.applyVariation(gOne, c);
+
+    auto ToTriFrame = [&](const Trihedron q, Vector3 v) -> Vector3
+    {
+        return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
+    };
+
+    std::vector<Trihedron> samplesOne = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
+
+    o.newSubSection(msg + " => shooter delta = v_P, p_P");
+    {
+        const Trihedron& K_P_zero = samplesZero.front();
+        const Trihedron& K_P_one = samplesOne.front();
+        o.assertEq(ToTriFrame(K_P_zero, K_P_one.p - K_P_zero.p) / d, v_P,       "Shooter v_P", bnds.eps);
+        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Shooter w_P", bnds.eps);
+    }
+
+    o.newSubSection(msg + " => shooter delta = v_Q, p_Q");
+    {
+        const Trihedron& K_Q_zero = samplesZero.front();
+        const Trihedron& K_Q_one = samplesOne.front();
+        o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.eps);
+        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.eps);
+    }
+
+    o.newSubSection(msg + " => geodesic delta = v_P, p_P");
+    {
+        const DarbouxFrame& K_P_zero = gZero.start.frame;
+        const DarbouxFrame& K_P_one = gOne.start.frame;
+        const Vector3 dp = gOne.start.position - gZero.start.position;
+        o.assertEq(ToDarbouxFrame(K_P_zero, dp) / d, v_P,                           "Geodesic v_P", bnds.eps);
+        o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Geodesic w_P", bnds.eps);
+    }
+
+    o.newSubSection(msg + " => geodesic delta = v_Q, p_Q");
+    {
+        const DarbouxFrame& K_Q_zero = gZero.end.frame;
+        const DarbouxFrame& K_Q_one = gOne.end.frame;
+        const Vector3 dp = gOne.end.position - gZero.end.position;
+        o.assertEq(ToDarbouxFrame(K_Q_zero, dp) / d, v_Q,                           "Geodesic v_Q", bnds.eps);
+        o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.eps);
+    }
+}
+
 void RunImplicitGeodesicVariationTest(
     const ImplicitSurface& s,
     const Geodesic& gZero,
@@ -375,8 +506,16 @@ void RunImplicitGeodesicVariationTest(
     o.newSection("Unconstrained comparison");
     std::vector<Trihedron> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
 
-    TangentialVariationTest(s, gZero, samplesZero, bnds, o);
+    o.newSection("Tangential variation");
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var ds", 0, o);
+    o.newSection("Binormal variation");
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var dB", 1, o);
+    o.newSection("Directional variation");
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var do", 2, o);
+    o.newSection("Lengthening variation");
+    BinormalVariationTest(s, gZero, samplesZero, bnds, "Var dl", 3, o);
     return;
+    TangentialVariationTest(s, gZero, samplesZero, bnds, o);
 
     Trihedron K_P_zero = samplesZero.front();
     Trihedron K_Q_zero = samplesZero.back();
