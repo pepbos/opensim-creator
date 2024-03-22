@@ -195,20 +195,33 @@ Mat33d AsMat3(const Trihedron& q) {
     return mat;
 }
 
+Vector3 calcRotationVector(Eigen::Quaterniond q)
+{
+    const double sinHalfAngle = q.vec().norm();
+    if (sinHalfAngle < 1e-16) {
+        return {0., 0., 0.};
+    }
+    const double angle = std::atan(sinHalfAngle / q.w()) * 2.;
+    return q.vec() / sinHalfAngle * std::abs(angle);
+}
+
+Vector3 calcApproxRate(const Mat33d& prev, const Mat33d& next, double dt) {
+    using Q = Eigen::Quaterniond;
+    Q qa = Q(prev);
+    Q qb = Q(next);
+
+    qa.normalize();
+    qb.normalize();
+
+    return calcRotationVector(qa.inverse() * qb) / dt;
+}
+
 Vector3 calcApproxRate(const DarbouxFrame& prev, const DarbouxFrame& next, double dt) {
-    Mat33d a = AsMat3(prev);
-    Mat33d b = AsMat3(next);
-    Mat33d Rdot = b - a;
-    Mat33d RTRdot = a.transpose() * Rdot;
-    return untilde(RTRdot) / dt;
+    return calcApproxRate(AsMat3(prev), AsMat3(next), dt);
 }
 
 Vector3 calcApproxRate(const Trihedron& prev, const Trihedron& next, double dt) {
-    Mat33d a = AsMat3(prev);
-    Mat33d b = AsMat3(next);
-    Mat33d Rdot = b - a;
-    Mat33d RTRdot = a.transpose() * Rdot;
-    return untilde(RTRdot) / dt;
+    return calcApproxRate(AsMat3(prev), AsMat3(next), dt);
 }
 
 bool RunRungeKutta4Test(std::ostream& os)
