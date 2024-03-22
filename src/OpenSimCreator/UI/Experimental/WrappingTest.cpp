@@ -732,7 +732,7 @@ namespace osc
         if (!isOk || _verbose) {
             _oss << _indent << "    lhs = " << lhs.transpose() << "\n";
             _oss << _indent << "    rhs = " << rhs.transpose() << "\n";
-            _oss << _indent << "    err = " << (lhs - rhs).transpose() << "\n";
+            _oss << _indent << "    err = " << (lhs - rhs).transpose() << " --> " << (lhs - rhs).norm() << "\n";
             _oss << _indent << "    bnd = " << eps << "\n";
         }
         process(isOk);
