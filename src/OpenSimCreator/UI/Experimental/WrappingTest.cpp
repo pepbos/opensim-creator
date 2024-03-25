@@ -69,8 +69,8 @@ TrihedronDerivative calcTrihedronDerivative(
     dy.pDot = y.v;
     dy.vDot = std::move(a);
     dy.tDot = kn * y.n;
-    dy.nDot = -kn * y.t - tau_g * y.b;
-    dy.bDot = tau_g * y.n;
+    dy.nDot = -kn * y.t + tau_g * y.b;
+    dy.bDot = -tau_g * y.n;
 
     return dy;
 }
