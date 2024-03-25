@@ -202,7 +202,7 @@ Vector3 calcRotationVector(Eigen::Quaterniond q)
         return {0., 0., 0.};
     }
     const double angle = std::atan(sinHalfAngle / q.w()) * 2.;
-    return q.vec() / sinHalfAngle * std::abs(angle);
+    return q.vec() / sinHalfAngle * angle;
 }
 
 Vector3 calcApproxRate(const Mat33d& prev, const Mat33d& next, double dt) {
@@ -340,29 +340,31 @@ void BinormalVariationTest(
     const ImplicitSurface& s,
     const Geodesic& gZero,
     std::vector<Trihedron> samplesZero,
+    GeodesicCorrection c,
     GeodesicTestBounds bnds,
     const std::string& msg,
-    size_t idx,
     TestRapport& o)
 {
+
     auto ToDarbouxFrame = [&](const DarbouxFrame q, Vector3 v) -> Vector3
     {
         return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
     };
 
-    const double d = bnds.variation;
-    GeodesicCorrection c = {0., 0., 0., 0.};
-    c.at(idx) = d;
-    Geodesic gOne = gZero;
-    s.applyVariation(gOne, c);
-
-    const Vector3& v_P = ToDarbouxFrame(gZero.start.frame, gZero.start.v.at(idx));
-    const Vector3& w_P = gZero.start.w.at(idx);
     const double kn_P = s.testCalcNormalCurvature(gZero.start.position, gZero.start.frame.t);
     const double tau_P = s.testCalcGeodesicTorsion(gZero.start.position, gZero.start.frame.t);
 
-    const Vector3& v_Q = ToDarbouxFrame(gZero.end.frame, gZero.end.v.at(idx));
-    const Vector3& w_Q = gZero.end.w.at(idx);
+    Vector3 v_P = {0., 0., 0.};
+    Vector3 w_P = {0., 0., 0.};
+    Vector3 v_Q = {0., 0., 0.};
+    Vector3 w_Q = {0., 0., 0.};
+    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+        v_P += ToDarbouxFrame(gZero.start.frame, gZero.start.v.at(i) * c.at(i));
+        w_P += gZero.start.w.at(i) * c.at(i);
+        v_Q += ToDarbouxFrame(gZero.end.frame, gZero.end.v.at(i) * c.at(i));
+        w_Q += gZero.end.w.at(i) * c.at(i);
+    }
+
     const double kn_Q = s.testCalcNormalCurvature(gZero.end.position, gZero.end.frame.t);
     const double tau_Q = s.testCalcGeodesicTorsion(gZero.end.position, gZero.end.frame.t);
 
@@ -370,6 +372,13 @@ void BinormalVariationTest(
     o._oss << o._indent << "tau_P = " << tau_P << "\n";
     o._oss << o._indent << "kn_Q  = " << kn_Q << "\n";
     o._oss << o._indent << "tau_Q = " << tau_Q << "\n";
+
+    const double d = bnds.variation;
+    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+        c.at(i) *= d;
+    }
+    Geodesic gOne = gZero;
+    s.applyVariation(gOne, c);
 
     auto ToTriFrame = [&](const Trihedron q, Vector3 v) -> Vector3
     {
@@ -426,13 +435,17 @@ void RunImplicitGeodesicVariationTest(
     std::vector<Trihedron> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
 
     o.newSection("Tangential variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "ds", 0, o);
+    BinormalVariationTest(s, gZero, samplesZero, {1., 0., 0., 0.}, bnds, "ds", o);
     o.newSection("Binormal variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "dB", 1, o);
+    BinormalVariationTest(s, gZero, samplesZero, {0., 1., 0., 0.}, bnds, "dB", o);
     o.newSection("Directional variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "do", 2, o);
+    BinormalVariationTest(s, gZero, samplesZero, {0., 0., 1., 0.}, bnds, "do", o);
     o.newSection("Lengthening variation");
-    BinormalVariationTest(s, gZero, samplesZero, bnds, "dl", 3, o);
+    BinormalVariationTest(s, gZero, samplesZero, {0., 0., 0., 1.}, bnds, "dl", o);
+    o.newSection("Mixed variation");
+    BinormalVariationTest(s, gZero, samplesZero, {1., 1., 1., 1.}, bnds, "dl", o);
+    o.newSection("Mixed signed variation");
+    BinormalVariationTest(s, gZero, samplesZero, {1., -1., 1., -1.}, bnds, "dl", o);
 }
 
 } // namespace
