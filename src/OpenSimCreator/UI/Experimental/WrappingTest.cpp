@@ -159,10 +159,6 @@ bool RunTrihedronTest(const Trihedron& y, const std::string& msg, TestRapport& o
 
 using Mat33d = Eigen::Matrix<double, 3,3>;
 
-Vector3 untilde(const Mat33d& mat) {
-    return {-mat(1,2), mat(0,2), -mat(0,1)};
-}
-
 Mat33d AsMat3(const DarbouxFrame& q) {
     Mat33d mat;
     mat(0,0) = q.t(0);
