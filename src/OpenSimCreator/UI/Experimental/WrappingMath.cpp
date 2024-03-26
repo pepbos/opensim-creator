@@ -705,7 +705,7 @@ double calcMaxAlignmentError(double angleDeg)
 }
 
 template <typename VECTOR>
-double calcInfNorm(const VECTOR& vec)
+double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
 {
     double maxError = 0.;
     const auto n    = static_cast<size_t>(vec.rows());
@@ -716,16 +716,19 @@ double calcInfNorm(const VECTOR& vec)
 }
 
 template <typename VECTOR>
-double clampToMaxAlighmentError(VECTOR& vec, double angleDeg)
+double calcScaledToFit(typename std::remove_reference<VECTOR>::type& vec, double bound)
 {
-    const double maxError = calcInfNorm(vec);
-    const double bnd      = calcMaxAlignmentError(angleDeg);
-    if (bnd < maxError) {
-        const double c = bnd / maxError;
+    const double c = std::abs(bound) / calcInfNorm<VECTOR>(vec);
+    if (c < 1.) {
         vec *= c;
-        return c;
     }
-    return 1.;
+    return std::min(c, 1.);
+}
+
+template <double>
+double calcInfNorm(double x)
+{
+    return std::abs(x);
 }
 
 size_t calcAccurateSurfaceProjection(
@@ -1876,8 +1879,7 @@ bool PathContinuityError::calcPathCorrection()
     /* std::cout << "weight =" << weight << std::endl; */
 
     // TODO Clamp the path error?
-    /* clampPathError(_pathError, 10.); */
-    clampToMaxAlighmentError(_pathError, 10.);
+    calcScaledToFit<Eigen::VectorXd>(_pathError, 10.);
     /* std::cout << "\n"; */
     /* std::cout << "_pathError =" << _pathError.transpose() << std::endl; */
     /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl;
