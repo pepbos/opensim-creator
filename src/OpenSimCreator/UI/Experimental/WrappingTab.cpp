@@ -136,17 +136,6 @@ public:
             m_ImplicitSphereSurface.setLocalPathStartGuess({-1., 0., -1});
         }
 
-        // Make sure to do all surface self tests (TODO terrible place for it, but whatever.
-        if(false)
-        {
-            /* m_AnalyticCylinderSurface.doSelfTests("AnalyticCylinderSurface"); */
-            m_ImplicitEllipsoidSurface.doSelfTests( "ImplicitEllipsoidSurface", 5e-3);
-            m_ImplicitCylinderSurface.doSelfTests("ImplicitCylinderSurface");
-            /* m_ImplicitSphereSurface.doSelfTests("ImplicitSphereSurface"); */
-            m_AnalyticSphereSurface.doSelfTests("AnalyticSphereSurface");
-            /* m_ImplicitSphereSurface.doSelfTests(); */
-        }
-
         // Choose wrapping terminal points.
         {
             m_StartPoint                     = {0., -7, 0.25};
@@ -256,7 +245,6 @@ private:
             WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return getWrapSurfaceHelper(i);
             };
-            WrappingTester(m_WrappingPath, GetSurface, std::cout, 1e-4, 1e-3);
 
             std::cout << "\n";
             std::cout << "pathError: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";

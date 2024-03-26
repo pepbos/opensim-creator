@@ -275,30 +275,12 @@ private:
     virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
     virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
 
-    // TODO Move this to an actual testing framework.
-    virtual std::vector<Vector3> makeSelfTestPoints() const;
-    virtual std::vector<Vector3> makeSelfTestVelocities() const;
-    virtual std::vector<double> makeSelfTestLengths() const;
-    virtual double selfTestEquivalentRadius() const = 0;
-
     // This would be a socket to an offset frame for example.
     Transf _transform;
 
     // TODO this should not be surface dependent.
     // TODO weird guess (keep until fixed)
     Vector3 _pathLocalStartGuess = {1., 1., 1.};
-
-    void doSelfTest(
-        const std::string name,
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        double eps   = 1e-3,
-        double delta = 1e-4) const;
-
-public:
-    // Move out of class.
-    void doSelfTests(const std::string name, double eps = 1e-3) const;
 };
 
 //==============================================================================
@@ -413,11 +395,6 @@ private:
 
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
-    double selfTestEquivalentRadius() const override
-    {
-        return std::max(_xRadius, std::max(_yRadius, _zRadius));
-    }
-
     double _xRadius = 1.;
     double _yRadius = 1.;
     double _zRadius = 1.;
@@ -450,11 +427,6 @@ private:
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
-
-    double selfTestEquivalentRadius() const override
-    {
-        return _radius;
-    }
 
     double _radius = 1.;
 };
@@ -495,11 +467,6 @@ private:
         double eps,
         size_t maxIter) const override;
 
-    double selfTestEquivalentRadius() const override
-    {
-        return _radius;
-    }
-
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
@@ -537,11 +504,6 @@ private:
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
-
-    double selfTestEquivalentRadius() const override
-    {
-        return _radius;
-    }
 
     double _radius = 1.;
 };
@@ -581,11 +543,6 @@ private:
         DarbouxFrame& frame,
         double eps,
         size_t maxIter) const override;
-
-    double selfTestEquivalentRadius() const override
-    {
-        return _radius;
-    }
 
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
@@ -632,11 +589,6 @@ private:
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
-
-    double selfTestEquivalentRadius() const override
-    {
-        return _smallRadius;
-    }
 
     double _smallRadius = 0.1;
     double _bigRadius = 1.;
@@ -892,12 +844,5 @@ inline WrappingPath::Status operator~(WrappingPath::Status s)
 {
     return static_cast<WrappingPath::Status>(~static_cast<int>(s));
 }
-
-bool WrappingTester(
-    const WrappingPath& path,
-    WrappingPath::GetSurfaceFn& GetSurface,
-    std::ostream& os,
-    double d,
-    double eps);
 
 } // namespace osc
