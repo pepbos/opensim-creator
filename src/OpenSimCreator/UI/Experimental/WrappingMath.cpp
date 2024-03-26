@@ -16,33 +16,14 @@ static constexpr bool RUNTIME_UNIT_TESTS = true;
 //==============================================================================
 //                      PRINTING
 //==============================================================================
-namespace
-{
-
-struct Print3
-{
-    Vector3 x;
-};
-
-std::ostream& operator<<(std::ostream& os, Print3 p)
-{
-    os << "[";
-    std::string delim;
-    for (size_t r = 0; r < 3; ++r) {
-        os << delim << p.x(r);
-        delim = ", ";
-    }
-    return os << "]";
-}
-} // namespace
 
 namespace osc
 {
 
 std::ostream& operator<<(std::ostream& os, const DarbouxFrame& frame)
 {
-    return os << "DarbouxFrame{" << "t:" << Print3{frame.t} << ", "
-              << "n:" << Print3{frame.n} << ", " << "b:" << Print3{frame.b}
+    return os << "DarbouxFrame{" << "t:" << frame.t.transpose() << ", "
+              << "n:" << frame.n.transpose() << ", " << "b:" << frame.b.transpose()
               << "}";
 }
 
@@ -50,19 +31,19 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::BoundaryState& x)
 {
     // TODO remove indentation from printing.
 
-    os << "t: " << Print3{x.frame.t} << ", ";
-    os << "n: " << Print3{x.frame.n} << ", ";
-    os << "b: " << Print3{x.frame.b} << ", ";
-    os << "r: " << Print3{x.position} << "\n";
+    os << "t: " << x.frame.t.transpose() << ", ";
+    os << "n: " << x.frame.n.transpose() << ", ";
+    os << "b: " << x.frame.b.transpose() << ", ";
+    os << "r: " << x.position.transpose() << "\n";
 
     std::string delim = "         v: {";
     for (const Vector3& vi : x.v) {
-        os << delim << Print3{vi};
+        os << delim << vi.transpose();
         delim = ", ";
     }
     delim = "}, \n         w: {";
     for (const Vector3& wi : x.w) {
-        os << delim << Print3{wi};
+        os << delim << wi.transpose();
         delim = ", ";
     }
     return os << "}";
@@ -99,10 +80,6 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
         os << delim << "TouchDownFailed";
         delim = ", ";
     }
-    /* if (s & Geodesic::Status::IntegratorFailed) { */
-    /*     os << delim << "IntegratorFailed"; */
-    /*     delim = ", "; */
-    /* } */
     return os << "}";
 }
 
@@ -143,27 +120,6 @@ std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s)
 namespace
 {
 
-/* void AssertEq( */
-/*     const Vector3& lhs, */
-/*     double norm, */
-/*     const std::string& msg, */
-/*     double eps = 1e-13) */
-/* { */
-/*     const bool isOk = std::abs(lhs.norm() - norm) < eps; */
-/*     if (!isOk) { */
-/*         std::ostringstream os; */
-/*         os << "FAILED ASSERT: " << msg << std::endl; */
-/*         os << "    lhs.norm() = " << Print3{lhs} << ".norm() = " << lhs.norm() */
-/*            << std::endl; */
-/*         os << "    expected = " << norm << std::endl; */
-/*         os << "    err = " << lhs.norm() - norm << std::endl; */
-/*         os << "    bnd = " << eps << std::endl; */
-/*         std::string msg = os.str(); */
-/*         throw std::runtime_error(msg.c_str()); */
-/*         /1* OSC_ASSERT(isOk && msg.c_str()); *1/ */
-/*     } */
-/* } */
-
 void AssertEq(
     double lhs,
     double rhs,
@@ -195,9 +151,9 @@ void AssertEq(
     if (!isOk) {
         std::ostringstream os;
         os << "FAILED ASSERT: " << msg << std::endl;
-        os << "    lhs = " << Print3{lhs} << std::endl;
-        os << "    rhs = " << Print3{rhs} << std::endl;
-        os << "    err = " << Print3{lhs - rhs} << std::endl;
+        os << "    lhs = " << lhs.transpose() << std::endl;
+        os << "    rhs = " << rhs.transpose() << std::endl;
+        os << "    err = " << (lhs - rhs).transpose() << std::endl;
         os << "    bnd = " << eps << std::endl;
         /* throw std::runtime_error(msg); */
         std::string msg = os.str();
@@ -205,23 +161,6 @@ void AssertEq(
         OSC_ASSERT(isOk && msg.c_str());
     }
 }
-
-/* bool AssertEq( */
-/*     double lhs, */
-/*     double rhs, */
-/*     const std::string& msg, */
-/*     std::ostream& os, */
-/*     double eps = 1e-13) */
-/* { */
-/*     const bool failed = std::abs(lhs - rhs) > eps; */
-/*     if (failed) { */
-/*         os << "FAILED ASSERT: " << msg << std::endl; */
-/*         os << "    lhs = " << lhs << std::endl; */
-/*         os << "    rhs = " << rhs << std::endl; */
-/*         os << "    err = " << lhs - rhs << std::endl; */
-/*     } */
-/*     return !failed; */
-/* } */
 
 bool AssertEq(
     const Vector3& lhs,
@@ -233,25 +172,13 @@ bool AssertEq(
     const bool isOk = (lhs - rhs).norm() < eps;
     if (!isOk) {
         os << "FAILED ASSERT: " << msg << std::endl;
-        os << "    lhs = " << Print3{lhs} << std::endl;
-        os << "    rhs = " << Print3{rhs} << std::endl;
-        os << "    err = " << Print3{lhs - rhs} << std::endl;
+        os << "    lhs = " << lhs.transpose() << std::endl;
+        os << "    rhs = " << rhs.transpose() << std::endl;
+        os << "    err = " << (lhs - rhs).transpose() << std::endl;
         os << "    bnd = " << eps << std::endl;
     }
     return isOk;
 }
-
-/* bool AssertRelEq( */
-/*         const Vector3& lhs, */
-/*         const Vector3& rhs, */
-/*         const std::string& msg, */
-/*         std::ostream& os, */
-/*         double eps = 1e-13) */
-/* { */
-/*     const double bound = std::max(std::max( lhs.norm(), rhs.norm()), 1.) *
- * eps; */
-/*     return AssertEq(lhs, rhs, msg, os, bound); */
-/* } */
 
 } // namespace
 
@@ -327,16 +254,6 @@ ImplicitGeodesicState operator+(
     return y;
 }
 
-/* std::ostream& operator<<(std::ostream& os, const ImplicitGeodesicState& x) */
-/* { */
-/*     return os << "ImplicitGeodesicState{" */
-/*               << "p: " << Print3{x.position} << ", " */
-/*               << "v: " << Print3{x.velocity} << ", " */
-/*               << "a: " << x.a << ", " */
-/*               << "aDot: " << x.a << ", " */
-/*               << "r: " << x.r << ", " */
-/*               << "rDot: " << x.rDot << "}"; */
-/* } */
 } // namespace
 
 //==============================================================================
