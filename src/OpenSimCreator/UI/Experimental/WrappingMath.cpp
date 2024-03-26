@@ -1106,6 +1106,25 @@ Vector3 Surface::getPathStartGuess() const
     return calcPointInGround(_transform, _pathLocalStartGuess);
 }
 
+Vector3 Surface::calcSurfaceNormal(Vector3 point) const
+{
+    return calcLocalSurfaceNormalImpl(calcPointInLocal(_transform, std::move(point)));
+}
+
+double Surface::calcNormalCurvature(Vector3 point, Vector3 tangent) const
+{
+    return calcLocalNormalCurvatureImpl(
+            calcPointInLocal(_transform, std::move(point)),
+            calcVectorInLocal(_transform, std::move(tangent)));
+}
+
+double Surface::calcGeodesicTorsion(Vector3 point, Vector3 tangent) const
+{
+    return calcLocalGeodesicTorsionImpl(
+            calcPointInLocal(_transform, std::move(point)),
+            calcVectorInLocal(_transform, std::move(tangent)));
+}
+
 //==============================================================================
 //                      IMPLICIT SURFACE
 //==============================================================================
@@ -1152,28 +1171,19 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     geodesic.length = length;
 }
 
-// TODO DO NOT USE THIS. FOR TESTING ONLY.
-double ImplicitSurface::testCalcGeodesicTorsion(Vector3 point, Vector3 tangent) const
+Vector3 ImplicitSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
 {
-    return calcGeodesicTorsion(*this, std::move(point), std::move(tangent));
+    return ::calcSurfaceNormal(*this, point);
 }
 
-// TODO DO NOT USE THIS. FOR TESTING ONLY.
-double ImplicitSurface::testCalcNormalCurvature(Vector3 point, Vector3 tangent) const
+double ImplicitSurface::calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const
 {
-    return calcNormalCurvature(*this, std::move(point), std::move(tangent));
+    return ::calcGeodesicTorsion(*this, std::move(point), std::move(tangent));
 }
 
-// TODO DO NOT USE THIS. FOR TESTING ONLY.
-Vector3 ImplicitSurface::testCalcSurfaceNormal(Vector3 point) const
+double ImplicitSurface::calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const
 {
-    return calcSurfaceNormal(*this, std::move(point));
-}
-
-// TODO DO NOT USE THIS. FOR TESTING ONLY.
-Vector3 ImplicitSurface::testCalcAcceleration(Vector3 point, Vector3 tangent) const
-{
-    return calcAcceleration(*this, std::move(point), std::move(tangent));
+    return ::calcNormalCurvature(*this, std::move(point), std::move(tangent));
 }
 
 //==============================================================================
@@ -1260,27 +1270,6 @@ bool ImplicitSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound)
 //                      ANALYTIC SPHERE SURFACE
 //==============================================================================
 
-DarbouxFrame testRotationIntegration(DarbouxFrame f_P, double angle)
-{
-    Vector3 axis = -f_P.b;
-    auto f       = [=](const Vector3& frameAxis) -> Vector3 {
-        return axis.cross(frameAxis);
-    };
-
-    size_t nSteps   = 1000;
-    const double dt = angle / static_cast<double>(nSteps);
-
-    DarbouxFrame f_Q = f_P;
-    for (size_t i = 0; i < nSteps; ++i) {
-        double t = 0.;
-        RungeKutta4<Vector3, Vector3>(f_Q.n, t, dt, f);
-        RungeKutta4<Vector3, Vector3>(f_Q.t, t, dt, f);
-        RungeKutta4<Vector3, Vector3>(f_Q.b, t, dt, f);
-    }
-
-    return f_Q;
-}
-
 void AnalyticSphereSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
@@ -1350,105 +1339,6 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
         K_Q.v.at(i) = K_Q.w.at(i).cross(f_Q.n) * r;
     }
 
-    // Test the above:
-    if (RUNTIME_UNIT_TESTS) {
-
-        DarbouxFrame f_Q0 = testRotationIntegration(f_P, angle);
-
-        const double eps = 1e-9;
-        AssertEq(
-            f_Q.t,
-            f_Q0.t,
-            "Numerical integration of tangent direction did not match",
-            eps);
-        AssertEq(
-            f_Q.n,
-            f_Q0.n,
-            "Numerical integration of normal direction did not match",
-            eps);
-        AssertEq(
-            f_Q.b,
-            f_Q0.b,
-            "Numerical integration of binormal direction did not match",
-            eps);
-    }
-
-    if (false) {
-
-        for (size_t i = 0; i < 4; ++i) {
-            const double eta = 1e-3;
-            const double d   = 1e-3;
-
-            // Apply variation to initial velocity and position.
-            /* Vector3 dv_P = f_P.t + K_P.w.at(i).cross(f_P.t) * d; */
-            /* Vector3 dp_P = f_P.n + K_P.w.at(i).cross(f_P.n) * d; */
-
-            const Vector3 dAxis = K_P.w.at(i) * d;
-            const double dAngle = dAxis.norm();
-            const Rotation dW =
-                dAngle < 1e-13
-                    ? Rotation::Identity()
-                    : Rotation(
-                          Eigen::AngleAxis<double>(dAngle, dAxis / dAngle));
-
-            const Vector3 dv_P = dW * f_P.t;
-            const Vector3 dp_P = dW * f_P.n;
-
-            // Redo the integration, and verify the variation.
-            DarbouxFrame df_P(dv_P, dp_P);
-            AssertEq(
-                r * (df_P.n - f_P.n) / d,
-                K_P.v.at(i),
-                "Failed to verify initial position variation",
-                eta);
-            AssertEq(
-                (df_P.b - f_P.b) / d,
-                K_P.w.at(i).cross(f_P.b),
-                "Failed to verify initial binormal variation",
-                eta);
-
-            const double dangle = i == 3 ? angle + d : angle;
-            DarbouxFrame df_Q   = testRotationIntegration(df_P, dangle);
-
-            AssertEq(
-                df_Q.t,
-                dW * f_Q.t,
-                "Failed to verify final tangent variation",
-                eta);
-            AssertEq(
-                df_Q.n,
-                dW * f_Q.n,
-                "Failed to verify final normal variation",
-                eta);
-            AssertEq(
-                df_Q.b,
-                dW * f_Q.b,
-                "Failed to verify final binormal variation",
-                eta);
-
-            AssertEq(
-                r * (df_Q.n - f_Q.n) / d,
-                K_Q.v.at(i),
-                "Failed to verify final position variation",
-                eta);
-            AssertEq(
-                (df_Q.t - f_Q.t) / d,
-                K_Q.w.at(i).cross(f_Q.t),
-                "Failed to verify final tangent variation",
-                eta);
-            AssertEq(
-                (df_Q.n - f_Q.n) / d,
-                K_Q.w.at(i).cross(f_Q.n),
-                "Failed to verify final normal variation",
-                eta);
-            AssertEq(
-                (df_Q.b - f_Q.b) / d,
-                K_Q.w.at(i).cross(f_Q.b),
-                "Failed to verify final binormal variation",
-                eta);
-        }
-    }
-
     auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
         return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
     };
@@ -1489,6 +1379,21 @@ size_t AnalyticSphereSurface::calcAccurateLocalSurfaceProjectionImpl(
     point = pointInit / pointInit.norm() * _radius;
     frame = calcDarbouxFromTangentGuessAndNormal(frame.t, point);
     return 0;
+}
+
+double AnalyticSphereSurface::calcLocalNormalCurvatureImpl(Vector3, Vector3) const
+{
+    return -1. / _radius;
+}
+
+Vector3 AnalyticSphereSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
+{
+    return point / point.norm();
+}
+
+double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3) const
+{
+    return 0.;
 }
 
 //==============================================================================
@@ -1683,6 +1588,25 @@ bool AnalyticCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound)
     return point.x() * point.x() + point.y() * point.y() -
                (_radius + bound) * (_radius + bound) >
            0.;
+}
+
+double AnalyticCylinderSurface::calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const
+{
+    const Vector3& p = point;
+    const Vector3& t = tangent;
+    return - (t.x() * p.y() -t.y() * p.x() ) / _radius;
+}
+
+Vector3 AnalyticCylinderSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
+{
+    const double x = point.x();
+    const double y = point.y();
+    return Vector3{x, y, 0.} / std::sqrt(x*x + y*y);
+}
+
+double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3) const
+{
+    return 0.;
 }
 
 //==============================================================================

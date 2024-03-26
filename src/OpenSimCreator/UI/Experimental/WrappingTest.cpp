@@ -104,11 +104,14 @@ void TrihedronStep(const ImplicitSurface& s, Trihedron& q, double& l, double dl)
         l,
         dl,
         [&](const Trihedron& qk) -> TrihedronDerivative {
+        const double kn = s.calcNormalCurvature(qk.p, qk.v);
+        const double tau_g = s.calcGeodesicTorsion(qk.p, qk.v);
+        const Vector3 n = s.calcSurfaceNormal(qk.p);
             return calcTrihedronDerivative(
                 qk,
-                s.testCalcAcceleration(qk.p, qk.v),
-                s.testCalcNormalCurvature(qk.p, qk.v),
-                s.testCalcGeodesicTorsion(qk.p, qk.v));
+                n * kn,
+                kn,
+                tau_g);
         });
 }
 
@@ -283,7 +286,7 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
             K_est.p = prev.p;
             K_est.v = prev.v;
             K_est.t = (next.p - prev.p) / (next.p - prev.p).norm();
-            K_est.n = s.testCalcSurfaceNormal(prev.p);
+            K_est.n = s.calcSurfaceNormal(prev.p);
             K_est.b = K_est.t.cross(K_est.n);
             K_est.b = K_est.b / K_est.b.norm();
 
@@ -347,8 +350,8 @@ void BinormalVariationTest(
         return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
     };
 
-    const double kn_P = s.testCalcNormalCurvature(gZero.start.position, gZero.start.frame.t);
-    const double tau_P = s.testCalcGeodesicTorsion(gZero.start.position, gZero.start.frame.t);
+    const double kn_P = s.calcNormalCurvature(gZero.start.position, gZero.start.frame.t);
+    const double tau_P = s.calcGeodesicTorsion(gZero.start.position, gZero.start.frame.t);
 
     Vector3 v_P = {0., 0., 0.};
     Vector3 w_P = {0., 0., 0.};
@@ -361,8 +364,8 @@ void BinormalVariationTest(
         w_Q += gZero.end.w.at(i) * c.at(i);
     }
 
-    const double kn_Q = s.testCalcNormalCurvature(gZero.end.position, gZero.end.frame.t);
-    const double tau_Q = s.testCalcGeodesicTorsion(gZero.end.position, gZero.end.frame.t);
+    const double kn_Q = s.calcNormalCurvature(gZero.end.position, gZero.end.frame.t);
+    const double tau_Q = s.calcGeodesicTorsion(gZero.end.position, gZero.end.frame.t);
 
     o._oss << o._indent << "kn_P  = " << kn_P << "\n";
     o._oss << o._indent << "tau_P = " << tau_P << "\n";

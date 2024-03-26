@@ -246,8 +246,13 @@ public:
         double eps,
         size_t maxIter) const;
 
-    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var)
-        const;
+    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var) const;
+
+    // For convenience:
+    // (Assumes the point lies on the surface)
+    Vector3 calcSurfaceNormal(Vector3 point) const;
+    double calcNormalCurvature(Vector3 point, Vector3 tangent) const;
+    double calcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
 
 private:
     virtual void calcLocalGeodesicImpl(
@@ -265,6 +270,10 @@ private:
         size_t maxIter) const = 0;
 
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
+
+    virtual Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const = 0;
+    virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
+    virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
 
     // TODO Move this to an actual testing framework.
     virtual std::vector<Vector3> makeSelfTestPoints() const;
@@ -338,7 +347,6 @@ public:
 
     Vector3 testCalcAcceleration(Vector3 point, Vector3 tangent) const;
 
-
 private:
     // Implicit surface constraint.
     virtual double calcSurfaceConstraintImpl(Vector3 position) const = 0;
@@ -359,6 +367,10 @@ private:
         DarbouxFrame& frame,
         double eps,
         size_t maxIter) const override;
+
+    Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
     // TODO would become obsolete with variable step integration.
     size_t _integratorSteps = 1000;
@@ -488,6 +500,10 @@ private:
         return _radius;
     }
 
+    Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+
     double _radius = 1.;
 };
 
@@ -570,6 +586,10 @@ private:
     {
         return _radius;
     }
+
+    Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
     double _radius = 1.;
 };

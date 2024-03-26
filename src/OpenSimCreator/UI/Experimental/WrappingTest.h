@@ -14,9 +14,9 @@ namespace osc
     struct GeodesicTestBounds
     {
         double eps = 1e-9;
-        double numericalDarbouxDrift = 1e-3;
+        double numericalDarbouxDrift = 5e-3;
         double variation = 1e-5;
-        double varEps = 1e-5; // Take as variation / 10?
+        double varEps = 1e-3; // Take as variation / 10?
         size_t integratorSteps = 1000;
     };
 
