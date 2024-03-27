@@ -103,8 +103,9 @@ class osc::WrappingTab::Impl final : public StandardTabImpl
     {
         switch (i) {
             /* case 0: return &m_ImplicitSphereSurface; */
-            /* case 1: return &m_ImplicitCylinderSurface; */
-            case 0: return &m_ImplicitEllipsoidSurface;
+            case 0: return &m_ImplicitCylinderSurface;
+            case 1: return &m_ImplicitEllipsoidSurface;
+            case 2: return &m_ImplicitTorusSurface;
             default: return nullptr;
         }
     }
@@ -115,11 +116,12 @@ public:
     {
         // Set some surface params.
         {
-            m_ImplicitEllipsoidSurface.setRadii(1., 3.0, 0.5);
+            m_ImplicitEllipsoidSurface.setRadii(1., 5.0, 2.0);
             m_ImplicitEllipsoidSurface.setLocalPathStartGuess({-1., 1., 1});
+            m_ImplicitEllipsoidSurface.setOffsetFrame({{-3., 0., 0.}});
 
             m_ImplicitCylinderSurface.setOffsetFrame(Transf{
-                Vector3{-4., 0., 0.1}
+                Vector3{-6., 0., 0.1}
             });
             m_ImplicitCylinderSurface.setRadius(0.75);
             m_ImplicitCylinderSurface.setLocalPathStartGuess({-1., 1., 1});
@@ -135,12 +137,21 @@ public:
             });
             m_ImplicitSphereSurface.setRadius(1.);
             m_ImplicitSphereSurface.setLocalPathStartGuess({-1., 0., -1});
+
+            {
+                const float r = 0.2f;
+                const float R = 1.0f;
+                m_TorusMesh   = TorusGeometry(R, r, 12);
+                m_ImplicitTorusSurface.setRadii(R, r);
+                m_ImplicitTorusSurface.setLocalPathStartGuess({0.1, 0.1, 0.1});
+                m_ImplicitTorusSurface.setOffsetFrame({{-1., 0., -3.}});
+            }
         }
 
         // Choose wrapping terminal points.
         {
-            m_StartPoint                     = {0., -7, 0.25};
-            m_EndPoint.radius                = 4.;
+            m_StartPoint                     = {-5., -3, 2.};
+            m_EndPoint.radius                = 2.;
         }
 
         // Initialize the wrapping path.
@@ -198,11 +209,11 @@ private:
         };
 
         // Switch to a singular scene.
-        if (m_Singular) {
-            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.);
-        } else {
-            m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 4.);
-        }
+        /* if (m_Singular) { */
+        /*     m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.); */
+        /* } else { */
+        /*     m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 4.); */
+        /* } */
 
         // Create path anew, or start from previous.
         if (m_SingleStep) {
@@ -247,7 +258,9 @@ private:
                 return getWrapSurfaceHelper(i);
             };
             GeodesicTestBounds bnds;
-            RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_WrappingPath.segments.front(), bnds, "ellipsoid", std::cout);
+            for (const Geodesic& g: m_WrappingPath.segments) {
+                RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, g, bnds, "surface", std::cout);
+            }
 
             std::cout << "\n";
             std::cout << "pathError: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
@@ -354,6 +367,19 @@ private:
             /*     return getWrapSurfaceHelper(i); */
             /* }; */
             /* WrappingTester(m_WrappingPath, GetSurface); */
+        }
+
+        // Render torus
+        {
+            Graphics::DrawMesh(
+                m_TorusMesh,
+                {
+                    .position = ToVec3(
+                        m_ImplicitTorusSurface.getOffsetFrame().position),
+                },
+                m_Material,
+                m_Camera,
+                m_GreenColorMaterialProps);
         }
 
         // render sphere && ellipsoid
@@ -541,6 +567,7 @@ private:
     Mesh m_CylinderMesh = CylinderGeometry(
             1., 1., 1., 45, 1, false, Radians{0.}, Radians{2. * M_PI});
     Mesh m_LineMesh   = GenerateXYZToXYZLineMesh();
+    Mesh m_TorusMesh = TorusGeometry(1., 0.1f);
 
     MeshBasicMaterial::PropertyBlock m_BlackColorMaterialProps
         {Color::black()};
@@ -558,6 +585,8 @@ private:
     AnalyticSphereSurface m_AnalyticSphereSurface = AnalyticSphereSurface(1.);
     ImplicitSphereSurface m_ImplicitSphereSurface = ImplicitSphereSurface(1.);
 
+    ImplicitTorusSurface m_ImplicitTorusSurface = ImplicitTorusSurface(1., 0.1);
+
     ImplicitEllipsoidSurface m_ImplicitEllipsoidSurface;
     ImplicitCylinderSurface m_ImplicitCylinderSurface;
 
@@ -570,7 +599,7 @@ private:
 
     bool m_IsMouseCaptured = false;
 
-    bool m_DrawCylinder = false;
+    bool m_DrawCylinder = true;
     bool m_DrawSphere = false;
 
     Eulers m_CameraEulers{};

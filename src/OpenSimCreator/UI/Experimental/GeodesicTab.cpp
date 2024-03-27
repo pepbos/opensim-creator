@@ -187,6 +187,11 @@ private:
         }
         case ShowSurface::ImplicitTorus: {
             m_ImplicitTorusSurface.calcGeodesic(p0, v0, l, m_Geodesic);
+            if (m_RunTestReport) {
+                RunImplicitGeodesicTest(m_ImplicitTorusSurface, m_Geodesic, bnds, "Torus", std::cout);
+                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitTorusSurface, m_Geodesic.K_P, m_Geodesic.length);
+                m_RunTestReport = false;
+            }
             break;
         }
         default:
@@ -425,7 +430,7 @@ private:
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 
-    ShowSurface m_ShowSurface = ShowSurface::ImplicitEllipsoid;
+    ShowSurface m_ShowSurface = ShowSurface::ImplicitTorus;
     bool m_RunTestReport = false;
 };
 
