@@ -59,6 +59,10 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
         os << delim << "TouchDownFailed";
         delim = ", ";
     }
+    if (s & Geodesic::Status::IntegratorFailed) {
+        os << delim << "IntegratorFailed";
+        delim = ", ";
+    }
     return os << "}";
 }
 
@@ -529,7 +533,7 @@ size_t calcFastPointProjectedToSurface(
 
         pk += -g * c / g.dot(g);
     }
-    throw std::runtime_error("Failed to project point to surface");
+    return maxIter;
 }
 
 size_t calcFastSurfaceProjection(
@@ -624,7 +628,11 @@ calcLocalImplicitGeodesic(
     ImplicitGeodesicState xStart{
         std::move(positionInit),
         std::move(velocityInit)};
-    calcFastSurfaceProjection(s, xStart.position, xStart.velocity);
+    constexpr size_t maxIter = 10;
+    if (calcFastSurfaceProjection(s, xStart.position, xStart.velocity, 1e-10, maxIter) >= maxIter)
+    {
+        throw std::runtime_error("failed to project initial point to surface");
+    }
 
     ImplicitGeodesicState xEnd(xStart);
     Monitor(xEnd);
@@ -639,7 +647,9 @@ calcLocalImplicitGeodesic(
     for (size_t k = 0; k < steps; ++k) {
         RungeKutta4(s, xEnd, l, dl);
 
-        calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity);
+        if(calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity, 1e-10, maxIter) >= maxIter) {
+            throw std::runtime_error("failed to project point to surface during integration");
+        }
 
         Monitor(xEnd);
     }
@@ -743,11 +753,13 @@ size_t calcAccurateSurfaceProjection(
 
     for (; iter < maxIter; ++iter) {
         // Project directly to surface.
-        iter += calcFastSurfaceProjection(s, pk, tk, eps, maxIter - iter);
+        iter += calcFastSurfaceProjection(s, pk, tk, eps / 10., maxIter - iter);
 
         // Now that the point lies on the surface, compute the error and
         // gradient.
         calcGeodesicBoundaryState(s, {pk, tk}, false, K_P, v_P, w_P);
+        pk = K_P.p();
+        tk = K_P.t();
 
         // Distance to original point.
         const double l = (p0 - K_P.p()).norm();
@@ -780,7 +792,7 @@ size_t calcAccurateSurfaceProjection(
         Vector2 df{g[0], g[1]}; // TODO no need to compute entire jacobian.
 
         // Compute step to minimize the cost.
-        const double weight = 1. / (1e-3 + cost);
+        const double weight = std::min(1. / (1e-2 + cost), 1.);
         cost                = std::min(cost, maxCost);
 
         Vector2 step = df * cost / df.dot(df) * weight;
@@ -905,7 +917,22 @@ GS calcLiftoff(
 
     return liftoff ? GS::LiftOff : GS::Ok;
 }
-} // namespace
+
+bool isActive(Geodesic::Status s) {
+    return s == Geodesic::Status::Ok;
+}
+
+size_t countActive(const std::vector<Geodesic>& segments)
+{
+    size_t count = 0;
+    for (const Geodesic& s : segments) {
+        if (!isActive(s.status)) {
+            continue;
+        }
+        ++count;
+    }
+    return count;
+}
 
 ptrdiff_t findPrevSegmentIndex(
     const std::vector<Geodesic>& segments,
@@ -913,7 +940,7 @@ ptrdiff_t findPrevSegmentIndex(
 {
     ptrdiff_t prev = -1;
     for (ptrdiff_t i = 0; i < idx; ++i) {
-        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+        if (isActive(segments.at(i).status)) {
             prev = i;
         }
     }
@@ -926,7 +953,7 @@ ptrdiff_t findNextSegmentIndex(
 {
     for (ptrdiff_t i = idx + 1; i < static_cast<ptrdiff_t>(segments.size());
          ++i) {
-        if ((segments.at(i).status & Geodesic::Status::LiftOff) == 0) {
+        if (isActive(segments.at(i).status)) {
             return i;
         }
     }
@@ -950,6 +977,8 @@ Vector3 findNextSegmentStartPoint(
     ptrdiff_t next = findNextSegmentIndex(segments, idx);
     return next < 0 ? pathEnd : segments.at(next).K_P.p();
 }
+
+} // namespace
 
 //==============================================================================
 //                      WRAPPING STATUS FLAGS
@@ -985,16 +1014,13 @@ void updGeodesicStatus(
     Vector3 prev,
     Vector3 next)
 {
-    if (geodesic.samples.empty()) {
-        throw std::runtime_error("no samples in geodesic");
-    }
     geodesic.status |= isPrevOrNextLineSegmentInsideSurface(s, prev, next);
 
     if (geodesic.length < 0.) {
         geodesic.status |= Geodesic::Status::NegativeLength;
+        geodesic.status |= Geodesic::Status::LiftOff;
         geodesic.length = 0.;
     }
-
     geodesic.status |= calcLiftoff(
         &*geodesic.samples.begin(),
         &*geodesic.samples.end(),
@@ -1004,7 +1030,9 @@ void updGeodesicStatus(
     if (geodesic.status & Geodesic::Status::LiftOff) {
         geodesic.length = 0.;
         geodesic.samples.clear();
+    }
 
+    if (geodesic.samples.empty()) {
         size_t maxIter = 10;
         if (calcTouchdown(
                 s,
@@ -1047,11 +1075,17 @@ void Surface::calcGeodesic(
     Vector3 prev = calcPointInLocal(_transform, std::move(pointBefore));
     Vector3 next = calcPointInLocal(_transform, std::move(pointAfter));
 
+    geodesic.status = Geodesic::Status::Ok;
     geodesic.samples.clear();
-    calcLocalGeodesicImpl(p0, v0, length, geodesic);
+    try {
+        calcLocalGeodesicImpl(p0, v0, length, geodesic);
+    } catch (const std::exception&) {
+        geodesic.status |= Geodesic::Status::IntegratorFailed;
+        geodesic.samples.clear();
+        geodesic.length = 0.;
+    }
 
     // Reset status flags.
-    geodesic.status = Geodesic::Status::Ok;
     updGeodesicStatus(*this, geodesic, prev, next); // TODO Flip the order.
 
     calcGeodesicInGlobal(_transform, geodesic);
@@ -1886,21 +1920,6 @@ void Surface::applyVariation(Geodesic& geodesic, const Geodesic::Correction& cor
         geodesic);
 }
 
-size_t countActive(const std::vector<Geodesic>& segments)
-{
-    size_t count = 0;
-    for (const Geodesic& s : segments) {
-        /* std::cout << "status = " << s.status << "\n"; */
-        /* std::cout << "active = " << ((s.status & Geodesic::Status::LiftOff) >
-         * 0) << "\n"; */
-        if ((s.status & Geodesic::Status::LiftOff) > 0) {
-            continue;
-        }
-        ++count;
-    }
-    return count;
-}
-
 void calcSegmentPathErrorJacobian(
     const Geodesic::Variation* v_Q_prev,
     const Trihedron& K,
@@ -1968,7 +1987,7 @@ size_t calcPathErrorJacobian(WrappingPath& path)
     for (ptrdiff_t idx = 0; idx < static_cast<ptrdiff_t>(path.segments.size());
          ++idx) {
         const Geodesic& s = path.segments.at(idx);
-        if ((s.status & Geodesic::Status::LiftOff) > 0) {
+        if (!isActive(s.status)) {
             continue;
         }
 
@@ -2050,20 +2069,15 @@ size_t WrappingPath::updPath(
              * path.smoothness.calcMaxPathError() << "\n"; */
 
             if (smoothness.calcMaxPathError() < eps) {
-                /* std::cout << "   Wrapping path solved in " << loopIter <<
-                 * "steps\n"; */
                 return loopIter;
             }
 
             // Process the path errors.
             // TODO handle failing to invert jacobian.
-            /* std::cout << "Calc path error correction" << std::endl; */
             setStatusFlag(
                 status,
                 WrappingPath::Status::FailedToInvertJacobian,
                 !(smoothness.calcPathCorrection()));
-            /* std::cout << "    ===== CORR ==== = " <<
-             * path.smoothness.calcMaxCorrectionStep() << "\n"; */
 
             // Obtain the computed geodesic corrections from the path errors.
             const Geodesic::Correction* corrIt  = smoothness.begin();
@@ -2076,19 +2090,15 @@ size_t WrappingPath::updPath(
 
             // Apply corrections.
             for (Geodesic& s : segments) {
-                if ((s.status & Geodesic::Status::LiftOff) > 0) {
+                if (!isActive(s.status)) {
                     continue;
                 }
                 const Geodesic::Correction correction = *corrIt;
 
-                std::cout << "correction = " << correction << "\n";
                 applyNaturalGeodesicVariation(s.K_P, s.v_P, s.w_P, correction);
 
                 // TODO last field of correction must be lengthening.
                 s.length += correction[3];
-                if (s.length < 0.) {
-                    std::cout << "negative path length: " << s.length << "\n";
-                }
 
                 ++corrIt;
             }
@@ -2103,7 +2113,6 @@ size_t WrappingPath::updPath(
             // Shoot a new geodesic.
             /* Geodesic& s = *it->current; */
             const Geodesic& s = segments.at(idx);
-            /* std::cout << "Shooting s.length = " << s.length << "\n"; */
             GetSurface(idx)->calcGeodesic(
                 s.K_P.p(),
                 s.K_P.t(),
@@ -2111,7 +2120,6 @@ size_t WrappingPath::updPath(
                 findPrevSegmentEndPoint(startPoint, segments, idx),
                 findNextSegmentStartPoint(endPoint, segments, idx),
                 segments.at(idx));
-            /* std::cout << "Returned s.length = " << s.length << "\n"; */
         }
     }
 

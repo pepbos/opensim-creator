@@ -309,13 +309,14 @@ private:
 
         bool error = m_WrappingPath.status > 0;
         for (const Geodesic& s: m_WrappingPath.segments) {
+            /* error |= s.status > 0; */
             error |= (s.status & Geodesic::Status::InitialTangentParallelToNormal) > 0;
             error |= (s.status & Geodesic::Status::PrevLineSegmentInsideSurface) > 0;
             error |= (s.status & Geodesic::Status::NextLineSegmentInsideSurface) > 0;
             /* error |= (s.status & Geodesic::Status::NegativeLength) > 0; */
             /* error |= (s.status & Geodesic::Status::LiftOff) > 0; */
             /* error |= (s.status & Geodesic::Status::TouchDownFailed) > 0; */
-            /* error |= (s.status & Geodesic::Status::IntegratorFailed) > 0; */
+            error |= (s.status & Geodesic::Status::IntegratorFailed) > 0;
         }
         if (error && !m_ErrorDetected) {
             std::cout << "Freeze path! error detected!\n";
@@ -473,6 +474,10 @@ private:
             DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_GreyColorMaterialProps);
 
             DrawCurveSegmentMesh({0., 0., 0.}, ToVec3(ComputePoint(m_EndPoint)), m_GreyColorMaterialProps);
+
+            for (const Geodesic& s: m_WrappingPath.segments) {
+                DrawCurveSegmentMesh(ToVec3(s.K_P.p()), ToVec3(s.K_P.p() + s.K_P.n()), m_GreenColorMaterialProps);
+            }
         }
 
         // Render variation curves.

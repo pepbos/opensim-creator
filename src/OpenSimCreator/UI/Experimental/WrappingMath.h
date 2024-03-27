@@ -132,6 +132,7 @@ struct Geodesic
         NegativeLength                 = 8,
         LiftOff                        = 16,
         TouchDownFailed                = 32,
+        IntegratorFailed               = 64,
     };
 
     static constexpr size_t DOF = 4;
