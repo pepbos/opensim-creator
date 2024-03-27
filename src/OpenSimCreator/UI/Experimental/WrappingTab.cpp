@@ -144,7 +144,6 @@ public:
                 m_TorusMesh   = TorusGeometry(R, r, 12);
                 m_ImplicitTorusSurface.setRadii(R, r);
                 m_ImplicitTorusSurface.setLocalPathStartGuess({0.1, 0.1, 0.1});
-                m_ImplicitTorusSurface.setOffsetFrame({{-1., 0., -3.}});
             }
         }
 
@@ -209,11 +208,13 @@ private:
         };
 
         // Switch to a singular scene.
-        /* if (m_Singular) { */
-        /*     m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 3.); */
-        /* } else { */
-        /*     m_ImplicitEllipsoidSurface.setRadii(1., 1.5, 4.); */
-        /* } */
+        if (m_Singular) {
+            m_EndPoint.radius                = 4.;
+            m_ImplicitTorusSurface.setOffsetFrame({{0., 0., 0.}});
+        } else {
+            m_EndPoint.radius                = 2.;
+            m_ImplicitTorusSurface.setOffsetFrame({{-1., 0., -3.}});
+        }
 
         // Create path anew, or start from previous.
         if (m_SingleStep) {
