@@ -13,8 +13,8 @@ namespace osc
 
 // The actual step of each natural geodesic variation:
 // {tangentiol, binormal, directional, lengthening}
-static constexpr size_t GEODESIC_DIM = 4;
-using GeodesicCorrection             = std::array<double, GEODESIC_DIM>;
+/* static constexpr size_t GEODESIC_DIM = 4; */
+/* using GeodesicCorrection             = std::array<double, GEODESIC_DIM>; */
 
 using Rotation = Eigen::Quaternion<double>;
 using Mat3x3   = Eigen::Matrix<double, 3, 3>;
@@ -67,91 +67,92 @@ void RungeKutta4(Y& y, double& t, double dt, std::function<D(const Y&)> f)
     t += dt;
 }
 
-// TODO hold Simbody::Rotation inside?
-struct DarbouxFrame
+class Darboux
 {
-    DarbouxFrame() = default;
+    public:
+    using Matrix = Eigen::Matrix<double, 3, 3, Eigen::ColMajor>;
 
-    DarbouxFrame(Vector3 surfaceTangent, Vector3 surfaceNormal);
+    Darboux();
 
-    DarbouxFrame(Vector3 tangent, Vector3 normal, Vector3 binormal);
+    static Darboux FromTangenGuessAndNormal(Vector3 tangentGuess, Vector3 normal);
 
-    Vector3 t{NAN, NAN, NAN};
-    Vector3 n{NAN, NAN, NAN};
-    Vector3 b{NAN, NAN, NAN};
+    Darboux(Vector3 tangent, Vector3 normal, Vector3 binormal);
+
+    const Vector3& t() const {return reinterpret_cast<const Vector3&>(*_rotation.data());}
+    const Vector3& n() const {return reinterpret_cast<const Vector3&>(*(_rotation.data() + 3));}
+    const Vector3& b() const {return reinterpret_cast<const Vector3&>(*(_rotation.data() + 6));}
+
+    const Darboux::Matrix& matrix() const {return _rotation;}
+
+    private:
+    Eigen::Matrix<double, 3, 3, Eigen::ColMajor> _rotation;
 };
 
-/*     DarbouxFrame operator*( */
-/*             const Rotation& lhs, */
-/*             const DarbouxFrame& rhs); */
+class Trihedron
+{
+    public:
+        Trihedron() = default;
+
+        Trihedron(Vector3 point, Darboux rotation);
+
+        Trihedron(Vector3 point,
+                Vector3 tangent,
+                Vector3 normal,
+                Vector3 binormal);
+
+        static Trihedron FromPointAndTangentGuessAndNormal(Vector3 point,
+                Vector3 tangentGuess, Vector3 normal);
+
+        const Vector3& t() const {return _rotation.t();}
+        const Vector3& n() const {return _rotation.n();}
+        const Vector3& b() const {return _rotation.b();}
+
+        const Darboux::Matrix& R() const {return _rotation.matrix(); }
+        const Vector3& p() const {return _point;}
+
+        Vector3& updPoint() {return _point;}
+
+    private:
+        Vector3 _point = {NAN, NAN, NAN};
+        Darboux _rotation;
+};
 
 //==============================================================================
 //                      GEODESIC
 //==============================================================================
 
-// This is the result from shooting over a surface.
 struct Geodesic
 {
     enum Status
     {
         Ok                             = 0,
-        InitialTangentParallelToNormal = 1, // TODO
-        PrevLineSegmentInsideSurface   = 2, // TODO
-        NextLineSegmentInsideSurface   = 4, // TODO
+        InitialTangentParallelToNormal = 1,
+        PrevLineSegmentInsideSurface   = 2,
+        NextLineSegmentInsideSurface   = 4,
         NegativeLength                 = 8,
-        LiftOff                        = 16, // TODO
-        TouchDownFailed                = 32, // TODO
-        /* IntegratorFailed               = 64, // TODO */
+        LiftOff                        = 16,
+        TouchDownFailed                = 32,
     };
 
-    struct InitialConditions
-    {
-        Vector3 position{NAN, NAN, NAN};
-        Vector3 velocity{NAN, NAN, NAN};
-        double length = NAN;
-    };
+    static constexpr size_t DOF = 4;
 
-    using Sample = std::pair<Vector3, DarbouxFrame>;
+    using Variation  = Eigen::Matrix<double, 3, DOF>;
+    using Correction = Eigen::Vector<double, DOF>;
 
-    struct BoundaryState
-    {
-        DarbouxFrame frame;
-        Vector3 position{NAN, NAN, NAN};
+    Trihedron K_P;
+    Trihedron K_Q;
 
-        // Given the natural geodesic variations:
-        //   0. Tangential
-        //   1. Binormal
-        //   2. InitialDirection
-        //   3. Lengthening
-        // we store the corresponding variations for the position and
-        // DarbouxFrame as a position and rotation variation.
-        //
-        // We can ommit storing the lengthening variation, as it is equal to
-        // zero for the start and equal to the tangential variation for the
-        // end.
+    // Variations (in local frame, not body frame).
+    Variation v_P;
+    Variation w_P;
 
-        // Natural geodesic position variation:
-        std::array<Vector3, 4> v{
-            Vector3{NAN, NAN, NAN}, // Tangential
-            Vector3{NAN, NAN, NAN}, // Binormal
-            Vector3{NAN, NAN, NAN}, // InitialDirection
-            Vector3{NAN, NAN, NAN}, // TODO remove?
-        };
-        // Natural geodesic frame variation (a rotation):
-        std::array<Vector3, 4> w = {
-            Vector3{NAN, NAN, NAN}, // Tangential
-            Vector3{NAN, NAN, NAN}, // Binormal
-            Vector3{NAN, NAN, NAN}, // InitialDirection
-            Vector3{NAN, NAN, NAN}, // TODO remove?
-        };
-    };
+    Variation v_Q;
+    Variation w_Q;
 
-    BoundaryState start; // TODO Rename to K_P
-    BoundaryState end;   // TODO Rename to K_Q
     double length;
 
     // Points and frames along the geodesic (TODO keep in local frame).
-    std::vector<Sample> samples;
+    std::vector<Trihedron> samples;
 
     Status status = Status::Ok;
 };
@@ -241,12 +242,11 @@ public:
 
     size_t calcAccurateLocalSurfaceProjection(
         Vector3 pointInit,
-        Vector3& point,
-        DarbouxFrame& frame,
+        Trihedron& K,
         double eps,
         size_t maxIter) const;
 
-    void applyVariation(Geodesic& geodesic, const GeodesicCorrection& var) const;
+    void applyVariation(Geodesic& geodesic, const Geodesic::Correction& var) const;
 
     // For convenience:
     // (Assumes the point lies on the surface)
@@ -264,8 +264,7 @@ private:
     // Required for touchdown.
     virtual size_t calcAccurateLocalSurfaceProjectionImpl(
         Vector3 pointInit,
-        Vector3& point,
-        DarbouxFrame& frame,
+        Trihedron& K,
         double eps,
         size_t maxIter) const = 0;
 
@@ -345,8 +344,7 @@ private:
 
     size_t calcAccurateLocalSurfaceProjectionImpl(
         Vector3 pointInit,
-        Vector3& point,
-        DarbouxFrame& frame,
+        Trihedron& K,
         double eps,
         size_t maxIter) const override;
 
@@ -462,8 +460,7 @@ private:
 
     size_t calcAccurateLocalSurfaceProjectionImpl(
         Vector3 pointInit,
-        Vector3& point,
-        DarbouxFrame& frame,
+        Trihedron& K,
         double eps,
         size_t maxIter) const override;
 
@@ -539,8 +536,7 @@ private:
 
     size_t calcAccurateLocalSurfaceProjectionImpl(
         Vector3 pointInit,
-        Vector3& point,
-        DarbouxFrame& frame,
+        Trihedron& K,
         double eps,
         size_t maxIter) const override;
 
@@ -624,9 +620,9 @@ public:
 
     /* private: */
     // Pointer to first geodesic's correction.
-    const GeodesicCorrection* begin() const;
+    const Geodesic::Correction* begin() const;
     // Pointer to one past last geodesic's correction.
-    const GeodesicCorrection* end() const;
+    const Geodesic::Correction* end() const;
 
     // Get access to the path error and path error jacobian.
     Eigen::VectorXd& updPathError();

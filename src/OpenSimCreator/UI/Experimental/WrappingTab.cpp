@@ -1,5 +1,6 @@
 #include "WrappingTab.h"
 
+#include "OpenSimCreator/UI/Experimental/WrappingTest.h"
 #include "WrappingMath.h"
 #include <SDL_events.h>
 #include <array>
@@ -226,7 +227,7 @@ private:
             m_GeodesicVariations.resize(n);
             for (size_t j = 0; j < n; ++j) {
                 m_GeodesicVariations.at(j) = m_WrappingPath.segments.at(j);
-                const GeodesicCorrection c = {
+                const Geodesic::Correction c = {
                     static_cast<double>(m_Variation.at(0)),
                     static_cast<double>(m_Variation.at(1)),
                     static_cast<double>(m_Variation.at(2)),
@@ -245,6 +246,8 @@ private:
             WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface* {
                 return getWrapSurfaceHelper(i);
             };
+            GeodesicTestBounds bnds;
+            RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_WrappingPath.segments.front(), bnds, "ellipsoid", std::cout);
 
             std::cout << "\n";
             std::cout << "pathError: " << m_WrappingPath.smoothness.updPathError().transpose() << "\n";
@@ -384,7 +387,7 @@ private:
                 m_SphereMesh,
                 {
                     .scale    = {0.01, 0.01, 0.01},
-                    .position = ToVec3(g.start.position),
+                    .position = ToVec3(g.K_P.p()),
                 },
                 m_Material,
                 m_Camera,
@@ -431,9 +434,8 @@ private:
             for (const Geodesic& geodesic : m_WrappingPath.segments) {
 
                 // Iterate over the logged points in the Geodesic.
-                for (const std::pair<Vector3, DarbouxFrame>& knot :
-                     geodesic.samples) {
-                    const Vector3 next = knot.first;
+                for (const Trihedron& s: geodesic.samples) {
+                    const Vector3 next = s.p();
                     DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), m_RedColorMaterialProps);
                     prev = next;
                 }
@@ -451,8 +453,8 @@ private:
             for (size_t i = 0; i < m_GeodesicVariations.size(); ++i) {
                 for (size_t k = 1; k < m_GeodesicVariations.at(i).samples.size(); ++k) {
                     DrawCurveSegmentMesh(
-                            ToVec3(m_GeodesicVariations.at(i).samples.at(k-1).first),
-                            ToVec3(m_GeodesicVariations.at(i).samples.at(k).first),
+                            ToVec3(m_GeodesicVariations.at(i).samples.at(k-1).p()),
+                            ToVec3(m_GeodesicVariations.at(i).samples.at(k).p()),
                             m_VariationColorMaterialProps);
                 }
             }
@@ -462,8 +464,8 @@ private:
                 Vector3 v_P = {0., 0., 0.};
                 Vector3 v_Q = {0., 0., 0.};
                 for (size_t j = 0; j < 4; ++j) {
-                    v_P += s.start.v.at(j) * m_Variation.at(j);
-                    v_Q += s.end.v.at(j) * m_Variation.at(j);
+                    v_P += s.v_P.col(j) * m_Variation.at(j);
+                    v_Q += s.v_Q.col(j) * m_Variation.at(j);
                 }
 
                 if (!m_GeodesicVariations.at(i).samples.empty()) {
@@ -472,7 +474,7 @@ private:
                             m_SphereMesh,
                             {
                             .scale    = {0.05, 0.05, 0.05},
-                            .position = ToVec3(g.start.position),
+                            .position = ToVec3(g.K_P.p()),
                             },
                             m_Material,
                             m_Camera,
@@ -481,7 +483,7 @@ private:
                             m_SphereMesh,
                             {
                             .scale    = {0.05, 0.05, 0.05},
-                            .position = ToVec3(g.end.position),
+                            .position = ToVec3(g.K_Q.p()),
                             },
                             m_Material,
                             m_Camera,
@@ -492,7 +494,7 @@ private:
                         m_SphereMesh,
                         {
                         .scale    = {0.05, 0.05, 0.05},
-                        .position = ToVec3(s.start.position + v_P),
+                        .position = ToVec3(s.K_P.p() + v_P),
                         },
                         m_Material,
                         m_Camera,
@@ -502,7 +504,7 @@ private:
                         m_SphereMesh,
                         {
                         .scale    = {0.05, 0.05, 0.05},
-                        .position = ToVec3(s.end.position + v_Q),
+                        .position = ToVec3(s.K_Q.p() + v_Q),
                         },
                         m_Material,
                         m_Camera,

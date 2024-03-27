@@ -16,14 +16,14 @@ namespace
 //==============================================================================
 
 // Darboux trihedron along a geodesic curve.
-struct Trihedron
+struct Tri
 {
-    static Trihedron FromPointAndTangentGuessAndNormal(
+    static Tri FromPointAndTangentGuessAndNormal(
         Vector3 point,
         Vector3 tangentGuess,
         Vector3 normal)
     {
-        Trihedron K;
+        Tri K;
         K.p = std::move(point);
 
         K.n = std::move(normal);
@@ -57,7 +57,7 @@ struct TrihedronDerivative
 };
 
 TrihedronDerivative calcTrihedronDerivative(
-    const Trihedron& y,
+    const Tri& y,
     Vector3 a,
     double kn,
     double tau_g)
@@ -75,9 +75,9 @@ TrihedronDerivative calcTrihedronDerivative(
     return dy;
 }
 
-Trihedron operator*(double dt, TrihedronDerivative& dy)
+Tri operator*(double dt, TrihedronDerivative& dy)
 {
-    Trihedron y;
+    Tri y;
     y.p = dt * dy.pDot;
     y.v = dt * dy.vDot;
     y.t = dt * dy.tDot;
@@ -86,9 +86,9 @@ Trihedron operator*(double dt, TrihedronDerivative& dy)
     return y;
 }
 
-Trihedron operator+(const Trihedron& lhs, const Trihedron& rhs)
+Tri operator+(const Tri& lhs, const Tri& rhs)
 {
-    Trihedron y;
+    Tri y;
     y.p = lhs.p + rhs.p;
     y.v = lhs.v + rhs.v;
     y.t = lhs.t + rhs.t;
@@ -97,13 +97,13 @@ Trihedron operator+(const Trihedron& lhs, const Trihedron& rhs)
     return y;
 }
 
-void TrihedronStep(const ImplicitSurface& s, Trihedron& q, double& l, double dl)
+void TrihedronStep(const ImplicitSurface& s, Tri& q, double& l, double dl)
 {
-    RungeKutta4<Trihedron, TrihedronDerivative>(
+    RungeKutta4<Tri, TrihedronDerivative>(
         q,
         l,
         dl,
-        [&](const Trihedron& qk) -> TrihedronDerivative {
+        [&](const Tri& qk) -> TrihedronDerivative {
         const double kn = s.calcNormalCurvature(qk.p, qk.v);
         const double tau_g = s.calcGeodesicTorsion(qk.p, qk.v);
         const Vector3 n = s.calcSurfaceNormal(qk.p);
@@ -115,13 +115,13 @@ void TrihedronStep(const ImplicitSurface& s, Trihedron& q, double& l, double dl)
         });
 }
 
-std::vector<Trihedron> calcImplicitGeodesic(
+std::vector<Tri> calcImplicitGeodesic(
     const ImplicitSurface& s,
-    Trihedron q,
+    Tri q,
     double l,
     size_t n)
 {
-    std::vector<Trihedron> samples;
+    std::vector<Tri> samples;
     samples.push_back(q);
 
     double dl = l / static_cast<double>(n);
@@ -137,7 +137,7 @@ std::vector<Trihedron> calcImplicitGeodesic(
 //                      UNIT TESTING
 //==============================================================================
 
-bool RunTrihedronTest(const Trihedron& y, const std::string& msg, TestRapport& o, double eps)
+bool RunTrihedronTest(const Tri& y, const std::string& msg, TestRapport& o, double eps)
 {
     const Vector3& t = y.t;
     const Vector3& n = y.n;
@@ -162,23 +162,7 @@ bool RunTrihedronTest(const Trihedron& y, const std::string& msg, TestRapport& o
 
 using Mat33d = Eigen::Matrix<double, 3,3>;
 
-Mat33d AsMat3(const DarbouxFrame& q) {
-    Mat33d mat;
-    mat(0,0) = q.t(0);
-    mat(1,0) = q.t(1);
-    mat(2,0) = q.t(2);
-
-    mat(0,1) = q.n(0);
-    mat(1,1) = q.n(1);
-    mat(2,1) = q.n(2);
-
-    mat(0,2) = q.b(0);
-    mat(1,2) = q.b(1);
-    mat(2,2) = q.b(2);
-    return mat;
-}
-
-Mat33d AsMat3(const Trihedron& q) {
+Mat33d AsMat3(const Tri& q) {
     Mat33d mat;
     mat(0,0) = q.t(0);
     mat(1,0) = q.t(1);
@@ -215,11 +199,11 @@ Vector3 calcApproxRate(const Mat33d& prev, const Mat33d& next, double dt) {
     return calcRotationVector(qa.inverse() * qb) / dt;
 }
 
-Vector3 calcApproxRate(const DarbouxFrame& prev, const DarbouxFrame& next, double dt) {
-    return calcApproxRate(AsMat3(prev), AsMat3(next), dt);
+Vector3 calcApproxRate(const Trihedron& prev, const Trihedron& next, double dt) {
+    return calcApproxRate(prev.R(), next.R(), dt);
 }
 
-Vector3 calcApproxRate(const Trihedron& prev, const Trihedron& next, double dt) {
+Vector3 calcApproxRate(const Tri& prev, const Tri& next, double dt) {
     return calcApproxRate(AsMat3(prev), AsMat3(next), dt);
 }
 
@@ -230,22 +214,18 @@ bool RunRungeKutta4Test(std::ostream& os)
     return true;
 }
 
-std::vector<Trihedron> RunImplicitGeodesicShooterTest(
+std::vector<Tri> RunImplicitGeodesicShooterTest(
         const ImplicitSurface& s,
         const Geodesic& g,
         GeodesicTestBounds bnds,
         TestRapport& o)
 {
-    const Vector3 p_P = g.start.position;
-    const Vector3 v_P = g.start.frame.t;
     const double l = g.length;
     const size_t n = bnds.integratorSteps;
 
-    // Initial trihedron.
-    Trihedron K_P {g.start.position, g.start.frame.t, g.start.frame.t, g.start.frame.n, g.start.frame.b};
+    Tri K_P {g.K_P.p(), g.K_P.t(), g.K_P.t(), g.K_P.n(), g.K_P.b()};
 
-    // Final trihedron.
-    std::vector<Trihedron> samples = calcImplicitGeodesic(s, K_P, l, n);
+    std::vector<Tri> samples = calcImplicitGeodesic(s, K_P, l, n);
 
     // Basic tests:
     {
@@ -255,7 +235,7 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
         // Darboux frame directions must be perpendicular.
         RunTrihedronTest(K_P, "Initial trihedron", o, bnds.eps);
         RunTrihedronTest(samples.back(), "Final trihedron", o, bnds.eps);
-        for (const Trihedron& y: samples) {
+        for (const Tri& y: samples) {
             if (!o.success()) { break; }
             RunTrihedronTest(y, "Intermediate trihedron", o, bnds.eps);
         }
@@ -266,7 +246,7 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
         // Assert if points lie on the surface.
         o.assertEq(s.calcSurfaceConstraint(samples.front().p), 0., "Start position on surface", bnds.eps);
         o.assertEq(s.calcSurfaceConstraint(samples.back().p), 0., "End position on surface", bnds.eps);
-        for (const Trihedron& K: samples) {
+        for (const Tri& K: samples) {
             if (!o.success()) { break; }
             o.assertEq(s.calcSurfaceConstraint(K.p), 0., "Intermediate position on surface", bnds.eps);
         }
@@ -278,11 +258,11 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
     {
 
         auto TrihedronAssertionHelper = [&](
-                const Trihedron& prev,
-                const Trihedron& next,
+                const Tri& prev,
+                const Tri& next,
                 const std::string msg)
         {
-            Trihedron K_est;
+            Tri K_est;
             K_est.p = prev.p;
             K_est.v = prev.v;
             K_est.t = (next.p - prev.p) / (next.p - prev.p).norm();
@@ -302,10 +282,10 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
         TrihedronAssertionHelper(samples.front(), samples.at(1), "Start");
         TrihedronAssertionHelper(samples.at(samples.size() - 2), samples.back(), "End");
 
-        Trihedron prev = samples.front();
+        Tri prev = samples.front();
         for (size_t i = 1; i < samples.size(); ++i) {
             if (!o.success()) { break; }
-            const Trihedron& next = samples.at(i);
+            const Tri& next = samples.at(i);
             TrihedronAssertionHelper(prev, next, "Intermediate");
             prev = next;
         }
@@ -316,19 +296,19 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
     {
         // Start trihedron test.
         {
-            Trihedron K_P = samples.front();
-            o.assertEq(K_P.p, g.start.position, "Start position match", bnds.eps);
-            o.assertEq(K_P.t, g.start.frame.t,  "Start tangent  match", bnds.eps);
-            o.assertEq(K_P.n, g.start.frame.n,  "Start normal   match", bnds.eps);
-            o.assertEq(K_P.b, g.start.frame.b,  "Start binormal match", bnds.eps);
+            Tri K_P = samples.front();
+            o.assertEq(K_P.p, g.K_P.p(), "Start position match", bnds.eps);
+            o.assertEq(K_P.t, g.K_P.t(), "Start tangent  match", bnds.eps);
+            o.assertEq(K_P.n, g.K_P.n(), "Start normal   match", bnds.eps);
+            o.assertEq(K_P.b, g.K_P.b(), "Start binormal match", bnds.eps);
         }
         // End trihedron test.
         {
-            Trihedron K_Q = samples.back();
-            o.assertEq(K_Q.p, g.end.position,"End position match", bnds.eps);
-            o.assertEq(K_Q.t, g.end.frame.t, "End tangent  match", bnds.eps);
-            o.assertEq(K_Q.n, g.end.frame.n, "End normal   match", bnds.eps);
-            o.assertEq(K_Q.b, g.end.frame.b, "End binormal match", bnds.eps);
+            Tri K_Q = samples.back();
+            o.assertEq(K_Q.p, g.K_Q.p(), "End position match", bnds.eps);
+            o.assertEq(K_Q.t, g.K_Q.t(), "End tangent  match", bnds.eps);
+            o.assertEq(K_Q.n, g.K_Q.n(), "End normal   match", bnds.eps);
+            o.assertEq(K_Q.b, g.K_Q.b(), "End binormal match", bnds.eps);
         }
     }
 
@@ -338,34 +318,28 @@ std::vector<Trihedron> RunImplicitGeodesicShooterTest(
 void BinormalVariationTest(
     const ImplicitSurface& s,
     const Geodesic& gZero,
-    std::vector<Trihedron> samplesZero,
-    GeodesicCorrection c,
+    std::vector<Tri> samplesZero,
+    Geodesic::Correction c,
     GeodesicTestBounds bnds,
     const std::string& msg,
     TestRapport& o)
 {
 
-    auto ToDarbouxFrame = [&](const DarbouxFrame q, Vector3 v) -> Vector3
+    auto ToDarbouxFrame = [&](const Trihedron q, Vector3 v) -> Vector3
     {
-        return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
+        return Vector3{q.t().dot(v), q.n().dot(v), q.b().dot(v)};
     };
 
-    const double kn_P = s.calcNormalCurvature(gZero.start.position, gZero.start.frame.t);
-    const double tau_P = s.calcGeodesicTorsion(gZero.start.position, gZero.start.frame.t);
+    const double kn_P = s.calcNormalCurvature(gZero.K_P.p(), gZero.K_P.t());
+    const double tau_P = s.calcGeodesicTorsion(gZero.K_P.p(), gZero.K_P.t());
 
-    Vector3 v_P = {0., 0., 0.};
-    Vector3 w_P = {0., 0., 0.};
-    Vector3 v_Q = {0., 0., 0.};
-    Vector3 w_Q = {0., 0., 0.};
-    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
-        v_P += ToDarbouxFrame(gZero.start.frame, gZero.start.v.at(i) * c.at(i));
-        w_P += gZero.start.w.at(i) * c.at(i);
-        v_Q += ToDarbouxFrame(gZero.end.frame, gZero.end.v.at(i) * c.at(i));
-        w_Q += gZero.end.w.at(i) * c.at(i);
-    }
+    Vector3 v_P = ToDarbouxFrame(gZero.K_P, gZero.v_P * c);
+    Vector3 w_P = ToDarbouxFrame(gZero.K_P, gZero.w_P * c);
+    Vector3 v_Q = ToDarbouxFrame(gZero.K_Q, gZero.v_Q * c);
+    Vector3 w_Q = ToDarbouxFrame(gZero.K_Q, gZero.w_Q * c);
 
-    const double kn_Q = s.calcNormalCurvature(gZero.end.position, gZero.end.frame.t);
-    const double tau_Q = s.calcGeodesicTorsion(gZero.end.position, gZero.end.frame.t);
+    const double kn_Q = s.calcNormalCurvature(gZero.K_Q.p(), gZero.K_Q.t());
+    const double tau_Q = s.calcGeodesicTorsion(gZero.K_Q.p(), gZero.K_Q.t());
 
     o._oss << o._indent << "kn_P  = " << kn_P << "\n";
     o._oss << o._indent << "tau_P = " << tau_P << "\n";
@@ -373,50 +347,48 @@ void BinormalVariationTest(
     o._oss << o._indent << "tau_Q = " << tau_Q << "\n";
 
     const double d = bnds.variation;
-    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
-        c.at(i) *= d;
-    }
+    c *= d;
     Geodesic gOne = gZero;
     s.applyVariation(gOne, c);
 
-    auto ToTriFrame = [&](const Trihedron q, Vector3 v) -> Vector3
+    auto ToTriFrame = [&](const Tri q, Vector3 v) -> Vector3
     {
         return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
     };
 
-    std::vector<Trihedron> samplesOne = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
+    std::vector<Tri> samplesOne = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
 
     o._verbose = true;
     o.newSubSection(msg + " => shooter v_P, w_P");
     {
-        const Trihedron& K_P_zero = samplesZero.front();
-        const Trihedron& K_P_one = samplesOne.front();
+        const Tri& K_P_zero = samplesZero.front();
+        const Tri& K_P_one = samplesOne.front();
         o.assertEq(ToTriFrame(K_P_zero, K_P_one.p - K_P_zero.p) / d, v_P,       "Shooter v_P", bnds.varEps);
         o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Shooter w_P", bnds.varEps);
     }
 
     o.newSubSection(msg + " => shooter v_Q, w_Q");
     {
-        const Trihedron& K_Q_zero = samplesZero.back();
-        const Trihedron& K_Q_one = samplesOne.back();
+        const Tri& K_Q_zero = samplesZero.back();
+        const Tri& K_Q_one = samplesOne.back();
         o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.varEps);
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.varEps);
     }
 
     o.newSubSection(msg + " => geodesic v_P, w_P");
     {
-        const DarbouxFrame& K_P_zero = gZero.start.frame;
-        const DarbouxFrame& K_P_one = gOne.start.frame;
-        const Vector3 dp = gOne.start.position - gZero.start.position;
+        const Trihedron& K_P_zero = gZero.K_P;
+        const Trihedron& K_P_one  = gOne.K_P;
+        const Vector3 dp = gOne.K_P.p() - gZero.K_P.p();
         o.assertEq(ToDarbouxFrame(K_P_zero, dp) / d, v_P,                           "Geodesic v_P", bnds.varEps);
         o.assertEq(calcApproxRate(K_P_zero, K_P_one, d), w_P, "Geodesic w_P", bnds.varEps);
     }
 
     o.newSubSection(msg + " => geodesic v_Q, w_Q");
     {
-        const DarbouxFrame& K_Q_zero = gZero.end.frame;
-        const DarbouxFrame& K_Q_one = gOne.end.frame;
-        const Vector3 dp = gOne.end.position - gZero.end.position;
+        const Trihedron& K_Q_zero = gZero.K_Q;
+        const Trihedron& K_Q_one  = gOne.K_Q;
+        const Vector3 dp = gOne.K_Q.p() - gZero.K_Q.p();
         o.assertEq(ToDarbouxFrame(K_Q_zero, dp) / d, v_Q,                           "Geodesic v_Q", bnds.varEps);
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.varEps);
     }
@@ -431,7 +403,11 @@ void RunImplicitGeodesicVariationTest(
 {
     // Verify geodesic numerically.
     o.newSection("Unconstrained comparison");
-    std::vector<Trihedron> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
+    std::vector<Tri> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
+
+    if (!o.success()) {
+        return;
+    }
 
     o.newSection("Tangential variation");
     BinormalVariationTest(s, gZero, samplesZero, {1., 0., 0., 0.}, bnds, "ds", o);
@@ -665,16 +641,15 @@ bool RunAllWrappingTests(std::ostream& os)
     return success;
 }
 
-std::vector<Geodesic::Sample> calcImplicitTestSamples(
+std::vector<Trihedron> calcImplicitTestSamples(
     const ImplicitSurface& s,
-    Vector3 p,
-    DarbouxFrame f,
+    Trihedron K,
     double l,
     size_t steps)
 {
-    Trihedron K_P {std::move(p), std::move(f.t), f.t, f.n, f.b};
-    std::vector<Geodesic::Sample> samples;
-    for (const Trihedron& K: calcImplicitGeodesic(s, K_P, l, steps))
+    Tri K_P {K.p(), K.t(), K.t(), K.n(), K.b()};
+    std::vector<Trihedron> samples;
+    for (const Tri& K: calcImplicitGeodesic(s, K_P, l, steps))
     {
         samples.push_back({K.p, {K.t, K.n, K.b}});
     }

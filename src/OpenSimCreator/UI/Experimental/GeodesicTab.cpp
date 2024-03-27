@@ -167,7 +167,7 @@ private:
             m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
             if (m_RunTestReport) {
                 RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
-                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitSphereSurface, m_Geodesic.start.position, m_Geodesic.start.frame, m_Geodesic.length);
+                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitSphereSurface, m_Geodesic.K_P, m_Geodesic.length);
                 m_RunTestReport = false;
             }
             break;
@@ -176,7 +176,7 @@ private:
             m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l, m_Geodesic);
             if (m_RunTestReport) {
                 RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_Geodesic, bnds, "Ellipsoid", std::cout);
-                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitEllipsoidSurface, m_Geodesic.start.position, m_Geodesic.start.frame, m_Geodesic.length);
+                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitEllipsoidSurface, m_Geodesic.K_P, m_Geodesic.length);
                 m_RunTestReport = false;
             }
             break;
@@ -309,7 +309,7 @@ private:
             };
             const double tLen = 1e-1;
             auto DrawGeodesic = [&](
-                    const std::vector<Geodesic::Sample>& samples,
+                    const std::vector<Trihedron>& samples,
                     const MeshBasicMaterial::PropertyBlock& clr_c,
                     const MeshBasicMaterial::PropertyBlock& clr_t,
                     const MeshBasicMaterial::PropertyBlock& clr_n,
@@ -317,23 +317,23 @@ private:
             {
                 if (samples.empty()) return;
                 // Iterate over the logged points in the Geodesic.
-                Vector3 prev = samples.front().first;
+                Vector3 prev = samples.front().p();
                 size_t i = 0;
-                for (const Geodesic::Sample& y : samples) {
-                    const Vector3 next = y.first;
+                for (const Trihedron& y : samples) {
+                    const Vector3 next = y.p();
                     if (i == 0) {
                     DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), clr_c);
                         DrawCurveSegmentMesh(
                                 ToVec3(next),
-                                ToVec3(next + y.second.t * tLen),
+                                ToVec3(next + y.t() * tLen),
                                 clr_t);
                         DrawCurveSegmentMesh(
                                 ToVec3(next),
-                                ToVec3(next + y.second.n * tLen),
+                                ToVec3(next + y.n() * tLen),
                                 clr_n);
                         DrawCurveSegmentMesh(
                                 ToVec3(next),
-                                ToVec3(next + y.second.b * tLen),
+                                ToVec3(next + y.b() * tLen),
                                 clr_b);
                     }
                     prev = next;
@@ -343,7 +343,7 @@ private:
             if (!m_Geodesic.samples.empty()) {
                 DrawCurveSegmentMesh(
                         ToVec3(ComputePoint(m_StartPoint)),
-                        ToVec3(m_Geodesic.samples.front().first),
+                        ToVec3(m_Geodesic.samples.front().p()),
                         m_PurpleColorMaterialProps);
                 DrawGeodesic(m_Geodesic.samples,
                         m_RedColorMaterialProps,
@@ -352,7 +352,7 @@ private:
                         m_GreyColorMaterialProps);
                 DrawCurveSegmentMesh(
                         ToVec3(ComputePoint(m_StartPoint)),
-                        ToVec3(m_Geodesic.samples.front().first),
+                        ToVec3(m_Geodesic.samples.front().p()),
                         m_PurpleColorMaterialProps);
             }
             DrawGeodesic(m_TestGeodesic,
@@ -373,7 +373,7 @@ private:
     StartPoint m_StartPoint = {};
 
     Geodesic m_Geodesic = {};
-    std::vector<Geodesic::Sample> m_TestGeodesic = {};
+    std::vector<Trihedron> m_TestGeodesic = {};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;

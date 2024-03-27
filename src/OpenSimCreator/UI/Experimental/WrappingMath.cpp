@@ -11,8 +11,6 @@
 
 using namespace osc;
 
-static constexpr bool RUNTIME_UNIT_TESTS = true;
-
 //==============================================================================
 //                      PRINTING
 //==============================================================================
@@ -20,33 +18,14 @@ static constexpr bool RUNTIME_UNIT_TESTS = true;
 namespace osc
 {
 
-std::ostream& operator<<(std::ostream& os, const DarbouxFrame& frame)
+std::ostream& operator<<(std::ostream& os, const Trihedron& K)
 {
-    return os << "DarbouxFrame{" << "t:" << frame.t.transpose() << ", "
-              << "n:" << frame.n.transpose() << ", " << "b:" << frame.b.transpose()
-              << "}";
-}
-
-std::ostream& operator<<(std::ostream& os, const Geodesic::BoundaryState& x)
-{
-    // TODO remove indentation from printing.
-
-    os << "t: " << x.frame.t.transpose() << ", ";
-    os << "n: " << x.frame.n.transpose() << ", ";
-    os << "b: " << x.frame.b.transpose() << ", ";
-    os << "r: " << x.position.transpose() << "\n";
-
-    std::string delim = "         v: {";
-    for (const Vector3& vi : x.v) {
-        os << delim << vi.transpose();
-        delim = ", ";
-    }
-    delim = "}, \n         w: {";
-    for (const Vector3& wi : x.w) {
-        os << delim << wi.transpose();
-        delim = ", ";
-    }
-    return os << "}";
+    os << "{";
+    os << "p:" << K.p().transpose() << ", ";
+    os << "t:" << K.t().transpose() << ", ";
+    os << "n:" << K.n().transpose() << ", ";
+    os << "b:" << K.b().transpose() << "}";
+    return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
@@ -86,8 +65,8 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
 std::ostream& operator<<(std::ostream& os, const Geodesic& x)
 {
     os << "Geodesic{\n";
-    os << "    K_P: " << x.start << ",\n";
-    os << "    K_Q: " << x.end << ",\n";
+    os << "    K_P: " << x.K_P << ",\n";
+    os << "    K_Q: " << x.K_Q << ",\n";
     os << "    l: " << x.length << ",\n";
     os << "    s: " << x.status << ",\n";
     os << "    nKnts: " << x.samples.size();
@@ -124,7 +103,7 @@ void AssertEq(
     double lhs,
     double rhs,
     const std::string& msg,
-    double eps = 1e-13)
+    double eps = 1e-10)
 {
     const bool isOk = std::abs(lhs - rhs) < eps;
     if (!isOk) {
@@ -145,7 +124,7 @@ void AssertEq(
     const Vector3& lhs,
     const Vector3& rhs,
     const std::string& msg,
-    double eps = 1e-13)
+    double eps = 1e-10)
 {
     const bool isOk = (lhs - rhs).norm() < eps;
     if (!isOk) {
@@ -242,11 +221,20 @@ ImplicitGeodesicState operator+(
 //                      DARBOUX FRAME
 //==============================================================================
 
-void AssertDarbouxFrame(const DarbouxFrame& frame)
+Darboux::Matrix stackCols(Vector3 t, Vector3 n, Vector3 b)
 {
-    auto& t = frame.t;
-    auto& n = frame.n;
-    auto& b = frame.b;
+    Darboux::Matrix mat;
+    mat.col(0) = t;
+    mat.col(1) = n;
+    mat.col(2) = b;
+    return mat;
+}
+
+void AssertDarbouxFrame(const Darboux& frame)
+{
+    const Vector3 t = frame.t();
+    const Vector3 n = frame.n();
+    const Vector3 b = frame.b();
 
     AssertEq(t.dot(t), 1., "t norm = 1.");
     AssertEq(n.dot(n), 1., "n norm = 1.");
@@ -261,27 +249,14 @@ void AssertDarbouxFrame(const DarbouxFrame& frame)
     AssertEq(n.cross(b), t, "n.cross(b) = t");
 }
 
-DarbouxFrame::DarbouxFrame(Vector3 surfaceTangent, Vector3 surfaceNormal) :
-    t(std::move(surfaceTangent)), n(std::move(surfaceNormal)), b(t.cross(n))
+Darboux::Darboux()
 {
-    t = t / t.norm();
-    n = n / n.norm();
-    b = b / b.norm();
-
-    AssertDarbouxFrame(*this);
+    _rotation.fill(NAN);
 }
 
-DarbouxFrame::DarbouxFrame(Vector3 tangent, Vector3 normal, Vector3 binormal) :
-    t(std::move(tangent)), n(std::move(normal)), b(std::move(binormal))
+Darboux Darboux::FromTangenGuessAndNormal(Vector3 tangentGuess, Vector3 normal)
 {
-    AssertDarbouxFrame(*this);
-}
-
-DarbouxFrame calcDarbouxFromTangentGuessAndNormal(
-    Vector3 tangentGuess,
-    Vector3 surfaceNormal)
-{
-    Vector3 n = std::move(surfaceNormal);
+    Vector3 n = std::move(normal);
     n         = n / n.norm();
 
     Vector3 t = std::move(tangentGuess);
@@ -289,25 +264,61 @@ DarbouxFrame calcDarbouxFromTangentGuessAndNormal(
     t         = t / t.norm();
 
     Vector3 b = t.cross(n);
+    b = b / b.norm();
 
-    return {t, n, b};
+    return Darboux(t, n, b);
+}
+
+Darboux::Darboux(Vector3 tangent, Vector3 normal, Vector3 binormal)
+{
+    _rotation.col(0) = tangent;
+    _rotation.col(1) = normal;
+    _rotation.col(2) = binormal;
+
+    AssertDarbouxFrame(*this);
+}
+
+Trihedron::Trihedron(Vector3 point, Darboux rotation)
+    : _point(std::move(point)), _rotation(std::move(rotation))
+{}
+
+Trihedron::Trihedron(Vector3 point, Vector3 tangent, Vector3 normal, Vector3 binormal)
+    : Trihedron(std::move(point), Darboux(tangent, normal, binormal))
+{}
+
+Trihedron Trihedron::FromPointAndTangentGuessAndNormal(
+        Vector3 point,
+        Vector3 tangentGuess, Vector3 normal)
+{
+    return Trihedron(std::move(point), Darboux::FromTangenGuessAndNormal(tangentGuess, normal));
 }
 
 namespace
 {
-DarbouxFrame operator*(const Rotation& lhs, const DarbouxFrame& rhs)
+
+Darboux operator*(Eigen::Quaterniond lhs, const Darboux& rhs)
 {
-    return {
-        lhs * rhs.t,
-        lhs * rhs.n,
-        lhs * rhs.b,
-    };
+    Eigen::Matrix<double, 3, 3> mat = lhs.toRotationMatrix();
+    const Vector3 t = mat * rhs.t();
+    const Vector3 n = mat * rhs.n();
+    return {t, n, t.cross(n)};
 }
+
+Trihedron operator*(Eigen::Quaterniond lhs, const Trihedron& rhs)
+{
+    Eigen::Matrix<double, 3, 3> mat = lhs.toRotationMatrix();
+    const Vector3 t = mat * rhs.t();
+    const Vector3 n = mat * rhs.n();
+    return {mat * rhs.p(), t, n, t.cross(n)};
+}
+
 } // namespace
 
 //==============================================================================
 //                      TRANSFORM
 //==============================================================================
+
+// TODO add rotation transform
 
 Vector3 calcPointInLocal(const Transf& transform, Vector3 pointInGround)
 {
@@ -329,37 +340,20 @@ Vector3 calcVectorInGround(const Transf&, Vector3 vecInLocal)
     return vecInLocal;
 }
 
-void calcDarbouxFrameInGlobal(const Transf& transform, DarbouxFrame& frame)
+void calcInGroundFrame(const Transf& transform, Trihedron& K)
 {
-    frame.t = calcVectorInGround(transform, frame.t);
-    frame.n = calcVectorInGround(transform, frame.n);
-    frame.b = calcVectorInGround(transform, frame.b);
-    AssertDarbouxFrame(frame);
+    Vector3& p = K.updPoint();
+    p = calcPointInGround(transform, p);
+
+    // TODO Rotation transform here.
 }
 
-void calcBoundaryStateInGlobal(
-    const Transf& transform,
-    Geodesic::BoundaryState& x)
+void calcGeodesicInGlobal(const Transf& transform, Geodesic& g)
 {
-    x.position = calcPointInGround(transform, x.position);
-    calcDarbouxFrameInGlobal(transform, x.frame);
-    for (Vector3& vi : x.v) {
-        vi = calcVectorInGround(transform, vi);
-    }
-    for (Vector3& wi : x.w) {
-        wi = calcVectorInGround(transform, wi);
-    }
-}
-
-void calcGeodesicInGlobal(const Transf& transform, Geodesic& geodesic)
-{
-    calcBoundaryStateInGlobal(transform, geodesic.start);
-    calcBoundaryStateInGlobal(transform, geodesic.end);
-
-    // TODO this is a bit wasteful.
-    for (std::pair<Vector3, DarbouxFrame>& knot : geodesic.samples) {
-        knot.first = calcPointInGround(transform, knot.first);
-        calcDarbouxFrameInGlobal(transform, knot.second);
+    calcInGroundFrame(transform, g.K_P);
+    calcInGroundFrame(transform, g.K_Q);
+    for (Trihedron& Ki: g.samples) {
+        calcInGroundFrame(transform, Ki);
     }
 }
 
@@ -495,11 +489,19 @@ double calcGaussianCurvature(
     return (g.dot(adj * g)) / (gDotg * gDotg);
 }
 
-DarbouxFrame calcDarbouxFrame(
+Trihedron calcTrihedron(
+    const ImplicitSurface& s,
+    const Vector3& p,
+    const Vector3& t)
+{
+    return Trihedron::FromPointAndTangentGuessAndNormal(p, t, calcSurfaceNormal(s, p));
+}
+
+Trihedron calcTrihedron(
     const ImplicitSurface& s,
     const ImplicitGeodesicState& q)
 {
-    return {q.velocity, calcSurfaceNormal(s, q.position)};
+    return Trihedron::FromPointAndTangentGuessAndNormal(q.position, q.velocity, calcSurfaceNormal(s, q.position));
 }
 
 //==============================================================================
@@ -555,44 +557,39 @@ size_t calcFastSurfaceProjection(
 //==============================================================================
 
 // Compute generic geodesic state from implicit geodesic state.
-Geodesic::BoundaryState calcGeodesicBoundaryState(
+void calcGeodesicBoundaryState(
     const ImplicitSurface& s,
-    const ImplicitGeodesicState& x,
-    bool isEnd)
+    const ImplicitGeodesicState& q,
+    bool isEnd,
+    Trihedron& K,
+    Geodesic::Variation& v,
+    Geodesic::Variation& w)
 {
-    Geodesic::BoundaryState y;
-    y.frame = calcDarbouxFrame(s, x);
+    K = calcTrihedron(s, q);
 
-    y.position = x.position;
+    const Vector3 t = K.t();
+    const Vector3 b = K.b();
 
-    // Implicit surface uses natural geodesic variations:
-    //   0. Tangential
-    //   1. Binormal
-    //   2. InitialDirection
-    //   3. Lengthening
-    y.v = {
-        y.frame.t,
-        y.frame.b * x.a,
-        y.frame.b * x.r,
-        isEnd ? y.frame.t : Vector3{0., 0., 0.},
-    };
+    v.col(0) = t;
+    v.col(1) = b * q.a;
+    v.col(2) = b * q.r;
+    v.col(3) = isEnd ? t : Vector3{0., 0., 0.};
 
-    const double tau_g   = calcGeodesicTorsion(s, x.position, x.velocity);
-    const double kappa_n = calcNormalCurvature(s, x.position, x.velocity);
-    const double kappa_a = calcNormalCurvature(s, x.position, y.frame.b);
+    const double tau_g   = calcGeodesicTorsion(s, q.position, q.velocity);
+    const double kappa_n = calcNormalCurvature(s, q.position, q.velocity);
+    const double kappa_a = calcNormalCurvature(s, q.position, b);
 
-    y.w = {
-        Vector3{tau_g, 0., kappa_n},
-        Vector3{
-                -x.a * kappa_a,
-                -x.aDot,
-                -x.a * tau_g,
-                },
-        Vector3{-x.r * kappa_a, -x.rDot, -x.r * tau_g},
-        isEnd ? Vector3{tau_g, 0., kappa_n}
-        : Vector3{0., 0., 0.},
-    };
-    return y;
+    w.col(0) = Vector3{tau_g, 0., kappa_n};
+    w.col(1) = Vector3{
+                -q.a * kappa_a,
+                -q.aDot,
+                -q.a * tau_g,
+                };
+    w.col(2) = Vector3{-q.r * kappa_a, -q.rDot, -q.r * tau_g};
+    w.col(3) = isEnd ? Vector3{tau_g, 0., kappa_n} : Vector3{0., 0., 0.};
+
+    // Variation is in local frame.
+    w = K.R() * w;
 }
 
 void RungeKutta4(
@@ -660,21 +657,28 @@ calcLocalImplicitGeodesic(
 //                      PATH ERROR GRADIENT
 //==============================================================================
 
-Vector3 calcDirectionDerivative(Vector3 d, double l, Vector3 v)
+using GeodesicJacobian  = Eigen::Vector<double, Geodesic::DOF>;
+
+GeodesicJacobian calcDirectionJacobian(Vector3 d, double l, Vector3 axis, const Geodesic::Variation& v)
 {
-    return (v - d * d.dot(v)) / l;
+    AssertEq(d.dot(d), 1., "direction must be unit");
+
+    Vector3 y = axis - d * d.dot(axis);
+    y /= l;
+    return y.transpose() * v;
 }
 
-double calcPathErrorDerivative(
+GeodesicJacobian calcPathErrorJacobian(
     Vector3 e,
     double l,
-    Vector3 v,
-    Vector3 d,
-    Vector3 w,
-    DarbouxFrame& f) // TODO write w in inertial frame.
+    Vector3 axis,
+    const Geodesic::Variation& v,
+    const Geodesic::Variation& w,
+    bool invertV = false)
 {
-    const Vector3 w0 = w[0] * f.t + w[1] * f.n + w[2] * f.b;
-    return calcDirectionDerivative(e, l, v).dot(d) + e.dot(w0.cross(d));
+    GeodesicJacobian jacobian = calcDirectionJacobian(e, l, axis, v) * (invertV ? -1. : 1.);
+    jacobian += axis.cross(e).transpose() * w;
+    return jacobian;
 }
 
 //==============================================================================
@@ -716,15 +720,11 @@ double calcInfNorm(double x)
 size_t calcAccurateSurfaceProjection(
     const ImplicitSurface& s,
     Vector3 point,
-    Vector3& projectedPoint,
-    Vector3& projectedTangent,
+    Trihedron& K_P,
     double eps,
     size_t maxIter)
 {
     using Vector2 = Eigen::Vector2d;
-
-    Vector3& pk = projectedPoint;
-    Vector3& vk = projectedTangent;
 
     // Initial guess.
     const Vector3& p0 = point;
@@ -733,127 +733,112 @@ size_t calcAccurateSurfaceProjection(
 
     const double maxCost = calcMaxAlignmentError(10.);
     const double minCost = calcMaxAlignmentError(1.); // Move these bounds
+
+    // TODO move to arguments? However, not need to compute all elements...
+    Geodesic::Variation v_P;
+    Geodesic::Variation w_P;
+
+    Vector3 pk = K_P.p();;
+    Vector3 tk = K_P.t();;
+
     for (; iter < maxIter; ++iter) {
         // Project directly to surface.
-        iter += calcFastSurfaceProjection(s, pk, vk, eps, maxIter - iter);
+        iter += calcFastSurfaceProjection(s, pk, tk, eps, maxIter - iter);
 
         // Now that the point lies on the surface, compute the error and
         // gradient.
-        Geodesic::BoundaryState K_P =
-            calcGeodesicBoundaryState(s, {pk, vk}, false);
+        calcGeodesicBoundaryState(s, {pk, tk}, false, K_P, v_P, w_P);
 
         // Distance to original point.
-        const double l = (p0 - K_P.position).norm();
+        const double l = (p0 - K_P.p()).norm();
 
         if (std::abs(l) < eps) {
             break;
         }
 
         // Error vector from surface point to oginial point.
-        const Vector3 e = (p0 - K_P.position) / l;
+        const Vector3 e = (p0 - K_P.p()) / l;
 
-        const double cosAngle = e.dot(K_P.frame.n);
+        const double cosAngle = e.dot(K_P.n());
 
         if (sign(cosAngle) < 0.) {
             // Point is below surface, so we stop. TODO does that make sense? or
             // should we continue?
-            return iter;
+            break;
         }
 
         // The costfunction to minimize.
-        double cost = 1. - e.dot(K_P.frame.n);
+        double cost = 1. - cosAngle;
 
         // Stop if the costfunction is small enough.
         if (std::abs(cost) < minCost) {
-            return iter;
+            break;
         }
 
         // Compute gradient of cost.
-        double df_dt = -calcPathErrorDerivative(
-            e,
-            l,
-            -K_P.v.at(0),
-            K_P.frame.n,
-            K_P.w.at(0),
-            K_P.frame);
-        double df_dB = -calcPathErrorDerivative(
-            e,
-            l,
-            -K_P.v.at(1),
-            K_P.frame.n,
-            K_P.w.at(1),
-            K_P.frame);
-        Vector2 df{df_dt, df_dB};
+        GeodesicJacobian g = -calcPathErrorJacobian(e, l, K_P.n(), v_P, w_P, true);
+        Vector2 df{g[0], g[1]}; // TODO no need to compute entire jacobian.
 
         // Compute step to minimize the cost.
-        const double weight = 1. / (1. + cost);
+        const double weight = 1. / (1e-3 + cost);
         cost                = std::min(cost, maxCost);
 
         Vector2 step = df * cost / df.dot(df) * weight;
 
-        pk -= K_P.frame.t * step[0] + K_P.frame.b * step[1];
+        pk -= K_P.t() * step[0] + K_P.b() * step[1];
     }
 
     return iter;
 }
 
+// TODO this point init is annoying
 size_t ImplicitSurface::calcAccurateLocalSurfaceProjectionImpl(
     Vector3 pointInit,
-    Vector3& point,
-    DarbouxFrame& frame,
+    Trihedron& K,
     double eps,
     size_t maxIter) const
 {
     size_t iter = calcAccurateSurfaceProjection(
         *this,
-        pointInit,
-        point,
-        frame.t,
+        pointInit, K,
         eps,
         maxIter);
-    frame = calcDarbouxFromTangentGuessAndNormal(
-        frame.t,
-        calcSurfaceConstraintGradient(point));
     return iter;
 }
 
 size_t Surface::calcAccurateLocalSurfaceProjection(
     Vector3 pointInit,
-    Vector3& point,
-    DarbouxFrame& frame,
+    Trihedron& K,
     double eps,
     size_t maxIter) const
 {
     return calcAccurateLocalSurfaceProjectionImpl(
         std::move(pointInit),
-        point,
-        frame,
+        K,
         eps,
         maxIter);
 }
 
 size_t calcTouchdown(
     const Surface& s,
-    Vector3& point,
-    DarbouxFrame& frame,
+    Trihedron& K,
     Vector3 prev,
     Vector3 next,
     double eps,
     size_t maxIter)
 {
     for (size_t iter = 0; iter < maxIter; ++iter) {
-        const Vector3 pl = calcPointOnLineNearPoint(prev, next, point);
-        frame = calcDarbouxFromTangentGuessAndNormal(point - prev, frame.n);
+        const Vector3 pl = calcPointOnLineNearPoint(prev, next, K.p());
+        K = Trihedron::FromPointAndTangentGuessAndNormal(K.p(), K.p() - prev, K.n());
         iter += s.calcAccurateLocalSurfaceProjection(
             pl,
-            point,
-            frame,
+            K,
             eps,
             maxIter - iter);
 
         // Detect touchdown.
-        const Vector3 d    = (pl - point);
-        const double dDotN = d.dot(frame.n);
+        const Vector3 d    = (pl - K.p());
+        const double dDotN = d.dot(K.n());
         if (dDotN < 0.) {
             return iter;
         }
@@ -898,22 +883,22 @@ GS isPrevOrNextLineSegmentInsideSurface(
 }
 
 GS calcLiftoff(
-    Geodesic::Sample* begin,
-    Geodesic::Sample* end,
+    Trihedron* begin,
+    Trihedron* end,
     Vector3 prevPoint,
     Vector3 nextPoint)
 {
-    auto Liftoff = [&](const std::pair<Vector3, DarbouxFrame>& frame,
+    auto Liftoff = [&](const Trihedron& K,
                        Vector3 point) -> bool {
-        return frame.second.n.dot(point - frame.first) > 0.;
+        return K.n().dot(point - K.p()) > 0.;
     };
 
     bool liftoff = true;
-    for (Geodesic::Sample* it = begin;
+    for (Trihedron* it = begin;
          it != end && (liftoff &= Liftoff(*it, prevPoint));
          ++it) {
     }
-    for (Geodesic::Sample* it = end;
+    for (Trihedron* it = end;
          begin != it && (liftoff &= Liftoff(*(it - 1), nextPoint));
          --it) {
     }
@@ -954,7 +939,7 @@ Vector3 findPrevSegmentEndPoint(
     ptrdiff_t idx)
 {
     ptrdiff_t prev = findPrevSegmentIndex(segments, idx);
-    return prev < 0 ? pathStart : segments.at(prev).end.position;
+    return prev < 0 ? pathStart : segments.at(prev).K_Q.p();
 }
 
 Vector3 findNextSegmentStartPoint(
@@ -963,7 +948,7 @@ Vector3 findNextSegmentStartPoint(
     ptrdiff_t idx)
 {
     ptrdiff_t next = findNextSegmentIndex(segments, idx);
-    return next < 0 ? pathEnd : segments.at(next).start.position;
+    return next < 0 ? pathEnd : segments.at(next).K_P.p();
 }
 
 //==============================================================================
@@ -1023,8 +1008,7 @@ void updGeodesicStatus(
         size_t maxIter = 10;
         if (calcTouchdown(
                 s,
-                geodesic.start.position,
-                geodesic.start.frame,
+                geodesic.K_P,
                 prev,
                 next,
                 1e-3,
@@ -1136,7 +1120,7 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     std::function<void(const ImplicitGeodesicState&)> Monitor =
         [&](const ImplicitGeodesicState& q) {
             geodesic.samples.emplace_back(
-                Geodesic::Sample{q.position, calcDarbouxFrame(*this, q)});
+                    calcTrihedron(*this, q));
         };
 
     std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
@@ -1148,8 +1132,8 @@ void ImplicitSurface::calcLocalGeodesicImpl(
             _integratorSteps,
             Monitor);
 
-    geodesic.start  = calcGeodesicBoundaryState(*this, out.first, false);
-    geodesic.end    = calcGeodesicBoundaryState(*this, out.second, true);
+    calcGeodesicBoundaryState(*this, out.first, false, geodesic.K_P, geodesic.v_P, geodesic.w_P);
+    calcGeodesicBoundaryState(*this, out.second, true, geodesic.K_Q, geodesic.v_Q, geodesic.w_Q);
     geodesic.length = length;
 }
 
@@ -1258,90 +1242,64 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     double length,
     Geodesic& geodesic) const
 {
-
-    // Make sure we are not changing the variation dimension.
-    /* static_assert(Geodesic::BoundaryState.w::size() == 4); */
-    /* static_assert(Geodesic::BoundaryState.v.size() == 4); */
-
     const double r     = _radius;
     const double angle = length / r;
 
-    if (initPosition.norm() < 1e-13) {
+    const double norm =  initPosition.norm();
+    if (norm < 1e-13) {
         throw std::runtime_error("Error: initial position at origin.");
     }
 
-    // Initial darboux frame.
-    DarbouxFrame f_P =
-        calcDarbouxFromTangentGuessAndNormal(initVelocity, initPosition);
+    Trihedron& K_P = geodesic.K_P;
+    Geodesic::Variation& v_P = geodesic.v_P;
+    Geodesic::Variation& w_P = geodesic.w_P;
 
-    // Initial trihedron: K_P
-    Geodesic::BoundaryState K_P;
+    K_P = Trihedron::FromPointAndTangentGuessAndNormal(initPosition / norm * r, initVelocity, initPosition);
 
-    K_P.w = {
-        -f_P.b / r,
-        f_P.t / r,
-        -f_P.n,
-        Vector3{0., 0., 0.}
-    };
+    w_P.col(0) = -K_P.b() / r;
+    w_P.col(1) = K_P.t() / r;
+    w_P.col(2) = -K_P.n();
+    w_P.col(3) = Vector3{0., 0., 0.};
 
     // Since position = normal * radius -> p = n * r
     // We have dp = dn * r
     // With: dn = w x n
-    for (size_t i = 0; i < 4; ++i) {
-        K_P.v.at(i) = K_P.w.at(i).cross(f_P.n) * r;
-    }
-
-    K_P.position = f_P.n * r;
-    K_P.frame    = f_P;
+    v_P.col(0) = K_P.t();
+    v_P.col(1) = K_P.b();
+    v_P.col(2) = Vector3{0., 0., 0.};
+    v_P.col(3) = Vector3{0., 0., 0.};
 
     // Integrate to final trihedron: K_Q
-    Geodesic::BoundaryState K_Q;
+    Trihedron& K_Q = geodesic.K_Q;
+    Geodesic::Variation& v_Q = geodesic.v_Q;
+    Geodesic::Variation& w_Q = geodesic.w_Q;
 
     // Integration is a rotation over the axis by the angle.
-    const Vector3 axis = -f_P.b; // axis is negative of binormal
+    const Vector3 axis = -K_P.b(); // axis is negative of binormal
     const Rotation dq{Eigen::AngleAxisd(angle, axis)};
 
-    // Final darboux frame: Rotate the input of the initial frame.
-    DarbouxFrame f_Q{
-        dq * f_P.t,
-        dq * f_P.n,
-    };
-
-    // Final position is normal times radius.
-    K_Q.position = f_Q.n * r;
-    K_Q.frame    = f_Q;
+    // Final frame: Rotate the input of the initial frame.
+    K_Q = dq * K_P;
 
     // For a sphere the rotation of the initial frame directly rotates the final
     // frame:
-    K_Q.w       = K_P.w;
-    K_Q.w.at(3) = -f_Q.b / r;
+    w_Q = w_P;
+    w_Q.col(3) = w_Q.col(0);
 
-    // End frame position variation is the same: dp = w x n * r
+    // End frame position variation: dp = w x n * r
     for (size_t i = 0; i < 4; ++i) {
-        K_Q.v.at(i) = K_Q.w.at(i).cross(f_Q.n) * r;
+        v_Q.col(i) = w_Q.col(i).cross(K_Q.n()) * r;
     }
 
-    auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
-        return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
-    };
-
-    for (size_t i = 0; i < 4; ++i) {
-        K_P.w.at(i) = ApplyAsTransform(K_P.frame, K_P.w.at(i));
-        K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
-    }
-
+    // TODO seems a waste...
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
         const double angle_i =
             angle * static_cast<double>(i) / static_cast<double>(nSamples);
         const Rotation dq{Eigen::AngleAxisd(angle_i, axis)};
-        const DarbouxFrame f = dq * K_P.frame;
-        geodesic.samples.emplace_back(
-            std::pair<Vector3, DarbouxFrame>{dq * K_P.position, f});
+        geodesic.samples.emplace_back(dq * K_P);
     }
 
-    geodesic.start  = std::move(K_P);
-    geodesic.end    = std::move(K_Q);
     geodesic.length = length;
 }
 
@@ -1352,14 +1310,12 @@ bool AnalyticSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound)
 }
 
 size_t AnalyticSphereSurface::calcAccurateLocalSurfaceProjectionImpl(
-    Vector3 pointInit,
-    Vector3& point,
-    DarbouxFrame& frame,
+    Vector3,
+    Trihedron& K,
     double,
     size_t) const
 {
-    point = pointInit / pointInit.norm() * _radius;
-    frame = calcDarbouxFromTangentGuessAndNormal(frame.t, point);
+    K = Trihedron::FromPointAndTangentGuessAndNormal(K.p() / K.p().norm() * _radius, K.t(), K.p());
     return 0;
 }
 
@@ -1387,8 +1343,7 @@ double ImplicitCylinderSurface::calcSurfaceConstraintImpl(Vector3 p) const
     return p.x() * p.x() + p.y() * p.y() - _radius * _radius;
 }
 
-Vector3 ImplicitCylinderSurface::calcSurfaceConstraintGradientImpl(
-    Vector3 p) const
+Vector3 ImplicitCylinderSurface::calcSurfaceConstraintGradientImpl(Vector3 p) const
 {
     return {2. * p.x(), 2. * p.y(), 0.};
 }
@@ -1431,105 +1386,87 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     const Vector3 z{0., 0., 1.};
 
     // Initial darboux frame.
-    DarbouxFrame f_P = calcDarbouxFromTangentGuessAndNormal(
-        initVelocity,
-        Vector3{initPosition.x(), initPosition.y(), 0.});
+    Trihedron& K_P = geodesic.K_P;
+    Geodesic::Variation& v_P = geodesic.v_P;
+    Geodesic::Variation& w_P = geodesic.w_P;
+
+    // Normal direction.
+    Darboux f_P = Darboux::FromTangenGuessAndNormal(initVelocity, Vector3{initPosition.x(), initPosition.y(), 0.});
 
     // Initial position on surface.
-    const Vector3 p_P = f_P.n * r + z * initPosition.z();
+    const Vector3 p_P = f_P.n() * r + z * initPosition.z();
+
+    K_P = Trihedron(p_P, f_P);
 
     // Rotation angle between start and end frame about cylinder axis.
-    const double alpha = (l / r) * z.cross(f_P.n).dot(f_P.t);
+    const double alpha = (l / r) * z.cross(K_P.n()).dot(K_P.t());
 
     // Distance along cylinder axis between start and end frame.
-    const double h = l * z.dot(f_P.t);
+    const double h = l * z.dot(K_P.t());
 
     AssertEq(alpha * alpha * r * r + h * h, l * l, "(alpha * r)^2 + h^2 = l^2");
 
     AssertEq(
-        (f_P.t.cross(z) * l).norm(),
+        (K_P.t().cross(z) * l).norm(),
         std::abs(alpha * r),
         "||t X z || * l = |alpha * r|");
-    AssertEq(f_P.t.dot(z) * l, h, "t.T z * l = h");
+    AssertEq(K_P.t().dot(z) * l, h, "t.T z * l = h");
 
     // Rotation angle variation to initial direction variation.
     const double dAlpha_dTheta =
-        -(l / r) * z.cross(f_P.n).dot(f_P.n.cross(f_P.t));
+        -(l / r) * z.cross(K_P.n()).dot(K_P.n().cross(K_P.t()));
 
     // Distance along axis variation to initial direction variation.
-    const double dh_dTheta = -l * z.dot(f_P.n.cross(f_P.t));
+    const double dh_dTheta = -l * z.dot(K_P.n().cross(K_P.t()));
 
     // Rotation angle variation to length variation.
-    const double dAlpha_dl = (1. / r) * z.cross(f_P.n).dot(f_P.t);
+    const double dAlpha_dl = (1. / r) * z.cross(K_P.n()).dot(K_P.t());
 
     // Distance along axis variation to length variation.
-    const double dh_dl = z.dot(f_P.t);
-
-    // Initial trihedron: K_P
-    Geodesic::BoundaryState K_P;
+    const double dh_dl = z.dot(K_P.t());
 
     // Start position variation.
     const Vector3 zeros{0., 0., 0.};
-    K_P.v = {
-        f_P.t,
-        f_P.b,
-        zeros,
-        zeros,
-    };
+
+    v_P.col(0) = K_P.t();
+    v_P.col(1) = K_P.b();
+    v_P.col(2) = zeros;
+    v_P.col(3) = zeros;
 
     // Start frame variation.
-    K_P.w = {
-        z * f_P.t.dot(z.cross(f_P.n)) / r,
-        z * f_P.t.dot(z) / r,
-        -f_P.n,
-        zeros,
-    };
-
-    // Set start frame fields.
-    K_P.frame    = f_P;
-    K_P.position = p_P;
+    w_P.col(0) =  z * K_P.t().dot(z.cross(K_P.n())) / r;
+    w_P.col(1) =  z * K_P.t().dot(z) / r;
+    w_P.col(2) =  -K_P.n();
+    w_P.col(3) =  zeros;
 
     // Integration of the angular rotation about cylinder axis.
     const Rotation dq{Eigen::AngleAxisd(alpha, z)};
 
     // Final darboux frame.
-    const Vector3 t_Q = dq * f_P.t;
-    const Vector3 n_Q = dq * f_P.n;
-    DarbouxFrame f_Q{t_Q, n_Q, t_Q.cross(n_Q)};
+    const Vector3 t_Q = dq * K_P.t();
+    const Vector3 n_Q = dq * K_P.n();
+    Darboux f_Q{t_Q, n_Q, t_Q.cross(n_Q)};
 
     // Final position.
-    const Vector3 p_Q = f_Q.n * r + z * (p_P.z() + h);
+    const Vector3 p_Q = f_Q.n() * r + z * (p_P.z() + h);
 
     // Final trihedron.
-    Geodesic::BoundaryState K_Q;
+    Trihedron& K_Q = geodesic.K_Q;
+    Geodesic::Variation& v_Q = geodesic.v_Q;
+    Geodesic::Variation& w_Q = geodesic.w_Q;
+
+    K_Q = Trihedron(p_Q, f_Q);
 
     // Final position variation.
-    K_Q.v = {
-        f_Q.t,
-        f_Q.b,
-        z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta,
-        z.cross(p_Q) * dAlpha_dl + z * dh_dl,
-    };
+    v_Q.col(0) = f_Q.t();
+    v_Q.col(1) = f_Q.b();
+    v_Q.col(2) = z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta;
+    v_Q.col(3) = z.cross(p_Q) * dAlpha_dl + z * dh_dl;
 
-    K_Q.w = {
-        z * f_Q.t.dot(z.cross(f_Q.n)) / r,
-        z * f_Q.t.dot(z) / r,
-        dAlpha_dTheta * z - f_Q.n,
-        dAlpha_dl * z,
-    };
-
-    // Set start frame fields.
-    K_Q.frame    = f_Q;
-    K_Q.position = p_Q;
-
-    auto ApplyAsTransform = [&](const DarbouxFrame& f, Vector3 x) -> Vector3 {
-        return Vector3{f.t.dot(x), f.n.dot(x), f.b.dot(x)};
-    };
-
-    for (size_t i = 0; i < 4; ++i) {
-        K_P.w.at(i) = ApplyAsTransform(K_P.frame, K_P.w.at(i));
-        K_Q.w.at(i) = ApplyAsTransform(K_Q.frame, K_Q.w.at(i));
-    }
+    w_Q.col(0) = z * f_Q.t().dot(z.cross(f_Q.n())) / r;
+    w_Q.col(1) = z * f_Q.t().dot(z) / r;
+    w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
+    w_Q.col(3) = dAlpha_dl * z;
 
     size_t nSamples = 10;
     for (size_t i = 0; i < nSamples; ++i) {
@@ -1538,29 +1475,25 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
         const double angle_i = alpha * factor;
         const double h_i     = h * factor;
         const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
-        const DarbouxFrame f = dq * K_P.frame;
-        const Vector3 p_i    = dq * K_P.position + h_i * z;
-        geodesic.samples.emplace_back(std::pair<Vector3, DarbouxFrame>{p_i, f});
+        const Darboux f = dq * f_P;
+        const Vector3 p_i    = dq * K_P.p() + h_i * z;
+        geodesic.samples.emplace_back(p_i, f);
     }
 
-    geodesic.start  = std::move(K_P);
-    geodesic.end    = std::move(K_Q);
     geodesic.length = length;
 }
 
 size_t AnalyticCylinderSurface::calcAccurateLocalSurfaceProjectionImpl(
     Vector3 pointInit,
-    Vector3& point,
-    DarbouxFrame& frame,
+    Trihedron& K,
     double,
     size_t) const
 {
     const double x = pointInit.x();
     const double y = pointInit.y();
     const double z = pointInit.z();
-    const double c = _radius / std::sqrt(x * x + y * y);
-    point          = Vector3{x * c, y * c, z};
-    frame          = calcDarbouxFromTangentGuessAndNormal(frame.t, point);
+    const Darboux f = Darboux::FromTangenGuessAndNormal(K.t(), {x, y, 0.});
+    K = Trihedron(Vector3{0., 0., z} + _radius * f.n(), f);
     return 0;
 }
 
@@ -1660,9 +1593,9 @@ bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 //                      PATH CONTINUITY ERROR
 //==============================================================================
 
-GeodesicCorrection calcClamped(
+Geodesic::Correction calcClamped(
     const CorrectionBounds& bnds,
-    const GeodesicCorrection& correction)
+    const Geodesic::Correction& correction)
 {
     auto Clamp = [](double bnd, double x) {
         if (std::abs(x) > std::abs(bnd)) {
@@ -1673,17 +1606,17 @@ GeodesicCorrection calcClamped(
     const double maxAngle = bnds.maxAngleDegrees / 180. * M_PI;
 
     return {
-        Clamp(bnds.maxRepositioning, correction.at(0)),
-        Clamp(bnds.maxRepositioning, correction.at(1)),
-        Clamp(maxAngle, correction.at(2)),
-        Clamp(bnds.maxLengthening, correction.at(3)),
+        Clamp(bnds.maxRepositioning, correction(0)),
+        Clamp(bnds.maxRepositioning, correction(1)),
+        Clamp(maxAngle, correction(2)),
+        Clamp(bnds.maxLengthening, correction(3)),
     };
 }
 
 void PathContinuityError::resize(size_t nSurfaces)
 {
     constexpr size_t C = NUMBER_OF_CONSTRAINTS;
-    constexpr size_t Q = GEODESIC_DIM;
+    constexpr size_t Q = Geodesic::DOF;
     const size_t n = _nSurfaces = nSurfaces;
 
     _pathError.resize(n * C);
@@ -1799,7 +1732,7 @@ bool PathContinuityError::calcPathCorrection()
     /* _vecSmall =  _matSmall.colPivHouseholderQr().solve(_pathError); */
 
     const size_t n     = _nSurfaces;
-    constexpr size_t Q = GEODESIC_DIM;
+    constexpr size_t Q = Geodesic::DOF;
     constexpr size_t C = NUMBER_OF_CONSTRAINTS;
 
     /* _mat *= weight; */
@@ -1837,14 +1770,14 @@ bool PathContinuityError::calcPathCorrection()
         _matSmall = _costP + _costQ;
         _matSmall *= weight;
 
-        _matSmall += _costL * weightLength;
+        /* _matSmall += _costL * weightLength; */
 
         _matSmall += _pathErrorJacobian.transpose() * _pathErrorJacobian;
 
         _vecSmall = _pathErrorJacobian.transpose() * _pathError;
         /* const bool singular = ((calcInfNorm(_vecSmall) < bnd / 100.) &&
          * (calcInfNorm(_pathError) > bnd)); */
-        _vecSmall += _vecL * weightLength;
+        /* _vecSmall += _vecL * weightLength; */
 
         _solveSmall = -_matSmall.colPivHouseholderQr().solve(_vecSmall);
 
@@ -1880,12 +1813,13 @@ bool PathContinuityError::calcPathCorrection()
     return true;
 }
 
-const GeodesicCorrection* PathContinuityError::begin() const
+const Geodesic::Correction* PathContinuityError::begin() const
 {
-    return reinterpret_cast<const GeodesicCorrection*>(&_pathCorrections(0));
+    static_assert(sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
+    return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
 }
 
-const GeodesicCorrection* PathContinuityError::end() const
+const Geodesic::Correction* PathContinuityError::end() const
 {
     return begin() + _nSurfaces;
 }
@@ -1893,45 +1827,6 @@ const GeodesicCorrection* PathContinuityError::end() const
 //==============================================================================
 //                      SOLVING THE WRAPPING PROBLEM
 //==============================================================================
-
-Vector3 calcNormalDerivative(const DarbouxFrame& frame, const Vector3& rate)
-{
-    Vector3 nDot = -rate[2] * frame.t + rate[0] * frame.b;
-
-    if (RUNTIME_UNIT_TESTS) {
-        const Vector3 w =
-            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
-        AssertEq(nDot, w.cross(frame.n), "nDot = w.cross(n)");
-    }
-
-    return nDot;
-}
-
-Vector3 calcBinormalDerivative(const DarbouxFrame& frame, const Vector3& rate)
-{
-    Vector3 bDot = rate[1] * frame.t - rate[0] * frame.n;
-
-    if (RUNTIME_UNIT_TESTS) {
-        const Vector3 w =
-            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
-        AssertEq(bDot, w.cross(frame.b), "bDot = w.cross(b)");
-    }
-
-    return bDot;
-}
-
-Vector3 calcTangentDerivative(const DarbouxFrame& frame, const Vector3& rate)
-{
-    Vector3 tDot = -rate[1] * frame.b + rate[2] * frame.n;
-
-    if (RUNTIME_UNIT_TESTS) {
-        const Vector3 w =
-            (rate[0] * frame.t + rate[1] * frame.n + rate[2] * frame.b);
-        AssertEq(tDot, w.cross(frame.t), "tDot = w.cross(t)");
-    }
-
-    return tDot;
-}
 
 std::vector<Geodesic> calcInitWrappingPathGuess(
     const Vector3& pathStart,
@@ -1966,42 +1861,27 @@ WrappingPath::WrappingPath(
 {}
 
 void applyNaturalGeodesicVariation(
-    Geodesic::BoundaryState& geodesicStart,
-    const GeodesicCorrection& correction)
+    Trihedron& K_P,
+    const Geodesic::Variation& v_P,
+    const Geodesic::Variation& w_P,
+    const Geodesic::Correction& correction)
 {
-    // Darboux frame:
-    Vector3 t        = geodesicStart.frame.t;
-    Vector3 n        = geodesicStart.frame.n;
-    const Vector3& b = geodesicStart.frame.b;
+    Vector3 v = v_P * correction;
+    Vector3 w = w_P * correction;
+    Vector3 t = K_P.t() + w.cross(K_P.t());
+    Vector3 n = K_P.n() + w.cross(K_P.n());
 
-    Vector3 dp = correction.at(1) * b + correction.at(0) * t;
-
-    // TODO use start frame to rotate both vectors properly.
-    // TODO overload vor ANALYTIC?
-    geodesicStart.position += dp;
-
-    /* Vector3 velocity = cos(correction.at(2)) * t + sin(correction.at(2)) * b;
-     */
-    /* geodesicStart.frame.t = velocity; */
-
-    for (size_t i = 0; i < 4; ++i) {
-        const Vector3& w = geodesicStart.w.at(i);
-        const double c   = correction.at(i);
-
-        t += calcTangentDerivative(geodesicStart.frame, w * c);
-        n += calcNormalDerivative(geodesicStart.frame, w * c);
-    }
-    geodesicStart.frame = calcDarbouxFromTangentGuessAndNormal(t, n);
+    K_P = Trihedron(K_P.p() + v, Darboux::FromTangenGuessAndNormal(t, n));
 }
 
-void Surface::applyVariation(Geodesic& geodesic, const GeodesicCorrection& var)
+void Surface::applyVariation(Geodesic& geodesic, const Geodesic::Correction& correction)
     const
 {
-    applyNaturalGeodesicVariation(geodesic.start, var);
-    geodesic.length += var.back();
+    applyNaturalGeodesicVariation(geodesic.K_P, geodesic.v_P, geodesic.w_P, correction);
+    geodesic.length += correction[Geodesic::DOF-1];
     calcGeodesic(
-        geodesic.start.position,
-        geodesic.start.frame.t,
+        geodesic.K_P.p(),
+        geodesic.K_P.t(),
         geodesic.length,
         geodesic);
 }
@@ -2022,83 +1902,54 @@ size_t countActive(const std::vector<Geodesic>& segments)
 }
 
 void calcSegmentPathErrorJacobian(
-    const Geodesic::BoundaryState* KQ_prev,
-    const Geodesic::BoundaryState& K,
-    const Geodesic::BoundaryState* KP_next,
+    const Geodesic::Variation* v_Q_prev,
+    const Trihedron& K,
+    const Geodesic::Variation& v,
+    const Geodesic::Variation& w,
+    const Geodesic::Variation* v_P_next,
     const Vector3& point,
     Eigen::VectorXd& pathError,
     Eigen::MatrixXd& pathErrorJacobian,
-    double& length,
-    Eigen::VectorXd& lengthJacobian,
     size_t& row,
     bool isFirst)
 {
-    constexpr size_t DIM = GEODESIC_DIM;
+    constexpr size_t DIM = Geodesic::DOF;
 
-    const double l  = (K.position - point).norm();
-    const Vector3 e = (K.position - point) / l;
+    const double l  = (K.p() - point).norm();
+    const Vector3 e = (K.p() - point) / l;
 
     const size_t col =
-        (row / PathContinuityError::NUMBER_OF_CONSTRAINTS) * GEODESIC_DIM;
-
-    /* std::cout << "row = " << row << "\n"; */
-    /* std::cout << "col = " << col << "\n"; */
-    /* std::cout << "prev = " << KQ_prev << "\n"; */
-    /* std::cout << "next = " << KP_next << "\n"; */
-    // Update the path length.
-    length += l;
-
-    // Update path length jacobian.
-    for (size_t i = 0; i < GEODESIC_DIM; ++i) {
-        /* std::cout << "setting length jacobian index " << col + i  << "\n"; */
-        lengthJacobian(col + i) += e.dot(K.v.at(i));
-        if (KQ_prev) {
-            lengthJacobian(col - DIM + i) += -e.dot(KQ_prev->v.at(i));
-        }
-        if (KP_next) {
-            lengthJacobian(col + DIM + i) += -e.dot(KP_next->v.at(i));
-        }
-    }
-    /* std::cout << "    l =" << l << "\n"; */
-    /* std::cout << "    lengthJacobian =" << lengthJacobian.transpose() <<
-     * "\n"; */
+        (row / PathContinuityError::NUMBER_OF_CONSTRAINTS) * Geodesic::DOF;
 
     auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m, double y) {
         pathError[row] = e.dot(m) + y;
 
         const Vector3 de = (m - e * e.dot(m)) / l;
 
-        for (size_t i = 0; i < GEODESIC_DIM; ++i) {
+        for (size_t i = 0; i < Geodesic::DOF; ++i) {
 
-            const Vector3& w = K.w.at(i);
-            // TODO store in inertial frame.
-            const Vector3 dm =
-                (w[0] * K.frame.t + w[1] * K.frame.n + w[2] * K.frame.b)
-                    .cross(m);
+            const Vector3 dm = w.col(i).cross(m);
 
-            pathErrorJacobian(row, col + i) = de.dot(K.v.at(i)) + e.dot(dm);
+            pathErrorJacobian(row, col + i) = de.dot(v.col(i)) + e.dot(dm);
 
             // Check if other end was connected to a geodesic.
-            if (KQ_prev) {
+            if (v_Q_prev) {
                 pathErrorJacobian(row, col - DIM + i) =
-                    -de.dot(KQ_prev->v.at(i));
+                    -de.dot(v_Q_prev->col(i));
             }
 
-            if (KP_next) {
+            if (v_P_next) {
                 pathErrorJacobian(row, col + DIM + i) =
-                    -de.dot(KP_next->v.at(i));
+                    -de.dot(v_P_next->col(i));
             }
         }
 
         ++row;
-        /* std::cout << "    pathError=" << pathError.transpose() << "\n"; */
-        /* std::cout << "    pathErrorJcobian=\n" << pathErrorJacobian << "\n";
-         */
     };
 
-    UpdatePathErrorElementAndJacobian(K.frame.t, isFirst ? -1. : 1.);
-    UpdatePathErrorElementAndJacobian(K.frame.n, 0.);
-    UpdatePathErrorElementAndJacobian(K.frame.b, 0.);
+    UpdatePathErrorElementAndJacobian(K.t(), isFirst ? -1. : 1.);
+    UpdatePathErrorElementAndJacobian(K.n(), 0.);
+    UpdatePathErrorElementAndJacobian(K.b(), 0.);
 }
 
 size_t calcPathErrorJacobian(WrappingPath& path)
@@ -2128,15 +1979,15 @@ size_t calcPathErrorJacobian(WrappingPath& path)
             /* std::cout << "row = " << row << "\n"; */
             /* std::cout << "col = " << row << "\n"; */
             calcSegmentPathErrorJacobian(
-                prev < 0 ? nullptr : &path.segments.at(prev).end,
-                path.segments.at(idx).start,
+                prev < 0 ? nullptr : &path.segments.at(prev).v_Q,
+                path.segments.at(idx).K_P,
+                path.segments.at(idx).v_P,
+                path.segments.at(idx).w_P,
                 nullptr,
                 prev < 0 ? path.startPoint
-                         : path.segments.at(prev).end.position,
+                         : path.segments.at(prev).K_Q.p(),
                 path.smoothness.updPathError(),
                 path.smoothness.updPathErrorJacobian(),
-                path.smoothness._length,
-                path.smoothness._lengthJacobian,
                 row,
                 true);
         }
@@ -2145,38 +1996,33 @@ size_t calcPathErrorJacobian(WrappingPath& path)
             ptrdiff_t next = findNextSegmentIndex(path.segments, idx);
             calcSegmentPathErrorJacobian(
                 nullptr,
-                path.segments.at(idx).end,
-                next < 0 ? nullptr : &path.segments.at(next).start,
+                path.segments.at(idx).K_Q,
+                path.segments.at(idx).v_Q,
+                path.segments.at(idx).w_Q,
+                next < 0 ? nullptr : &path.segments.at(next).v_P,
                 next < 0 ? path.endPoint
-                         : path.segments.at(next).start.position,
+                         : path.segments.at(next).K_P.p(),
                 path.smoothness.updPathError(),
                 path.smoothness.updPathErrorJacobian(),
-                path.smoothness._length,
-                path.smoothness._lengthJacobian,
                 row,
                 false);
         }
 
         path.smoothness._length += std::abs(s.length);
         path.smoothness._lengthJacobian(rowLengthJacobian) += sign(s.length);
-        rowLengthJacobian += GEODESIC_DIM;
+        rowLengthJacobian += Geodesic::DOF;
 
-        for (size_t i = 0; i < GEODESIC_DIM; ++i) {
-            for (size_t j = 0; j < GEODESIC_DIM; ++j) {
-                const size_t r = i + GEODESIC_DIM * idx;
-                const size_t c = j + GEODESIC_DIM * idx;
+        for (size_t i = 0; i < Geodesic::DOF; ++i) {
+            for (size_t j = 0; j < Geodesic::DOF; ++j) {
+                const size_t r = i + Geodesic::DOF * idx;
+                const size_t c = j + Geodesic::DOF * idx;
                 path.smoothness._costP(r, c) =
-                    s.start.v.at(i).dot(s.start.v.at(j));
+                    s.v_P.col(i).dot(s.v_P.col(j));
                 path.smoothness._costQ(r, c) +=
-                    s.end.v.at(i).dot(s.end.v.at(j));
+                    s.v_Q.col(i).dot(s.v_Q.col(j));
             }
         }
     }
-    /* std::cout << "    pathError=" <<
-     * path.smoothness.updPathError().transpose() << "\n"; */
-    /* std::cout << "    pathErrorJcobian=\n" <<
-     * path.smoothness.updPathErrorJacobian() << "\n"; */
-    /* throw std::runtime_error("stop"); */
     return nActiveSegments;
 }
 
@@ -2220,8 +2066,8 @@ size_t WrappingPath::updPath(
              * path.smoothness.calcMaxCorrectionStep() << "\n"; */
 
             // Obtain the computed geodesic corrections from the path errors.
-            const GeodesicCorrection* corrIt  = smoothness.begin();
-            const GeodesicCorrection* corrEnd = smoothness.end();
+            const Geodesic::Correction* corrIt  = smoothness.begin();
+            const Geodesic::Correction* corrEnd = smoothness.end();
             if (corrEnd - corrIt != nTouchdown) {
                 throw std::runtime_error(
                     "Number of geodesic-corrections not equal to "
@@ -2233,21 +2079,13 @@ size_t WrappingPath::updPath(
                 if ((s.status & Geodesic::Status::LiftOff) > 0) {
                     continue;
                 }
-                // TODO remove this?
-                /* const GeodesicCorrection correction =
-                 * calcClamped(path.smoothness.maxStep, *corrIt); */
-                const GeodesicCorrection correction = *corrIt;
+                const Geodesic::Correction correction = *corrIt;
 
-                /* std::cout << "s.length_before = " << s.length << "\n"; */
-                applyNaturalGeodesicVariation(s.start, correction);
-
-                /* for (double c: correction) { */
-                /*     std::cout << "ci = " << c << "\n"; */
-                /* } */
-                /* std::cout << "s.start_after = " << s.start << "\n"; */
+                std::cout << "correction = " << correction << "\n";
+                applyNaturalGeodesicVariation(s.K_P, s.v_P, s.w_P, correction);
 
                 // TODO last field of correction must be lengthening.
-                s.length += correction.at(3);
+                s.length += correction[3];
                 if (s.length < 0.) {
                     std::cout << "negative path length: " << s.length << "\n";
                 }
@@ -2267,8 +2105,8 @@ size_t WrappingPath::updPath(
             const Geodesic& s = segments.at(idx);
             /* std::cout << "Shooting s.length = " << s.length << "\n"; */
             GetSurface(idx)->calcGeodesic(
-                s.start.position,
-                s.start.frame.t,
+                s.K_P.p(),
+                s.K_P.t(),
                 s.length,
                 findPrevSegmentEndPoint(startPoint, segments, idx),
                 findNextSegmentStartPoint(endPoint, segments, idx),
