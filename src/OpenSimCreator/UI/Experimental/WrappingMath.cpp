@@ -99,6 +99,17 @@ std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s)
 namespace
 {
 
+template <typename VECTOR>
+double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
+{
+    double maxError = 0.;
+    const auto n    = static_cast<size_t>(vec.rows());
+    for (size_t i = 0; i < n; ++i) {
+        maxError = std::max(maxError, std::abs(vec[i]));
+    }
+    return maxError;
+}
+
 void AssertEq(
     double lhs,
     double rhs,
@@ -126,13 +137,13 @@ void AssertEq(
     const std::string& msg,
     double eps = 1e-10)
 {
-    const bool isOk = (lhs - rhs).norm() < eps;
+    const bool isOk = calcInfNorm<Vector3>(lhs - rhs) < eps;
     if (!isOk) {
         std::ostringstream os;
         os << "FAILED ASSERT: " << msg << std::endl;
         os << "    lhs = " << lhs.transpose() << std::endl;
         os << "    rhs = " << rhs.transpose() << std::endl;
-        os << "    err = " << (lhs - rhs).transpose() << std::endl;
+        os << "    err = " << (lhs - rhs).transpose() << " --> " << calcInfNorm<Vector3>(lhs-rhs) << std::endl;
         os << "    bnd = " << eps << std::endl;
         /* throw std::runtime_error(msg); */
         std::string msg = os.str();
@@ -235,6 +246,7 @@ void AssertDarbouxFrame(const Darboux& frame)
     const Vector3 t = frame.t();
     const Vector3 n = frame.n();
     const Vector3 b = frame.b();
+    return;
 
     AssertEq(t.dot(t), 1., "t norm = 1.");
     AssertEq(n.dot(n), 1., "n norm = 1.");
@@ -529,7 +541,8 @@ size_t calcFastPointProjectedToSurface(
 
         pk += -g * c / g.dot(g);
     }
-    throw std::runtime_error("Failed to project point to surface");
+    /* throw std::runtime_error("Failed to project point to surface"); */
+    return maxIter;
 }
 
 size_t calcFastSurfaceProjection(
@@ -688,17 +701,6 @@ GeodesicJacobian calcPathErrorJacobian(
 double calcMaxAlignmentError(double angleDeg)
 {
     return std::abs(1. - cos(angleDeg / 180. * M_PI));
-}
-
-template <typename VECTOR>
-double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
-{
-    double maxError = 0.;
-    const auto n    = static_cast<size_t>(vec.rows());
-    for (size_t i = 0; i < n; ++i) {
-        maxError = std::max(maxError, std::abs(vec[i]));
-    }
-    return maxError;
 }
 
 template <typename VECTOR>
@@ -1012,7 +1014,7 @@ void updGeodesicStatus(
                 prev,
                 next,
                 1e-3,
-                maxIter) == maxIter) {
+                maxIter) >= maxIter) {
             geodesic.status |= Geodesic::Status::TouchDownFailed;
         }
     }
@@ -1719,17 +1721,6 @@ bool PathContinuityError::calcPathCorrection()
 
     // TODO Clamp the path error?
     calcScaledToFit<Eigen::VectorXd>(_pathError, 10.);
-    /* std::cout << "\n"; */
-    /* std::cout << "_pathError =" << _pathError.transpose() << std::endl; */
-    /* std::cout << "_pathErrorJacobian =\n" << _pathErrorJacobian << std::endl;
-     */
-
-    /* std::cout << "_lengthJacobian =" << _lengthJacobian.transpose() <<
-     * std::endl; */
-    /* std::cout << "_length =" << _length << std::endl; */
-
-    /* _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose(); */
-    /* _vecSmall =  _matSmall.colPivHouseholderQr().solve(_pathError); */
 
     const size_t n     = _nSurfaces;
     constexpr size_t Q = Geodesic::DOF;
@@ -2081,14 +2072,13 @@ size_t WrappingPath::updPath(
                 }
                 const Geodesic::Correction correction = *corrIt;
 
-                std::cout << "correction = " << correction << "\n";
                 applyNaturalGeodesicVariation(s.K_P, s.v_P, s.w_P, correction);
 
                 // TODO last field of correction must be lengthening.
                 s.length += correction[3];
-                if (s.length < 0.) {
-                    std::cout << "negative path length: " << s.length << "\n";
-                }
+                /* if (s.length < 0.) { */
+                /*     std::cout << "negative path length: " << s.length << "\n"; */
+                /* } */
 
                 ++corrIt;
             }

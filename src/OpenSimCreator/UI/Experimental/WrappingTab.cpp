@@ -378,7 +378,7 @@ private:
                     .position = ToVec3(
                         m_ImplicitTorusSurface.getOffsetFrame().position),
                 },
-                m_Material,
+                m_TransparantMaterial,
                 m_Camera,
                 m_GreenColorMaterialProps);
         }
@@ -470,7 +470,7 @@ private:
             const Vector3 next = m_WrappingPath.endPoint;
             DrawCurveSegmentMesh(ToVec3(prev), ToVec3(next), m_RedColorMaterialProps);
 
-            DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_GreyColorMaterialProps);
+            /* DrawCurveSegmentMesh(ToVec3(m_StartPoint), {0., 0., 0.}, m_GreyColorMaterialProps); */
 
             DrawCurveSegmentMesh({0., 0., 0.}, ToVec3(ComputePoint(m_EndPoint)), m_GreyColorMaterialProps);
         }
