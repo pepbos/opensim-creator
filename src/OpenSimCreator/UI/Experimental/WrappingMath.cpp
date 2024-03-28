@@ -727,6 +727,132 @@ double calcInfNorm(double x)
     return std::abs(x);
 }
 
+// Find the touchdown point of a line to a surface.
+std::pair<Vector3, size_t> calcLineToImplicitSurfaceTouchdownPoint(
+    const ImplicitSurface& s,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter)
+{
+    // Initial guess.
+    double alpha = 0.;
+    size_t iter = 0;
+
+    for (; iter < maxIter; ++iter) {
+        // Touchdown point on line.
+        const Vector3 d = b - a;
+        const Vector3 pl = a + (b - a) * alpha;
+
+        // Constraint evaluation at touchdown point.
+        const double c = s.calcSurfaceConstraint(pl);
+
+        // Assumes a negative constraint evaluation means touchdown.
+        if (std::abs(c) < eps) break;
+
+        // Gradient at point on line.
+        const Vector3 g = s.calcSurfaceConstraintGradient(pl);
+        const ImplicitSurface::Hessian H = s.calcSurfaceConstraintHessian(pl);
+
+        // Add a weight to the newton step to avoid large steps.
+        constexpr double w = 1.;
+
+        // Update alpha.
+        const double step = g.dot(d) / (d.dot(H*d) + w);
+
+        // Stop when converged.
+        if (std::abs(step) < eps) break;
+
+        // Clamp the stepsize.
+        constexpr double maxStep = 0.25;
+        alpha -= std::min(std::max(-maxStep, step), maxStep);
+
+        // Stop when leaving bounds.
+        if (alpha < 0. || alpha > 1.) break;
+    }
+
+    alpha = std::max(std::min(1., alpha), 0.);
+    const Vector3 pl = a + (b - a) * alpha;
+    return {pl, iter};
+}
+
+std::pair<Vector3, size_t> ImplicitSurface::calcLocalPointOnLineNearSurfaceImpl(
+        Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    return calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
+}
+
+size_t ImplicitSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    std::pair<Vector3, size_t> ta = calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
+    std::pair<Vector3, size_t> tb = calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
+
+    size_t i = ta.second + tb.second;
+
+    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) < std::abs(calcSurfaceConstraint(tb.first))
+        ? ta.first
+        : tb.first;
+
+    i += calcAccurateLocalSurfaceProjection(p, K, eps, maxIter);
+
+    return i;
+}
+
+size_t AnalyticCylinderSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << K << a << b << eps << maxIter << std::endl;
+}
+
+std::pair<Vector3, size_t> AnalyticCylinderSurface::calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << a << b << eps << maxIter << std::endl;
+}
+
+size_t AnalyticSphereSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << K << a << b << eps << maxIter << std::endl;
+}
+
+std::pair<Vector3, size_t> AnalyticSphereSurface::calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << a << b << eps << maxIter << std::endl;
+}
+
+std::pair<Vector3, size_t> Surface::calcPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    auto t = calcLocalPointOnLineNearSurfaceImpl(
+            calcPointInLocal(_transform, std::move(a)),
+            calcPointInLocal(_transform, std::move(b)),
+            eps, maxIter);
+    t.first = calcPointInGround(_transform, t.first);
+    return t;
+}
+
+std::pair<Vector3, size_t> Surface::calcLocalPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    return calcLocalPointOnLineNearSurfaceImpl(a, b, eps, maxIter);
+}
+
+size_t Surface::calcPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    size_t iter = calcLocalPointOnSurfaceNearLine(K,
+            calcPointInLocal(_transform, std::move(a)),
+            calcPointInLocal(_transform, std::move(b)),
+            eps, maxIter);
+    calcInGroundFrame(_transform, K);
+    return iter;
+}
+
+size_t Surface::calcLocalPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    return calcLocalPointOnSurfaceNearLineImpl(K, std::move(a), std::move(b), eps, maxIter);
+}
+
+// This algorithm attempts to find the point on the surface that is closest to the given point.
 size_t calcAccurateSurfaceProjection(
     const ImplicitSurface& s,
     Vector3 point,

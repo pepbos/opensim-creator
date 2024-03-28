@@ -247,6 +247,12 @@ public:
         double eps,
         size_t maxIter) const;
 
+    std::pair<Vector3, size_t> calcPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const;
+    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const;
+
+    size_t calcPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const;
+    size_t calcLocalPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const;
+
     void applyVariation(Geodesic& geodesic, const Geodesic::Correction& var) const;
 
     // For convenience:
@@ -274,6 +280,9 @@ private:
     virtual Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const = 0;
     virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
     virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
+
+    virtual std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const = 0;
+    virtual size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const = 0;
 
     // This would be a socket to an offset frame for example.
     Transf _transform;
@@ -348,6 +357,9 @@ private:
         Trihedron& K,
         double eps,
         size_t maxIter) const override;
+
+    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
 
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
@@ -469,6 +481,9 @@ private:
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
+    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+
     double _radius = 1.;
 };
 
@@ -544,6 +559,9 @@ private:
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+
+    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
 
     double _radius = 1.;
 };

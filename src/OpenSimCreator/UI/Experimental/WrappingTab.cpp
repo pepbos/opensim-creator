@@ -411,15 +411,43 @@ private:
                 m_GreenColorMaterialProps);
 
             for (const Geodesic& g: m_WrappingPath.segments) {
-            Graphics::DrawMesh(
-                m_SphereMesh,
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.01, 0.01, 0.01},
+                        .position = ToVec3(g.K_P.p()),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_RedColorMaterialProps);
+            }
+            /* for (size_t i = 0; i < m_WrappingPath.segments.size(); ++i) { */
+            if (m_WrappingPath.segments.size() >= 2)
                 {
-                    .scale    = {0.01, 0.01, 0.01},
-                    .position = ToVec3(g.K_P.p()),
-                },
-                m_Material,
-                m_Camera,
-                m_RedColorMaterialProps);
+                    size_t i = 2;
+            const Vector3 prev = m_WrappingPath.segments.at(1).K_Q.p();
+            const Vector3 next = m_WrappingPath.endPoint;
+                const Surface* s = getWrapSurfaceHelper(i);
+                Vector3 pa = s->calcPointOnLineNearSurface(prev, next, 1e-4, 50).first;
+                Vector3 pb = s->calcPointOnLineNearSurface(next, prev, 1e-4, 50).first;
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.05, 0.05, 0.05},
+                        .position = ToVec3(pa),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_RedColorMaterialProps);
+                Graphics::DrawMesh(
+                        m_SphereMesh,
+                        {
+                        .scale    = {0.05, 0.05, 0.05},
+                        .position = ToVec3(pb),
+                        },
+                        m_Material,
+                        m_Camera,
+                        m_GreenColorMaterialProps);
             }
         }
 
