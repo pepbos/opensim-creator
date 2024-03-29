@@ -755,7 +755,7 @@ std::pair<Vector3, size_t> calcLineToImplicitSurfaceTouchdownPoint(
         const ImplicitSurface::Hessian H = s.calcSurfaceConstraintHessian(pl);
 
         // Add a weight to the newton step to avoid large steps.
-        constexpr double w = 1.;
+        constexpr double w = 0.5;
 
         // Update alpha.
         const double step = g.dot(d) / (d.dot(H*d) + w);
