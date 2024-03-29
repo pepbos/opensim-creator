@@ -379,7 +379,7 @@ private:
                     .position = ToVec3(
                         m_ImplicitTorusSurface.getOffsetFrame().position),
                 },
-                m_Material,
+                m_TransparantMaterial,
                 m_Camera,
                 m_GreenColorMaterialProps);
         }

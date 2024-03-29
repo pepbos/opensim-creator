@@ -798,6 +798,33 @@ size_t ImplicitSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector
     return i;
 }
 
+size_t ImplicitSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    std::pair<Vector3, size_t> ta = calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
+    std::pair<Vector3, size_t> tb = calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
+
+    size_t i = ta.second + tb.second;
+
+    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) < std::abs(calcSurfaceConstraint(tb.first))
+        ? ta.first
+        : tb.first;
+
+    K = calcTrihedron(*this, p, b - a);
+    return i;
+}
+
+size_t AnalyticSphereSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << K << a << b << eps << maxIter << std::endl;
+}
+
+size_t AnalyticCylinderSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << K << a << b << eps << maxIter << std::endl;
+}
+
 size_t AnalyticCylinderSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
@@ -957,6 +984,22 @@ size_t Surface::calcAccurateLocalSurfaceProjection(
         maxIter);
 }
 
+size_t Surface::calcLocalTrihedronOnLineNearSurface(Trihedron &K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+{
+    return calcLocalTrihedronOnLineNearSurfaceImpl(K, a, b, eps, maxIter);
+}
+
+// Previous method:
+//
+// 1. calcPointOnLineNearPoint
+// 2. calcAccurateSurfaceProjection to surface
+// 3. detect touchdown using normal
+// 4. repeat
+//
+// New method:
+// 1. calcPointOnLineNearSurface
+// 2. Put frame on that thing: calcTrihedronOnLineNearSurface
+// 3. Thats it
 size_t calcTouchdown(
     const Surface& s,
     Trihedron& K,
@@ -1020,24 +1063,45 @@ GS isPrevOrNextLineSegmentInsideSurface(
     return a | b;
 }
 
+bool calcLiftoff(
+    const Trihedron& K,
+    Vector3 point)
+{
+    return K.n().dot(point - K.p()) > 0.;
+}
+
+GS calcLiftoff(
+    const Trihedron& K_P,
+    const Trihedron& K_Q,
+    Vector3 prevPoint,
+    Vector3 nextPoint)
+{
+    const bool lift_P = calcLiftoff(K_P, prevPoint) && calcLiftoff(K_P, nextPoint);
+    const bool lift_Q = calcLiftoff(K_Q, prevPoint) && calcLiftoff(K_Q, nextPoint);
+    std::cout << "lift_P = " << lift_P << "\n";
+    std::cout << "lift_Q = " << lift_Q << "\n\n";
+    const bool liftoff = lift_P || lift_Q;
+    return liftoff ? GS::LiftOff : GS::Ok;
+}
+
 GS calcLiftoff(
     Trihedron* begin,
     Trihedron* end,
     Vector3 prevPoint,
     Vector3 nextPoint)
 {
-    auto Liftoff = [&](const Trihedron& K,
-                       Vector3 point) -> bool {
-        return K.n().dot(point - K.p()) > 0.;
-    };
+    bool liftoff = begin != end;
+    /* if (begin == end || begin + 1 == end) { */
+    /*     liftoff &= calcLiftoff(K_P, prevPoint); */
+    /*     liftoff &= calcLiftoff(K_P, nextPoint); */
+    /* } */
 
-    bool liftoff = true;
     for (Trihedron* it = begin;
-         it != end && (liftoff &= Liftoff(*it, prevPoint));
+         it != end && (liftoff &= calcLiftoff(*it, prevPoint));
          ++it) {
     }
     for (Trihedron* it = end;
-         begin != it && (liftoff &= Liftoff(*(it - 1), nextPoint));
+         begin != it && (liftoff &= calcLiftoff(*(it - 1), nextPoint));
          --it) {
     }
 
@@ -1045,7 +1109,7 @@ GS calcLiftoff(
 }
 
 bool isActive(Geodesic::Status s) {
-    return s == Geodesic::Status::Ok;
+    return s == Geodesic::Status::Ok || s == Geodesic::Status::NegativeLength;
 }
 
 size_t countActive(const std::vector<Geodesic>& segments)
@@ -1140,26 +1204,48 @@ void updGeodesicStatus(
     Vector3 prev,
     Vector3 next)
 {
+    // Reset status, except for liftoff.
+    geodesic.status = geodesic.status & Geodesic::Status::LiftOff;
+
+    // Detect touchdown.
+    if (geodesic.status & Geodesic::Status::LiftOff) {
+        if (!s.isAboveSurface(geodesic.K_P.p(), 1e-13)) {
+            geodesic.status = Geodesic::Status::Ok;
+        }
+    }
+
     geodesic.status |= isPrevOrNextLineSegmentInsideSurface(s, prev, next);
 
     if (geodesic.length < 0.) {
-        geodesic.status |= Geodesic::Status::NegativeLength;
-        geodesic.status |= Geodesic::Status::LiftOff;
-        geodesic.length = 0.;
+        geodesic.status |= calcLiftoff(
+                geodesic.K_P,
+                geodesic.K_Q,
+                prev, next);
     }
+
     geodesic.status |= calcLiftoff(
         &*geodesic.samples.begin(),
         &*geodesic.samples.end(),
         prev,
         next);
 
-    if (geodesic.status & Geodesic::Status::LiftOff) {
+    if (geodesic.length < 0.) {
+        geodesic.status |= Geodesic::Status::NegativeLength;
         geodesic.length = 0.;
-        geodesic.samples.clear();
     }
 
-    if (geodesic.samples.empty()) {
-        size_t maxIter = 10;
+    if (geodesic.status & Geodesic::Status::LiftOff) {
+        geodesic.length = 0.;
+    }
+
+    if (geodesic.status & Geodesic::Status::LiftOff) {
+        size_t maxIter = 25;
+        if (s.calcLocalTrihedronOnLineNearSurface(geodesic.K_P, prev, next, 1e-5, maxIter) >= maxIter)
+        {
+            geodesic.status |= Geodesic::Status::TouchDownFailed;
+        }
+        return;
+        // TODO remove below
         if (calcTouchdown(
                 s,
                 geodesic.K_P,
@@ -1201,18 +1287,18 @@ void Surface::calcGeodesic(
     Vector3 prev = calcPointInLocal(_transform, std::move(pointBefore));
     Vector3 next = calcPointInLocal(_transform, std::move(pointAfter));
 
-    geodesic.status = Geodesic::Status::Ok;
+    // Reset status, except for liftoff.
     geodesic.samples.clear();
-    try {
-        calcLocalGeodesicImpl(p0, v0, length, geodesic);
-    } catch (const std::exception&) {
-        geodesic.status |= Geodesic::Status::IntegratorFailed;
-        geodesic.samples.clear();
-        geodesic.length = 0.;
-    }
 
     // Reset status flags.
     updGeodesicStatus(*this, geodesic, prev, next); // TODO Flip the order.
+    if (!(geodesic.status & Geodesic::Status::LiftOff)) {
+        try {
+            calcLocalGeodesicImpl(p0, v0, length, geodesic);
+        } catch (const std::exception&) {
+            geodesic.status |= Geodesic::Status::IntegratorFailed;
+        }
+    }
 
     calcGeodesicInGlobal(_transform, geodesic);
 }
