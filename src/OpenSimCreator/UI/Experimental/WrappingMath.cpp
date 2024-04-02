@@ -1078,8 +1078,6 @@ GS calcLiftoff(
 {
     const bool lift_P = calcLiftoff(K_P, prevPoint) && calcLiftoff(K_P, nextPoint);
     const bool lift_Q = calcLiftoff(K_Q, prevPoint) && calcLiftoff(K_Q, nextPoint);
-    std::cout << "lift_P = " << lift_P << "\n";
-    std::cout << "lift_Q = " << lift_Q << "\n\n";
     const bool liftoff = lift_P || lift_Q;
     return liftoff ? GS::LiftOff : GS::Ok;
 }
