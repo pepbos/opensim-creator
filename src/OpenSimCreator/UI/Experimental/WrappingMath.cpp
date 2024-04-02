@@ -1089,10 +1089,6 @@ GS calcLiftoff(
     Vector3 nextPoint)
 {
     bool liftoff = begin != end;
-    /* if (begin == end || begin + 1 == end) { */
-    /*     liftoff &= calcLiftoff(K_P, prevPoint); */
-    /*     liftoff &= calcLiftoff(K_P, nextPoint); */
-    /* } */
 
     for (Trihedron* it = begin;
          it != end && (liftoff &= calcLiftoff(*it, prevPoint));
