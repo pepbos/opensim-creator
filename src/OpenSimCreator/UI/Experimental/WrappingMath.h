@@ -133,6 +133,7 @@ struct Geodesic
         LiftOff                        = 16,
         TouchDownFailed                = 32,
         IntegratorFailed               = 64,
+        Disabled                       = 128,
     };
 
     static constexpr size_t DOF = 4;
@@ -189,6 +190,20 @@ inline Geodesic::Status& operator|=(Geodesic::Status& lhs, Geodesic::Status rhs)
         static_cast<T>(lhs) | static_cast<T>(rhs));
     return lhs;
 }
+
+struct WrappingArgs
+{
+    bool m_CostP = true;
+    bool m_CostQ = true;
+    bool m_CostL = false;
+    bool m_CostT = true;
+    bool m_CostN = false;
+    bool m_CostB = false;
+    bool m_ConT = false;
+    bool m_ConN = false;
+    bool m_ConB = false;
+    bool m_Cache = false;
+};
 
 //==============================================================================
 //                      SURFACE

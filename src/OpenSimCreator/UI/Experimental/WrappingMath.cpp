@@ -1198,8 +1198,13 @@ void updGeodesicStatus(
     Vector3 prev,
     Vector3 next)
 {
-    // Reset status, except for liftoff.
-    geodesic.status = geodesic.status & Geodesic::Status::LiftOff;
+    // Reset status, except for some flags.
+    const Geodesic::Status mask = Geodesic::Status::LiftOff & Geodesic::Status::Disabled;
+    geodesic.status = geodesic.status & mask;
+
+    if (geodesic.status & Geodesic::Status::Disabled) {
+        s.calcLocalTrihedronOnLineNearSurface(geodesic.K_P, prev, next, 1e-3, 25);
+    }
 
     // Detect touchdown.
     if (geodesic.status & Geodesic::Status::LiftOff) {
