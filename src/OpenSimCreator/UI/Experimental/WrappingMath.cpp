@@ -63,6 +63,10 @@ std::ostream& operator<<(std::ostream& os, const Geodesic::Status& s)
         os << delim << "IntegratorFailed";
         delim = ", ";
     }
+    if (s & Geodesic::Status::Disabled) {
+        os << delim << "Disabled";
+        delim = ", ";
+    }
     return os << "}";
 }
 
