@@ -1272,7 +1272,12 @@ void Surface::calcGeodesic(
     Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
 
     geodesic.samples.clear();
-    calcLocalGeodesicImpl(p0, v0, length, geodesic);
+    try {
+        calcLocalGeodesicImpl(p0, v0, length, geodesic);
+    } catch (const std::exception&) {
+        geodesic.samples.clear();
+        geodesic.status |= Geodesic::Status::IntegratorFailed;
+    }
 
     calcGeodesicInGlobal(_transform, geodesic);
 }
@@ -1300,6 +1305,7 @@ void Surface::calcGeodesic(
         try {
             calcLocalGeodesicImpl(p0, v0, length, geodesic);
         } catch (const std::exception&) {
+            geodesic.samples.clear();
             geodesic.status |= Geodesic::Status::IntegratorFailed;
         }
     }
@@ -2079,25 +2085,13 @@ const Geodesic::Correction* PathContinuityError::end() const
 //==============================================================================
 
 std::vector<Geodesic> calcInitWrappingPathGuess(
-    const Vector3& pathStart,
     std::function<const Surface*(size_t)>& getSurface)
 {
     std::vector<Geodesic> geodesics;
-    Vector3 pointBefore = pathStart;
     for (size_t i = 0; getSurface(i); ++i) {
-        Vector3 initPositon  = getSurface(i)->getPathStartGuess();
-        Vector3 initVelocity = (initPositon - pointBefore);
-
-        // Shoot a zero-length geodesic as initial guess.
         geodesics.push_back({});
         Geodesic& g = geodesics.back();
-        getSurface(i)->calcGeodesic(initPositon, initVelocity, 0., g);
-
-        if (g.length != 0. || g.samples.empty()) {
-            throw std::runtime_error("Failed to shoot a zero-length geodesic");
-        }
-
-        pointBefore = initPositon;
+        g.status = Geodesic::Status::Disabled;
     }
     return geodesics;
 }
@@ -2107,7 +2101,7 @@ WrappingPath::WrappingPath(
     Vector3 pathEnd,
     GetSurfaceFn& GetSurface) :
     startPoint(pathStart), endPoint(pathEnd),
-    segments(calcInitWrappingPathGuess(startPoint, GetSurface))
+    segments(calcInitWrappingPathGuess(GetSurface))
 {}
 
 void applyNaturalGeodesicVariation(
@@ -2261,6 +2255,40 @@ size_t calcPathErrorJacobian(WrappingPath& path)
     return nActiveSegments;
 }
 
+void calcInitWrappingPath(
+    const Vector3& p_O,
+    std::vector<Geodesic>& geodesics,
+    std::function<const Surface*(size_t)>& getSurface)
+{
+    for (size_t i = 0; getSurface(i); ++i) {
+        if (geodesics.size() <= i) {
+            throw std::runtime_error("number of surfaces does not match number of geodesics");
+        }
+        Geodesic& g = geodesics.at(i);
+
+        if (!isActive(g.status)) {
+            continue;
+        }
+
+        // Only initialize if there are no samples.
+        if (!g.samples.empty()) {
+            continue;
+        }
+
+        Vector3 prev = findPrevSegmentEndPoint(p_O, geodesics, i);
+
+        Vector3 initPositon  = getSurface(i)->getPathStartGuess();
+        Vector3 initVelocity = (initPositon - prev);
+
+        // Shoot a zero-length geodesic as initial guess.
+        getSurface(i)->calcGeodesic(initPositon, initVelocity, 0., g);
+
+        if (g.length != 0. || g.samples.empty()) {
+            throw std::runtime_error("Failed to shoot a zero-length geodesic");
+        }
+    }
+}
+
 size_t WrappingPath::updPath(
     GetSurfaceFn& GetSurface,
     double eps,
@@ -2271,6 +2299,9 @@ size_t WrappingPath::updPath(
     if (nSurfaces == 0) {
         return 0;
     }
+
+    // Populate any empty geodesics.
+    calcInitWrappingPath(startPoint, segments, GetSurface);
 
     /* std::cout << "START WrapSolver::calcPath\n"; */
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
@@ -2318,6 +2349,8 @@ size_t WrappingPath::updPath(
 
                 ++corrIt;
             }
+        } else {
+            return loopIter;
         }
 
         /* size_t idx = 0; */
