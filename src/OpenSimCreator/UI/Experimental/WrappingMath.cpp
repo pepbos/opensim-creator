@@ -1203,7 +1203,7 @@ void updGeodesicStatus(
     Vector3 next)
 {
     // Reset status, except for some flags.
-    const Geodesic::Status mask = Geodesic::Status::LiftOff & Geodesic::Status::Disabled;
+    const Geodesic::Status mask = Geodesic::Status::LiftOff | Geodesic::Status::Disabled;
     geodesic.status = geodesic.status & mask;
 
     if (geodesic.status & Geodesic::Status::Disabled) {
