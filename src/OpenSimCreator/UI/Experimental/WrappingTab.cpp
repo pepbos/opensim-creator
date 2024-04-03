@@ -168,14 +168,14 @@ public:
 
         if(ok)
         {
-            m_Surface.emplace_back(CreateTorus(1., 0.1f));
-            m_Surface.back().m_Surface->setLocalPathStartGuess({-1., 1., 1});
-            m_Surface.back().m_Surface->setOffsetFrame({{-3., 0., 0.}});
+            m_Surface.emplace_back(CreateSphere(1.));
+            m_Surface.back().m_Surface->setLocalPathStartGuess({-2., 2., 2});
+            m_Surface.back().m_Surface->setOffsetFrame({{-1., 1., 1.}});
         }
 
         if(ok)
         {
-            m_Surface.emplace_back(CreateSphere(1.));
+            m_Surface.emplace_back(CreateTorus(1., 0.1f));
             m_Surface.back().m_Surface->setLocalPathStartGuess({-1., 1., 1});
             m_Surface.back().m_Surface->setOffsetFrame({{-3., 0., 0.}});
         }
@@ -235,7 +235,7 @@ private:
             UpdWrappingPath(m_Surface, m_WrappingPath, m_WrappingArgs, m_StartPoint.point, m_EndPoint.point);
         }
 
-        if (m_SingleStep) {
+        if (m_SingleStep && false) {
             m_FreezePath = true;
             m_SingleStep = false;
 
@@ -349,13 +349,15 @@ private:
             {
                 for (size_t i = 0; i < m_Surface.size(); ++i) {
                     if (m_Surface.size() != m_WrappingPath.segments.size()) break;
+
+                    ui::Text(c_SurfNames.at(i));
+
                     Geodesic& g = m_WrappingPath.segments.at(i);
                     Surface* s = m_Surface.at(i).m_Surface.get();
 
                     // Enable / disable surface.
-                    bool enabled = g.status & Geodesic::Status::Disabled;
-                    ui::Text(c_SurfNames.at(i));
-                    ui::Checkbox("Enabled", &enabled);
+                    bool enabled = (g.status & Geodesic::Status::Disabled) == 0;
+                    ui::Checkbox("Active", &enabled);
                     g.status = enabled
                         ? g.status & ~Geodesic::Status::Disabled
                         : g.status | Geodesic::Status::Disabled;
@@ -381,6 +383,8 @@ private:
             for (size_t i = 0; i < m_WrappingPath.segments.size(); ++i) {
                 if (m_Surface.size() != m_WrappingPath.segments.size()) break;
                 Geodesic& g = m_WrappingPath.segments.at(i);
+
+                if (g.samples.empty()) continue;
                 /* Surface* s = m_Surface.at(i).m_Surface.get(); */
 
                 Graphics::DrawMesh(
@@ -418,8 +422,9 @@ private:
             const Vec3 next = m_EndPoint.point;
             DrawCurveSegmentMesh(prev, next, m_RedColorMaterialProps);
 
-            for (const Geodesic& s: m_WrappingPath.segments) {
-                DrawCurveSegmentMesh(ToVec3(s.K_P.p()), ToVec3(s.K_P.p() + s.K_P.n()), m_GreenColorMaterialProps);
+            for (const Geodesic& g: m_WrappingPath.segments) {
+                if (g.samples.empty()) continue;
+                DrawCurveSegmentMesh(ToVec3(g.K_P.p()), ToVec3(g.K_P.p() + g.K_P.n()), m_GreenColorMaterialProps);
             }
         }
 
@@ -428,6 +433,7 @@ private:
         // draw scene to screen
         m_Camera.setPixelRect(viewport);
         m_Camera.renderToScreen();
+
     }
 
     // Wrapping stuff.
