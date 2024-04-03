@@ -1208,6 +1208,7 @@ void updGeodesicStatus(
 
     if (geodesic.status & Geodesic::Status::Disabled) {
         s.calcLocalTrihedronOnLineNearSurface(geodesic.K_P, prev, next, 1e-3, 25);
+        return;
     }
 
     // Detect touchdown.
