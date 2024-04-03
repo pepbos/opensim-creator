@@ -145,7 +145,7 @@ namespace
         } else {
             p.startPoint = ToVector3(start);
             p.endPoint = ToVector3(end);
-            p.updPath(GetSurface);
+            p.updPath(GetSurface, args);
         }
     }
 
@@ -344,6 +344,12 @@ private:
             // Some simulation args.
             ui::Checkbox("Freeze", &m_FreezePath);
             ui::Checkbox("Single", &m_SingleStep);
+
+            ui::Checkbox("CostP", &m_WrappingArgs.m_CostP);
+            ui::Checkbox("CostQ", &m_WrappingArgs.m_CostQ);
+            ui::Checkbox("CostT", &m_WrappingArgs.m_CostT);
+            ui::Checkbox("CostN", &m_WrappingArgs.m_CostN);
+            ui::Checkbox("CostB", &m_WrappingArgs.m_CostB);
 
             // Surface specific stuff.
             {

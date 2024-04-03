@@ -670,21 +670,18 @@ public:
 
     // Compute the geodesic corrections from the path error and path error
     // jacobian.
-    bool calcPathCorrection();
-
-    // Resize internal matrices to match the problem size (number of
-    // surfaces).
-    void resize(size_t rows, size_t cols);
+    bool calcPathCorrection(const WrappingArgs& args);
 
     static const size_t NUMBER_OF_CONSTRAINTS = 6;
 
-    void resize(size_t nSurfaces);
+    void resize(size_t nSurfaces, const WrappingArgs& args);
 
     CorrectionBounds maxStep;
 
     double _eps = 1e-10;
     Eigen::VectorXd _solverError; // For debugging.
     Eigen::VectorXd _pathCorrections;
+
     Eigen::VectorXd _pathError;
     Eigen::MatrixXd _pathErrorJacobian;
 
@@ -722,6 +719,7 @@ struct WrappingPath
 
     size_t updPath(
         GetSurfaceFn& GetSurface,
+        const WrappingArgs& args,
         double eps     = 1e-6,
         size_t maxIter = 10);
 
