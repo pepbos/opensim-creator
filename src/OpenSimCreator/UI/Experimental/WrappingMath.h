@@ -199,9 +199,7 @@ struct WrappingArgs
     bool m_CostT = true;
     bool m_CostN = false;
     bool m_CostB = false;
-    bool m_ConT = false;
-    bool m_ConN = false;
-    bool m_ConB = false;
+    bool m_Augment = false;
     bool m_Cache = false;
 };
 

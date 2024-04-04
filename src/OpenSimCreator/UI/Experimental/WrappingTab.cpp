@@ -350,6 +350,8 @@ private:
             ui::Checkbox("CostT", &m_WrappingArgs.m_CostT);
             ui::Checkbox("CostN", &m_WrappingArgs.m_CostN);
             ui::Checkbox("CostB", &m_WrappingArgs.m_CostB);
+            ui::Checkbox("CostL", &m_WrappingArgs.m_CostL);
+            ui::Checkbox("Augment", &m_WrappingArgs.m_Augment);
 
             // Surface specific stuff.
             {

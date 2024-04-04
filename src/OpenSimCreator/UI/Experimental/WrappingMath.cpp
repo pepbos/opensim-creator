@@ -1976,8 +1976,6 @@ void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
 
 bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
 {
-    const bool augmented = false;
-
     const double weight = calcMaxPathError() / 2. + 1e-3;
 
     /* std::cout << "weight =" << weight << std::endl; */
@@ -2000,23 +1998,29 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
     constexpr size_t Q = Geodesic::DOF;
     const size_t c = countConstraints(args);
 
-    /* _mat *= weight; */
+    _costL = _lengthJacobian * _lengthJacobian.transpose() / _length;
+    _vecL  = _lengthJacobian;
 
-    /* _matSmall.fill(0.); */
-    /* _matSmall = _pathErrorJacobian * _pathErrorJacobian.transpose() * weight;
-     */
-
-    if (augmented) {
+    if (args.m_Augment) {
         // Set cost function.
-        /* { */
-            /* _mat.topLeftCorner(n * Q, n * Q) *= weight; */
-            /* _mat.topLeftCorner(n * Q, n * Q) += */
-            /*     _lengthJacobian * _lengthJacobian.transpose() * weightLength; */
-            /* /1* _vec.topRows(n * Q).fill(0.); *1/ */
-            /* _vec.topRows(n * Q) = _lengthJacobian * _length * weightLength; */
-        /* } */
+        {
+            _vec.fill(0.);
+            _mat.topLeftCorner(n * Q, n * Q).setIdentity();
+            if (args.m_CostP) {
+                _mat.topLeftCorner(n * Q, n * Q) += _costP * weight;
+            }
+            if (args.m_CostQ) {
+                _mat.topLeftCorner(n * Q, n * Q) += _costQ * weight;
+            }
+
+            if (args.m_CostL) {
+                _mat.topLeftCorner(n * Q, n * Q) += _costL;
+                _vec.topRows(n * Q) += _vecL;
+            }
+        }
 
         // Set constraints
+        if (c > 0)
         {
             _mat.bottomLeftCorner(n * c, n * Q) = _pathErrorJacobian;
             _mat.topRightCorner(n * Q, n * c) = _pathErrorJacobian.transpose();
@@ -2026,9 +2030,6 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
         _solve           = -_mat.colPivHouseholderQr().solve(_vec);
         _pathCorrections = _solve.topRows(n * Q);
     } else {
-        /* for (size_t i = 0; i < n * Q; ++i) { */
-        /*     _matSmall(i,i) = weight; */
-        /* } */
         _vecSmall.fill(0.);
 
         if (args.m_CostP) {
@@ -2042,22 +2043,15 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
         }
         _matSmall *= weight;
 
-        _costL = _lengthJacobian * _lengthJacobian.transpose() / _length;
-        _vecL  = _lengthJacobian;
         if (args.m_CostL) {
             _matSmall += _costL;
             _vecSmall += _vecL;
         }
 
-        /* _matSmall += _costL * weightLength; */
-
         if (c > 0) {
             _matSmall += _pathErrorJacobian.transpose() * _pathErrorJacobian;
             _vecSmall += _pathErrorJacobian.transpose() * _pathError;
         }
-        /* const bool singular = ((calcInfNorm(_vecSmall) < bnd / 100.) &&
-         * (calcInfNorm(_pathError) > bnd)); */
-        /* _vecSmall += _vecL * weightLength; */
 
         _solveSmall = -_matSmall.colPivHouseholderQr().solve(_vecSmall);
 
@@ -2212,6 +2206,66 @@ void calcSegmentPathErrorJacobian(
     }
 }
 
+const Geodesic* getActive(
+        const std::vector<Geodesic>& geodesics,
+        size_t idx)
+{
+    size_t i = 0;
+    for (const Geodesic& g: geodesics)
+    {
+        if (!isActive(g.status)) continue;
+
+        if (i == idx) return &g;
+
+        ++i;
+    }
+    return nullptr;
+}
+
+void calcLengthJacobian(WrappingPath& path)
+{
+    const size_t n = countActive(path.segments);
+
+    double& lTot = path.smoothness._length = 0.;
+
+    if (n == 0) return;
+
+    Vector3 e {NAN, NAN, NAN};
+    double l = NAN;
+
+    // First segment start.
+    {
+        e = getActive(path.segments, 0)->K_P.p() - path.startPoint;
+        l = e.norm();
+        lTot += l;
+    }
+
+    GeodesicJacobian jacobian {NAN, NAN, NAN, NAN};
+    for (size_t i = 0; i < n; ++i)
+    {
+        const Geodesic& g = *getActive(path.segments, i);
+
+        // Length of curve segment.
+        jacobian = {0., 0., 0., 1.};
+        lTot += g.length;
+
+        // Length of previous line segment.
+        jacobian += (e/l).transpose() * g.v_P;
+
+        // Length of next line segment.
+        Vector3 p_I = i == n - 1
+            ? path.endPoint
+            : getActive(path.segments, i+1)->K_P.p();
+        e = (p_I - g.K_Q.p());
+        l = e.norm();
+        lTot += l;
+        jacobian += -(e/l).transpose() * g.v_Q;
+
+        // Write jacobian elements.
+        path.smoothness._lengthJacobian.middleRows<Geodesic::DOF>(i * Geodesic::DOF) = jacobian;
+    }
+}
+
 size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
 {
     size_t nActiveSegments = countActive(path.segments);
@@ -2219,9 +2273,10 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
 
     path.smoothness.resize(nActiveSegments, args);
 
+    calcLengthJacobian(path);
+
     // Active segment count.
     size_t row               = 0;
-    size_t rowLengthJacobian = 3;
     /* SegmentIterator end = SegmentIterator::End(path); */
     /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it)
      */
@@ -2269,10 +2324,6 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
                 row,
                 false);
         }
-
-        path.smoothness._length += std::abs(s.length);
-        path.smoothness._lengthJacobian(rowLengthJacobian) += sign(s.length);
-        rowLengthJacobian += Geodesic::DOF;
 
         for (size_t i = 0; i < Geodesic::DOF; ++i) {
             for (size_t j = 0; j < Geodesic::DOF; ++j) {
@@ -2349,7 +2400,8 @@ size_t WrappingPath::updPath(
             /* std::cout << "    ===== ERRR ==== = " <<
              * path.smoothness.calcMaxPathError() << "\n"; */
 
-            if (smoothness.calcMaxPathError() < eps) {
+            if (smoothness.calcMaxPathError() < eps && false)
+            {
                 return loopIter;
             }
 
