@@ -398,6 +398,51 @@ double sign(double x)
     return static_cast<double>(x > 0.) - static_cast<double>(x < 0.);
 }
 
+template <typename VECTOR>
+double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
+{
+    double infNorm = 0.;
+    const auto n   = static_cast<size_t>(vec.rows());
+    for (size_t i = 0; i < n; ++i) {
+        infNorm = std::max(infNorm, std::abs(vec[i]));
+    }
+    return infNorm;
+}
+
+template <typename VECTOR>
+double calcScaledToFit(
+    typename std::remove_reference<VECTOR>::type& vec,
+    double bound)
+{
+    const double c = std::abs(bound) / calcInfNorm<VECTOR>(vec);
+    if (c < 1.) {
+        vec *= c;
+    }
+    return std::min(c, 1.);
+}
+
+/* template <> */
+/* double calcInfNorm<ImplicitGeodesicState>(const ImplicitGeodesicState& y) */
+/* { */
+/*     double infNorm = 0.; */
+
+/*     infNorm = std::max(infNorm, y.position[0]); */
+/*     infNorm = std::max(infNorm, y.position[1]); */
+/*     infNorm = std::max(infNorm, y.position[2]); */
+
+/*     infNorm = std::max(infNorm, y.velocity[0]); */
+/*     infNorm = std::max(infNorm, y.velocity[1]); */
+/*     infNorm = std::max(infNorm, y.velocity[2]); */
+
+/*     infNorm = std::max(infNorm, y.a); */
+/*     infNorm = std::max(infNorm, y.aDot); */
+
+/*     infNorm = std::max(infNorm, y.r); */
+/*     infNorm = std::max(infNorm, y.rDot); */
+
+/*     return infNorm; */
+/* } */
+
 //==============================================================================
 //                      CURVATURES
 //==============================================================================
@@ -724,35 +769,6 @@ GeodesicJacobian calcPathErrorJacobian(
 double calcMaxAlignmentError(double angleDeg)
 {
     return std::abs(1. - cos(angleDeg / 180. * M_PI));
-}
-
-template <typename VECTOR>
-double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
-{
-    double maxError = 0.;
-    const auto n    = static_cast<size_t>(vec.rows());
-    for (size_t i = 0; i < n; ++i) {
-        maxError = std::max(maxError, std::abs(vec[i]));
-    }
-    return maxError;
-}
-
-template <typename VECTOR>
-double calcScaledToFit(
-    typename std::remove_reference<VECTOR>::type& vec,
-    double bound)
-{
-    const double c = std::abs(bound) / calcInfNorm<VECTOR>(vec);
-    if (c < 1.) {
-        vec *= c;
-    }
-    return std::min(c, 1.);
-}
-
-template <double>
-double calcInfNorm(double x)
-{
-    return std::abs(x);
 }
 
 // Find the touchdown point of a line to a surface.
@@ -1209,6 +1225,8 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
     double x = 0.;
     double e = 0.;
 
+    _failedCount = 0;
+
     _samples.clear();
     _samples.push_back(Sample(x, _y.at(0)));
 
@@ -1224,6 +1242,7 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
             h /= 2.;
             _y.at(1) = _y.at(0);
             _y.at(2) = _y.at(0);
+            ++_failedCount;
         } else { // Accepted
             _y.at(0) = _y.at(2);
             _y.at(1) = _y.at(2);
@@ -1237,7 +1256,13 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
         }
 
         e = std::max(e, err);
+        h = std::min(_hMax, std::max(_hMin, h));
     }
+
+    if (_samples.size() > 2) {
+        _h0 = _samples.at(2).x - _samples.at(1).x;
+    }
+    _h0 = std::min(_hMax, std::max(_hMin, _h0));
 
     return e;
 }
@@ -1245,34 +1270,85 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
 void RunIntegratorTests()
 {
 
-    RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-3, 1e-3, 1e-6);
-
-    const Vector3 w {1., 2., 3.};
-
-    std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
+    // Fixed step integrator test.
     {
-        return w.cross(yk);
-    };
+        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-3, 1e-3, 1e-6);
 
-    const Vector3 y0 {1., 0., 0.};
-    const double x = 1.;
+        const Vector3 w {1., 2., 3.};
 
-    const double e = rkm.stepTo(y0, x, f);
-    const Vector3 y1 = rkm.getSamples().back().y;
+        std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
+        {
+            return w.cross(yk);
+        };
 
-    // Check the result
-    Vector3 axis = w / w.norm();
-    double angle = w.norm() * x;
-    Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
+        const Vector3 y0 {1., 0., 0.};
+        const double x = 1.;
 
-    const Vector3 y1_expected = q * y0;
-    const double e_expected = (y1 - y1_expected).norm();
+        const double e = rkm.stepTo(y0, x, f);
+        const Vector3 y1 = rkm.getSamples().back().y;
 
-    std::cout << "y0     = " << y0 << std::endl;
-    std::cout << "y1     = " << y1.transpose() << std::endl;
-    std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
-    std::cout << "e      = " << e << std::endl;
-    std::cout << "e_exp  = " << e_expected << std::endl;
+        // Check the result
+        Vector3 axis = w / w.norm();
+        double angle = w.norm() * x;
+        Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
+
+        const Vector3 y1_expected = q * y0;
+        const double e_real = (y1 - y1_expected).norm();
+
+        std::cout << "y0     = " << y0 << std::endl;
+        std::cout << "y1     = " << y1.transpose() << std::endl;
+        std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
+        std::cout << "e      = " << e << std::endl;
+        std::cout << "e_exp  = " << e_real << std::endl;
+
+        if (e_real > 1e-10) {
+            throw std::runtime_error("Failed RungeKuttaMerson fixed step integrator test");
+        }
+    }
+
+    // Variable step integrator test.
+    {
+        const double accuracy = 1e-6;
+        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-5, 1e-1, accuracy);
+
+        const Vector3 w {1., 2., 3.};
+
+        std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
+        {
+            return w.cross(yk);
+        };
+
+        const Vector3 y0 {1., 0., 0.};
+        const double x = 1.;
+
+        double e = NAN;
+        Vector3 y1;
+
+        for (size_t i = 0; i < 20; ++i) {
+            e = rkm.stepTo(y0, x, f);
+            y1 = rkm.getSamples().back().y;
+            std::cout << "n      = " << rkm.getSamples().size() << std::endl;
+        }
+        std::cout << "failed = " << rkm.getNumberOfFailedSteps() << std::endl;
+
+        // Check the result
+        Vector3 axis = w / w.norm();
+        double angle = w.norm() * x;
+        Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
+
+        const Vector3 y1_expected = q * y0;
+        const double e_real = (y1 - y1_expected).norm();
+
+        std::cout << "y0     = " << y0 << std::endl;
+        std::cout << "y1     = " << y1.transpose() << std::endl;
+        std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
+        std::cout << "e      = " << e << std::endl;
+        std::cout << "e_exp  = " << e_real << std::endl;
+
+        if (e_real > 10. * accuracy) {
+            throw std::runtime_error("Failed RungeKuttaMerson variable step integrator test");
+        }
+    }
 
     throw std::runtime_error("stop");
 }

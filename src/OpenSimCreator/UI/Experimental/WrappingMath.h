@@ -409,6 +409,7 @@ class RungeKuttaMerson
     };
 
     const std::vector<Sample>& getSamples() const {return _samples;}
+    size_t getNumberOfFailedSteps() const {return _failedCount;}
 
     private:
     static constexpr size_t ORDER = 5;
@@ -422,6 +423,8 @@ class RungeKuttaMerson
     double _hMin = NAN;
     double _hMax = NAN;
     double _accuracy = NAN;
+
+    size_t _failedCount = 0;
 };
 
 void RunIntegratorTests();
