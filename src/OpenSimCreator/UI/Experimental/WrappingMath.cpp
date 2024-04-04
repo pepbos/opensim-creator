@@ -263,7 +263,7 @@ Darboux Darboux::FromTangenGuessAndNormal(Vector3 tangentGuess, Vector3 normal)
     t         = t / t.norm();
 
     Vector3 b = t.cross(n);
-    b = b / b.norm();
+    b         = b / b.norm();
 
     return Darboux(t, n, b);
 }
@@ -277,19 +277,30 @@ Darboux::Darboux(Vector3 tangent, Vector3 normal, Vector3 binormal)
     AssertDarbouxFrame(*this);
 }
 
-Trihedron::Trihedron(Vector3 point, Darboux rotation)
-    : _point(std::move(point)), _rotation(std::move(rotation))
+Trihedron::Trihedron(Vector3 point, Darboux rotation) :
+    _point(std::move(point)), _rotation(std::move(rotation))
 {}
 
-Trihedron::Trihedron(Vector3 point, Vector3 tangent, Vector3 normal, Vector3 binormal)
-    : Trihedron(std::move(point), Darboux(tangent, normal, binormal))
+Trihedron::Trihedron(
+    Vector3 point,
+    Vector3 tangent,
+    Vector3 normal,
+    Vector3 binormal) :
+    Trihedron(
+        std::move(point),
+        Darboux(std::move(tangent), std::move(normal), std::move(binormal)))
 {}
 
 Trihedron Trihedron::FromPointAndTangentGuessAndNormal(
-        Vector3 point,
-        Vector3 tangentGuess, Vector3 normal)
+    Vector3 point,
+    Vector3 tangentGuess,
+    Vector3 normal)
 {
-    return Trihedron(std::move(point), Darboux::FromTangenGuessAndNormal(tangentGuess, normal));
+    return {
+        std::move(point),
+        Darboux::FromTangenGuessAndNormal(
+            std::move(tangentGuess),
+            std::move(normal))};
 }
 
 namespace
@@ -298,16 +309,16 @@ namespace
 Darboux operator*(Eigen::Quaterniond lhs, const Darboux& rhs)
 {
     Eigen::Matrix<double, 3, 3> mat = lhs.toRotationMatrix();
-    const Vector3 t = mat * rhs.t();
-    const Vector3 n = mat * rhs.n();
+    const Vector3 t                 = mat * rhs.t();
+    const Vector3 n                 = mat * rhs.n();
     return {t, n, t.cross(n)};
 }
 
 Trihedron operator*(Eigen::Quaterniond lhs, const Trihedron& rhs)
 {
     Eigen::Matrix<double, 3, 3> mat = lhs.toRotationMatrix();
-    const Vector3 t = mat * rhs.t();
-    const Vector3 n = mat * rhs.n();
+    const Vector3 t                 = mat * rhs.t();
+    const Vector3 n                 = mat * rhs.n();
     return {mat * rhs.p(), t, n, t.cross(n)};
 }
 
@@ -342,7 +353,7 @@ Vector3 calcVectorInGround(const Transf&, Vector3 vecInLocal)
 void calcInGroundFrame(const Transf& transform, Trihedron& K)
 {
     Vector3& p = K.updPoint();
-    p = calcPointInGround(transform, p);
+    p          = calcPointInGround(transform, p);
 
     // TODO Rotation transform here.
 }
@@ -351,7 +362,7 @@ void calcGeodesicInGlobal(const Transf& transform, Geodesic& g)
 {
     calcInGroundFrame(transform, g.K_P);
     calcInGroundFrame(transform, g.K_Q);
-    for (Trihedron& Ki: g.samples) {
+    for (Trihedron& Ki : g.samples) {
         calcInGroundFrame(transform, Ki);
     }
 }
@@ -452,9 +463,7 @@ double calcGeodesicTorsion(
 }
 
 // TODO use normalized vector.
-Vector3 calcSurfaceNormal(
-    const ImplicitSurface& s,
-    Vector3 point)
+Vector3 calcSurfaceNormal(const ImplicitSurface& s, Vector3 point)
 {
     const Vector3& p       = point;
     const Vector3 gradient = s.calcSurfaceConstraintGradient(p);
@@ -468,7 +477,8 @@ Vector3 calcAcceleration(
 {
     // TODO Writing it out saves a root, but optimizers are smart.
     // Sign flipped compared to thesis: kn = negative, see eq 3.63
-    return calcNormalCurvature(s, point, std::move(tangent)) * calcSurfaceNormal(s, point);
+    return calcNormalCurvature(s, point, std::move(tangent)) *
+           calcSurfaceNormal(s, point);
 }
 
 double calcGaussianCurvature(
@@ -493,14 +503,20 @@ Trihedron calcTrihedron(
     const Vector3& p,
     const Vector3& t)
 {
-    return Trihedron::FromPointAndTangentGuessAndNormal(p, t, calcSurfaceNormal(s, p));
+    return Trihedron::FromPointAndTangentGuessAndNormal(
+        p,
+        t,
+        calcSurfaceNormal(s, p));
 }
 
 Trihedron calcTrihedron(
     const ImplicitSurface& s,
     const ImplicitGeodesicState& q)
 {
-    return Trihedron::FromPointAndTangentGuessAndNormal(q.position, q.velocity, calcSurfaceNormal(s, q.position));
+    return Trihedron::FromPointAndTangentGuessAndNormal(
+        q.position,
+        q.velocity,
+        calcSurfaceNormal(s, q.position));
 }
 
 //==============================================================================
@@ -580,10 +596,10 @@ void calcGeodesicBoundaryState(
 
     w.col(0) = Vector3{tau_g, 0., kappa_n};
     w.col(1) = Vector3{
-                -q.a * kappa_a,
-                -q.aDot,
-                -q.a * tau_g,
-                };
+        -q.a * kappa_a,
+        -q.aDot,
+        -q.a * tau_g,
+    };
     w.col(2) = Vector3{-q.r * kappa_a, -q.rDot, -q.r * tau_g};
     w.col(3) = isEnd ? Vector3{tau_g, 0., kappa_n} : Vector3{0., 0., 0.};
 
@@ -624,8 +640,12 @@ calcLocalImplicitGeodesic(
         std::move(positionInit),
         std::move(velocityInit)};
     constexpr size_t maxIter = 10;
-    if (calcFastSurfaceProjection(s, xStart.position, xStart.velocity, 1e-10, maxIter) >= maxIter)
-    {
+    if (calcFastSurfaceProjection(
+            s,
+            xStart.position,
+            xStart.velocity,
+            1e-10,
+            maxIter) >= maxIter) {
         throw std::runtime_error("failed to project initial point to surface");
     }
 
@@ -642,8 +662,14 @@ calcLocalImplicitGeodesic(
     for (size_t k = 0; k < steps; ++k) {
         RungeKutta4(s, xEnd, l, dl);
 
-        if(calcFastSurfaceProjection(s, xEnd.position, xEnd.velocity, 1e-10, maxIter) >= maxIter) {
-            throw std::runtime_error("failed to project point to surface during integration");
+        if (calcFastSurfaceProjection(
+                s,
+                xEnd.position,
+                xEnd.velocity,
+                1e-10,
+                maxIter) >= maxIter) {
+            throw std::runtime_error(
+                "failed to project point to surface during integration");
         }
 
         Monitor(xEnd);
@@ -662,9 +688,13 @@ calcLocalImplicitGeodesic(
 //                      PATH ERROR GRADIENT
 //==============================================================================
 
-using GeodesicJacobian  = Eigen::Vector<double, Geodesic::DOF>;
+using GeodesicJacobian = Eigen::Vector<double, Geodesic::DOF>;
 
-GeodesicJacobian calcDirectionJacobian(Vector3 d, double l, Vector3 axis, const Geodesic::Variation& v)
+GeodesicJacobian calcDirectionJacobian(
+    Vector3 d,
+    double l,
+    Vector3 axis,
+    const Geodesic::Variation& v)
 {
     AssertEq(d.dot(d), 1., "direction must be unit");
 
@@ -681,7 +711,8 @@ GeodesicJacobian calcPathErrorJacobian(
     const Geodesic::Variation& w,
     bool invertV = false)
 {
-    GeodesicJacobian jacobian = calcDirectionJacobian(e, l, axis, v) * (invertV ? -1. : 1.);
+    GeodesicJacobian jacobian =
+        calcDirectionJacobian(e, l, axis, v) * (invertV ? -1. : 1.);
     jacobian += axis.cross(e).transpose() * w;
     return jacobian;
 }
@@ -707,7 +738,9 @@ double calcInfNorm(const typename std::remove_reference<VECTOR>::type& vec)
 }
 
 template <typename VECTOR>
-double calcScaledToFit(typename std::remove_reference<VECTOR>::type& vec, double bound)
+double calcScaledToFit(
+    typename std::remove_reference<VECTOR>::type& vec,
+    double bound)
 {
     const double c = std::abs(bound) / calcInfNorm<VECTOR>(vec);
     if (c < 1.) {
@@ -732,149 +765,228 @@ std::pair<Vector3, size_t> calcLineToImplicitSurfaceTouchdownPoint(
 {
     // Initial guess.
     double alpha = 0.;
-    size_t iter = 0;
+    size_t iter  = 0;
 
     for (; iter < maxIter; ++iter) {
         // Touchdown point on line.
-        const Vector3 d = b - a;
+        const Vector3 d  = b - a;
         const Vector3 pl = a + (b - a) * alpha;
 
         // Constraint evaluation at touchdown point.
         const double c = s.calcSurfaceConstraint(pl);
 
         // Assumes a negative constraint evaluation means touchdown.
-        if (std::abs(c) < eps) break;
+        if (std::abs(c) < eps)
+            break;
 
         // Gradient at point on line.
-        const Vector3 g = s.calcSurfaceConstraintGradient(pl);
+        const Vector3 g                  = s.calcSurfaceConstraintGradient(pl);
         const ImplicitSurface::Hessian H = s.calcSurfaceConstraintHessian(pl);
 
         // Add a weight to the newton step to avoid large steps.
         constexpr double w = 0.5;
 
         // Update alpha.
-        const double step = g.dot(d) / (d.dot(H*d) + w);
+        const double step = g.dot(d) / (d.dot(H * d) + w);
 
         // Stop when converged.
-        if (std::abs(step) < eps) break;
+        if (std::abs(step) < eps)
+            break;
 
         // Clamp the stepsize.
         constexpr double maxStep = 0.25;
         alpha -= std::min(std::max(-maxStep, step), maxStep);
 
         // Stop when leaving bounds.
-        if (alpha < 0. || alpha > 1.) break;
+        if (alpha < 0. || alpha > 1.)
+            break;
     }
 
-    alpha = std::max(std::min(1., alpha), 0.);
+    alpha            = std::max(std::min(1., alpha), 0.);
     const Vector3 pl = a + (b - a) * alpha;
     return {pl, iter};
 }
 
 std::pair<Vector3, size_t> ImplicitSurface::calcLocalPointOnLineNearSurfaceImpl(
-        Vector3 a, Vector3 b, double eps, size_t maxIter) const
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     return calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
 }
 
-size_t ImplicitSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t ImplicitSurface::calcLocalPointOnSurfaceNearLineImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
-    std::pair<Vector3, size_t> ta = calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
-    std::pair<Vector3, size_t> tb = calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
+    std::pair<Vector3, size_t> ta =
+        calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
+    std::pair<Vector3, size_t> tb =
+        calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
 
     size_t i = ta.second + tb.second;
 
-    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) < std::abs(calcSurfaceConstraint(tb.first))
-        ? ta.first
-        : tb.first;
+    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) <
+                        std::abs(calcSurfaceConstraint(tb.first))
+                    ? ta.first
+                    : tb.first;
 
     i += calcAccurateLocalSurfaceProjection(p, K, eps, maxIter);
 
     return i;
 }
 
-size_t ImplicitSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t ImplicitSurface::calcLocalTrihedronOnLineNearSurfaceImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
-    std::pair<Vector3, size_t> ta = calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
-    std::pair<Vector3, size_t> tb = calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
+    std::pair<Vector3, size_t> ta =
+        calcLineToImplicitSurfaceTouchdownPoint(*this, b, a, eps, maxIter);
+    std::pair<Vector3, size_t> tb =
+        calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, eps, maxIter);
 
     size_t i = ta.second + tb.second;
 
-    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) < std::abs(calcSurfaceConstraint(tb.first))
-        ? ta.first
-        : tb.first;
+    Vector3 p = std::abs(calcSurfaceConstraint(ta.first)) <
+                        std::abs(calcSurfaceConstraint(tb.first))
+                    ? ta.first
+                    : tb.first;
 
     K = calcTrihedron(*this, p, b - a);
     return i;
 }
 
-size_t AnalyticSphereSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t AnalyticSphereSurface::calcLocalTrihedronOnLineNearSurfaceImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << K << a << b << eps << maxIter << std::endl;
 }
 
-size_t AnalyticCylinderSurface::calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t AnalyticCylinderSurface::calcLocalTrihedronOnLineNearSurfaceImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << K << a << b << eps << maxIter << std::endl;
 }
 
-size_t AnalyticCylinderSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t AnalyticCylinderSurface::calcLocalPointOnSurfaceNearLineImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << K << a << b << eps << maxIter << std::endl;
 }
 
-std::pair<Vector3, size_t> AnalyticCylinderSurface::calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+std::pair<Vector3, size_t> AnalyticCylinderSurface::
+    calcLocalPointOnLineNearSurfaceImpl(
+        Vector3 a,
+        Vector3 b,
+        double eps,
+        size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << a << b << eps << maxIter << std::endl;
 }
 
-size_t AnalyticSphereSurface::calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t AnalyticSphereSurface::calcLocalPointOnSurfaceNearLineImpl(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << K << a << b << eps << maxIter << std::endl;
 }
 
-std::pair<Vector3, size_t> AnalyticSphereSurface::calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+std::pair<Vector3, size_t> AnalyticSphereSurface::
+    calcLocalPointOnLineNearSurfaceImpl(
+        Vector3 a,
+        Vector3 b,
+        double eps,
+        size_t maxIter) const
 {
     throw std::runtime_error("not yet implemented");
     std::cout << a << b << eps << maxIter << std::endl;
 }
 
-std::pair<Vector3, size_t> Surface::calcPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+std::pair<Vector3, size_t> Surface::calcPointOnLineNearSurface(
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     auto t = calcLocalPointOnLineNearSurfaceImpl(
-            calcPointInLocal(_transform, std::move(a)),
-            calcPointInLocal(_transform, std::move(b)),
-            eps, maxIter);
+        calcPointInLocal(_transform, std::move(a)),
+        calcPointInLocal(_transform, std::move(b)),
+        eps,
+        maxIter);
     t.first = calcPointInGround(_transform, t.first);
     return t;
 }
 
-std::pair<Vector3, size_t> Surface::calcLocalPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const
+std::pair<Vector3, size_t> Surface::calcLocalPointOnLineNearSurface(
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     return calcLocalPointOnLineNearSurfaceImpl(a, b, eps, maxIter);
 }
 
-size_t Surface::calcPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t Surface::calcPointOnSurfaceNearLine(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
-    size_t iter = calcLocalPointOnSurfaceNearLine(K,
-            calcPointInLocal(_transform, std::move(a)),
-            calcPointInLocal(_transform, std::move(b)),
-            eps, maxIter);
+    size_t iter = calcLocalPointOnSurfaceNearLine(
+        K,
+        calcPointInLocal(_transform, std::move(a)),
+        calcPointInLocal(_transform, std::move(b)),
+        eps,
+        maxIter);
     calcInGroundFrame(_transform, K);
     return iter;
 }
 
-size_t Surface::calcLocalPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t Surface::calcLocalPointOnSurfaceNearLine(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
-    return calcLocalPointOnSurfaceNearLineImpl(K, std::move(a), std::move(b), eps, maxIter);
+    return calcLocalPointOnSurfaceNearLineImpl(
+        K,
+        std::move(a),
+        std::move(b),
+        eps,
+        maxIter);
 }
 
-// This algorithm attempts to find the point on the surface that is closest to the given point.
+// This algorithm attempts to find the point on the surface that is closest to
+// the given point.
 size_t calcAccurateSurfaceProjection(
     const ImplicitSurface& s,
     Vector3 point,
@@ -896,8 +1008,10 @@ size_t calcAccurateSurfaceProjection(
     Geodesic::Variation v_P;
     Geodesic::Variation w_P;
 
-    Vector3 pk = K_P.p();;
-    Vector3 tk = K_P.t();;
+    Vector3 pk = K_P.p();
+    ;
+    Vector3 tk = K_P.t();
+    ;
 
     for (; iter < maxIter; ++iter) {
         // Project directly to surface.
@@ -936,7 +1050,8 @@ size_t calcAccurateSurfaceProjection(
         }
 
         // Compute gradient of cost.
-        GeodesicJacobian g = -calcPathErrorJacobian(e, l, K_P.n(), v_P, w_P, true);
+        GeodesicJacobian g =
+            -calcPathErrorJacobian(e, l, K_P.n(), v_P, w_P, true);
         Vector2 df{g[0], g[1]}; // TODO no need to compute entire jacobian.
 
         // Compute step to minimize the cost.
@@ -958,11 +1073,8 @@ size_t ImplicitSurface::calcAccurateLocalSurfaceProjectionImpl(
     double eps,
     size_t maxIter) const
 {
-    size_t iter = calcAccurateSurfaceProjection(
-        *this,
-        pointInit, K,
-        eps,
-        maxIter);
+    size_t iter =
+        calcAccurateSurfaceProjection(*this, pointInit, K, eps, maxIter);
     return iter;
 }
 
@@ -979,7 +1091,12 @@ size_t Surface::calcAccurateLocalSurfaceProjection(
         maxIter);
 }
 
-size_t Surface::calcLocalTrihedronOnLineNearSurface(Trihedron &K, Vector3 a, Vector3 b, double eps, size_t maxIter) const
+size_t Surface::calcLocalTrihedronOnLineNearSurface(
+    Trihedron& K,
+    Vector3 a,
+    Vector3 b,
+    double eps,
+    size_t maxIter) const
 {
     return calcLocalTrihedronOnLineNearSurfaceImpl(K, a, b, eps, maxIter);
 }
@@ -1005,12 +1122,12 @@ size_t calcTouchdown(
 {
     for (size_t iter = 0; iter < maxIter; ++iter) {
         const Vector3 pl = calcPointOnLineNearPoint(prev, next, K.p());
-        K = Trihedron::FromPointAndTangentGuessAndNormal(K.p(), K.p() - prev, K.n());
-        iter += s.calcAccurateLocalSurfaceProjection(
-            pl,
-            K,
-            eps,
-            maxIter - iter);
+        K                = Trihedron::FromPointAndTangentGuessAndNormal(
+            K.p(),
+            K.p() - prev,
+            K.n());
+        iter +=
+            s.calcAccurateLocalSurfaceProjection(pl, K, eps, maxIter - iter);
 
         // Detect touchdown.
         const Vector3 d    = (pl - K.p());
@@ -1058,9 +1175,7 @@ GS isPrevOrNextLineSegmentInsideSurface(
     return a | b;
 }
 
-bool calcLiftoff(
-    const Trihedron& K,
-    Vector3 point)
+bool calcLiftoff(const Trihedron& K, Vector3 point)
 {
     return K.n().dot(point - K.p()) > 0.;
 }
@@ -1071,8 +1186,10 @@ GS calcLiftoff(
     Vector3 prevPoint,
     Vector3 nextPoint)
 {
-    const bool lift_P = calcLiftoff(K_P, prevPoint) && calcLiftoff(K_P, nextPoint);
-    const bool lift_Q = calcLiftoff(K_Q, prevPoint) && calcLiftoff(K_Q, nextPoint);
+    const bool lift_P =
+        calcLiftoff(K_P, prevPoint) && calcLiftoff(K_P, nextPoint);
+    const bool lift_Q =
+        calcLiftoff(K_Q, prevPoint) && calcLiftoff(K_Q, nextPoint);
     const bool liftoff = lift_P || lift_Q;
     return liftoff ? GS::LiftOff : GS::Ok;
 }
@@ -1097,7 +1214,8 @@ GS calcLiftoff(
     return liftoff ? GS::LiftOff : GS::Ok;
 }
 
-bool isActive(Geodesic::Status s) {
+bool isActive(Geodesic::Status s)
+{
     return s == Geodesic::Status::Ok || s == Geodesic::Status::NegativeLength;
 }
 
@@ -1194,11 +1312,17 @@ void updGeodesicStatus(
     Vector3 next)
 {
     // Reset status, except for some flags.
-    const Geodesic::Status mask = Geodesic::Status::LiftOff | Geodesic::Status::Disabled;
+    const Geodesic::Status mask =
+        Geodesic::Status::LiftOff | Geodesic::Status::Disabled;
     geodesic.status = geodesic.status & mask;
 
     if (geodesic.status & Geodesic::Status::Disabled) {
-        s.calcLocalTrihedronOnLineNearSurface(geodesic.K_P, prev, next, 1e-3, 25);
+        s.calcLocalTrihedronOnLineNearSurface(
+            geodesic.K_P,
+            prev,
+            next,
+            1e-3,
+            25);
         return;
     }
 
@@ -1212,10 +1336,7 @@ void updGeodesicStatus(
     geodesic.status |= isPrevOrNextLineSegmentInsideSurface(s, prev, next);
 
     if (geodesic.length < 0.) {
-        geodesic.status |= calcLiftoff(
-                geodesic.K_P,
-                geodesic.K_Q,
-                prev, next);
+        geodesic.status |= calcLiftoff(geodesic.K_P, geodesic.K_Q, prev, next);
     }
 
     geodesic.status |= calcLiftoff(
@@ -1235,19 +1356,18 @@ void updGeodesicStatus(
 
     if (geodesic.status & Geodesic::Status::LiftOff) {
         size_t maxIter = 25;
-        if (s.calcLocalTrihedronOnLineNearSurface(geodesic.K_P, prev, next, 1e-5, maxIter) >= maxIter)
-        {
+        if (s.calcLocalTrihedronOnLineNearSurface(
+                geodesic.K_P,
+                prev,
+                next,
+                1e-5,
+                maxIter) >= maxIter) {
             geodesic.status |= Geodesic::Status::TouchDownFailed;
         }
         return;
         // TODO remove below
-        if (calcTouchdown(
-                s,
-                geodesic.K_P,
-                prev,
-                next,
-                1e-3,
-                maxIter) == maxIter) {
+        if (calcTouchdown(s, geodesic.K_P, prev, next, 1e-3, maxIter) ==
+            maxIter) {
             geodesic.status |= Geodesic::Status::TouchDownFailed;
         }
     }
@@ -1321,21 +1441,22 @@ Vector3 Surface::getPathStartGuess() const
 
 Vector3 Surface::calcSurfaceNormal(Vector3 point) const
 {
-    return calcLocalSurfaceNormalImpl(calcPointInLocal(_transform, std::move(point)));
+    return calcLocalSurfaceNormalImpl(
+        calcPointInLocal(_transform, std::move(point)));
 }
 
 double Surface::calcNormalCurvature(Vector3 point, Vector3 tangent) const
 {
     return calcLocalNormalCurvatureImpl(
-            calcPointInLocal(_transform, std::move(point)),
-            calcVectorInLocal(_transform, std::move(tangent)));
+        calcPointInLocal(_transform, std::move(point)),
+        calcVectorInLocal(_transform, std::move(tangent)));
 }
 
 double Surface::calcGeodesicTorsion(Vector3 point, Vector3 tangent) const
 {
     return calcLocalGeodesicTorsionImpl(
-            calcPointInLocal(_transform, std::move(point)),
-            calcVectorInLocal(_transform, std::move(tangent)));
+        calcPointInLocal(_transform, std::move(point)),
+        calcVectorInLocal(_transform, std::move(tangent)));
 }
 
 //==============================================================================
@@ -1366,8 +1487,7 @@ void ImplicitSurface::calcLocalGeodesicImpl(
 {
     std::function<void(const ImplicitGeodesicState&)> Monitor =
         [&](const ImplicitGeodesicState& q) {
-            geodesic.samples.emplace_back(
-                    calcTrihedron(*this, q));
+            geodesic.samples.emplace_back(calcTrihedron(*this, q));
         };
 
     std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
@@ -1379,8 +1499,20 @@ void ImplicitSurface::calcLocalGeodesicImpl(
             _integratorSteps,
             Monitor);
 
-    calcGeodesicBoundaryState(*this, out.first, false, geodesic.K_P, geodesic.v_P, geodesic.w_P);
-    calcGeodesicBoundaryState(*this, out.second, true, geodesic.K_Q, geodesic.v_Q, geodesic.w_Q);
+    calcGeodesicBoundaryState(
+        *this,
+        out.first,
+        false,
+        geodesic.K_P,
+        geodesic.v_P,
+        geodesic.w_P);
+    calcGeodesicBoundaryState(
+        *this,
+        out.second,
+        true,
+        geodesic.K_Q,
+        geodesic.v_Q,
+        geodesic.w_Q);
     geodesic.length = length;
 }
 
@@ -1389,12 +1521,16 @@ Vector3 ImplicitSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
     return ::calcSurfaceNormal(*this, point);
 }
 
-double ImplicitSurface::calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const
+double ImplicitSurface::calcLocalGeodesicTorsionImpl(
+    Vector3 point,
+    Vector3 tangent) const
 {
     return ::calcGeodesicTorsion(*this, std::move(point), std::move(tangent));
 }
 
-double ImplicitSurface::calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const
+double ImplicitSurface::calcLocalNormalCurvatureImpl(
+    Vector3 point,
+    Vector3 tangent) const
 {
     return ::calcNormalCurvature(*this, std::move(point), std::move(tangent));
 }
@@ -1492,16 +1628,19 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     const double r     = _radius;
     const double angle = length / r;
 
-    const double norm =  initPosition.norm();
+    const double norm = initPosition.norm();
     if (norm < 1e-13) {
         throw std::runtime_error("Error: initial position at origin.");
     }
 
-    Trihedron& K_P = geodesic.K_P;
+    Trihedron& K_P           = geodesic.K_P;
     Geodesic::Variation& v_P = geodesic.v_P;
     Geodesic::Variation& w_P = geodesic.w_P;
 
-    K_P = Trihedron::FromPointAndTangentGuessAndNormal(initPosition / norm * r, initVelocity, initPosition);
+    K_P = Trihedron::FromPointAndTangentGuessAndNormal(
+        initPosition / norm * r,
+        initVelocity,
+        initPosition);
 
     w_P.col(0) = -K_P.b() / r;
     w_P.col(1) = K_P.t() / r;
@@ -1517,7 +1656,7 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     v_P.col(3) = Vector3{0., 0., 0.};
 
     // Integrate to final trihedron: K_Q
-    Trihedron& K_Q = geodesic.K_Q;
+    Trihedron& K_Q           = geodesic.K_Q;
     Geodesic::Variation& v_Q = geodesic.v_Q;
     Geodesic::Variation& w_Q = geodesic.w_Q;
 
@@ -1530,7 +1669,7 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
 
     // For a sphere the rotation of the initial frame directly rotates the final
     // frame:
-    w_Q = w_P;
+    w_Q        = w_P;
     w_Q.col(3) = w_Q.col(0);
 
     // End frame position variation: dp = w x n * r
@@ -1562,11 +1701,15 @@ size_t AnalyticSphereSurface::calcAccurateLocalSurfaceProjectionImpl(
     double,
     size_t) const
 {
-    K = Trihedron::FromPointAndTangentGuessAndNormal(K.p() / K.p().norm() * _radius, K.t(), K.p());
+    K = Trihedron::FromPointAndTangentGuessAndNormal(
+        K.p() / K.p().norm() * _radius,
+        K.t(),
+        K.p());
     return 0;
 }
 
-double AnalyticSphereSurface::calcLocalNormalCurvatureImpl(Vector3, Vector3) const
+double AnalyticSphereSurface::calcLocalNormalCurvatureImpl(Vector3, Vector3)
+    const
 {
     return -1. / _radius;
 }
@@ -1576,7 +1719,8 @@ Vector3 AnalyticSphereSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
     return point / point.norm();
 }
 
-double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3) const
+double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
+    const
 {
     return 0.;
 }
@@ -1590,7 +1734,8 @@ double ImplicitCylinderSurface::calcSurfaceConstraintImpl(Vector3 p) const
     return p.x() * p.x() + p.y() * p.y() - _radius * _radius;
 }
 
-Vector3 ImplicitCylinderSurface::calcSurfaceConstraintGradientImpl(Vector3 p) const
+Vector3 ImplicitCylinderSurface::calcSurfaceConstraintGradientImpl(
+    Vector3 p) const
 {
     return {2. * p.x(), 2. * p.y(), 0.};
 }
@@ -1633,12 +1778,14 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     const Vector3 z{0., 0., 1.};
 
     // Initial darboux frame.
-    Trihedron& K_P = geodesic.K_P;
+    Trihedron& K_P           = geodesic.K_P;
     Geodesic::Variation& v_P = geodesic.v_P;
     Geodesic::Variation& w_P = geodesic.w_P;
 
     // Normal direction.
-    Darboux f_P = Darboux::FromTangenGuessAndNormal(initVelocity, Vector3{initPosition.x(), initPosition.y(), 0.});
+    Darboux f_P = Darboux::FromTangenGuessAndNormal(
+        initVelocity,
+        Vector3{initPosition.x(), initPosition.y(), 0.});
 
     // Initial position on surface.
     const Vector3 p_P = f_P.n() * r + z * initPosition.z();
@@ -1681,10 +1828,10 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     v_P.col(3) = zeros;
 
     // Start frame variation.
-    w_P.col(0) =  z * K_P.t().dot(z.cross(K_P.n())) / r;
-    w_P.col(1) =  z * K_P.t().dot(z) / r;
-    w_P.col(2) =  -K_P.n();
-    w_P.col(3) =  zeros;
+    w_P.col(0) = z * K_P.t().dot(z.cross(K_P.n())) / r;
+    w_P.col(1) = z * K_P.t().dot(z) / r;
+    w_P.col(2) = -K_P.n();
+    w_P.col(3) = zeros;
 
     // Integration of the angular rotation about cylinder axis.
     const Rotation dq{Eigen::AngleAxisd(alpha, z)};
@@ -1698,7 +1845,7 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     const Vector3 p_Q = f_Q.n() * r + z * (p_P.z() + h);
 
     // Final trihedron.
-    Trihedron& K_Q = geodesic.K_Q;
+    Trihedron& K_Q           = geodesic.K_Q;
     Geodesic::Variation& v_Q = geodesic.v_Q;
     Geodesic::Variation& w_Q = geodesic.w_Q;
 
@@ -1722,8 +1869,8 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
         const double angle_i = alpha * factor;
         const double h_i     = h * factor;
         const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
-        const Darboux f = dq * f_P;
-        const Vector3 p_i    = dq * K_P.p() + h_i * z;
+        const Darboux f   = dq * f_P;
+        const Vector3 p_i = dq * K_P.p() + h_i * z;
         geodesic.samples.emplace_back(p_i, f);
     }
 
@@ -1736,11 +1883,11 @@ size_t AnalyticCylinderSurface::calcAccurateLocalSurfaceProjectionImpl(
     double,
     size_t) const
 {
-    const double x = pointInit.x();
-    const double y = pointInit.y();
-    const double z = pointInit.z();
+    const double x  = pointInit.x();
+    const double y  = pointInit.y();
+    const double z  = pointInit.z();
     const Darboux f = Darboux::FromTangenGuessAndNormal(K.t(), {x, y, 0.});
-    K = Trihedron(Vector3{0., 0., z} + _radius * f.n(), f);
+    K               = Trihedron(Vector3{0., 0., z} + _radius * f.n(), f);
     return 0;
 }
 
@@ -1752,21 +1899,24 @@ bool AnalyticCylinderSurface::isAboveSurfaceImpl(Vector3 point, double bound)
            0.;
 }
 
-double AnalyticCylinderSurface::calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const
+double AnalyticCylinderSurface::calcLocalNormalCurvatureImpl(
+    Vector3 point,
+    Vector3 tangent) const
 {
     const Vector3& p = point;
     const Vector3& t = tangent;
-    return - (t.x() * p.y() -t.y() * p.x() ) / _radius;
+    return -(t.x() * p.y() - t.y() * p.x()) / _radius;
 }
 
 Vector3 AnalyticCylinderSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
 {
     const double x = point.x();
     const double y = point.y();
-    return Vector3{x, y, 0.} / std::sqrt(x*x + y*y);
+    return Vector3{x, y, 0.} / std::sqrt(x * x + y * y);
 }
 
-double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3) const
+double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
+    const
 {
     return 0.;
 }
@@ -1778,30 +1928,32 @@ double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3) c
 double ImplicitTorusSurface::calcSurfaceConstraintImpl(Vector3 position) const
 {
     const Vector3& p = position;
-    const double x = p.x();
-    const double y = p.y();
+    const double x   = p.x();
+    const double y   = p.y();
 
     const double r = _smallRadius;
     const double R = _bigRadius;
 
-    const double c = (p.dot(p) + R*R - r*r);
-    return c*c - 4. * R*R * (x*x + y*y);
+    const double c = (p.dot(p) + R * R - r * r);
+    return c * c - 4. * R * R * (x * x + y * y);
 }
 
-Vector3 ImplicitTorusSurface::calcSurfaceConstraintGradientImpl(Vector3 position) const
+Vector3 ImplicitTorusSurface::calcSurfaceConstraintGradientImpl(
+    Vector3 position) const
 {
     const Vector3& p = position;
-    const double x = p.x();
-    const double y = p.y();
+    const double x   = p.x();
+    const double y   = p.y();
 
     const double r = _smallRadius;
     const double R = _bigRadius;
 
-    const double c = (p.dot(p) + R*R - r*r);
-    return 4.*c*p - 8. * R*R * Vector3{x, y, 0.};
+    const double c = (p.dot(p) + R * R - r * r);
+    return 4. * c * p - 8. * R * R * Vector3{x, y, 0.};
 }
 
-ImplicitSurface::Hessian ImplicitTorusSurface::calcSurfaceConstraintHessianImpl(Vector3 position) const
+ImplicitSurface::Hessian ImplicitTorusSurface::calcSurfaceConstraintHessianImpl(
+    Vector3 position) const
 {
     ImplicitSurface::Hessian hessian;
 
@@ -1810,15 +1962,15 @@ ImplicitSurface::Hessian ImplicitTorusSurface::calcSurfaceConstraintHessianImpl(
     const double r = _smallRadius;
     const double R = _bigRadius;
 
-    const double c = (p.dot(p) + R*R - r*r);
+    const double c = (p.dot(p) + R * R - r * r);
 
     hessian.setIdentity();
     hessian *= 4. * c;
 
     hessian += 8. * p * p.transpose();
 
-    hessian(0,0) -= 8. * R*R;
-    hessian(1,1) -= 8. * R*R;
+    hessian(0, 0) -= 8. * R * R;
+    hessian(1, 1) -= 8. * R * R;
 
     return hessian;
 }
@@ -1832,8 +1984,8 @@ bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
     const double r = _smallRadius + bound;
     const double R = _bigRadius;
 
-    const double c =  (sqrt(x*x + y*y) - R);
-    return c*c + z*z - r*r > 0.;
+    const double c = (sqrt(x * x + y * y) - R);
+    return c * c + z * z - r * r > 0.;
 }
 
 //==============================================================================
@@ -1863,9 +2015,9 @@ Geodesic::Correction calcClamped(
 size_t countConstraints(const WrappingArgs& args)
 {
     size_t c = 0;
-    c+= args.m_CostT;
-    c+= args.m_CostN;
-    c+= args.m_CostB;
+    c += args.m_CostT;
+    c += args.m_CostN;
+    c += args.m_CostB;
     c *= 2;
     return c;
 }
@@ -1873,7 +2025,7 @@ size_t countConstraints(const WrappingArgs& args)
 void PathContinuityError::resize(size_t nSurfaces, const WrappingArgs& args)
 {
     constexpr size_t Q = Geodesic::DOF;
-    const size_t c = countConstraints(args);
+    const size_t c     = countConstraints(args);
     const size_t n = _nSurfaces = nSurfaces;
 
     _pathError.resize(n * c);
@@ -1987,7 +2139,7 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
 
     const size_t n     = _nSurfaces;
     constexpr size_t Q = Geodesic::DOF;
-    const size_t c = countConstraints(args);
+    const size_t c     = countConstraints(args);
 
     _costL = _lengthJacobian * _lengthJacobian.transpose() / _length;
     _vecL  = _lengthJacobian;
@@ -2011,8 +2163,7 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
         }
 
         // Set constraints
-        if (c > 0)
-        {
+        if (c > 0) {
             _mat.bottomLeftCorner(n * c, n * Q) = _pathErrorJacobian;
             _mat.topRightCorner(n * Q, n * c) = _pathErrorJacobian.transpose();
             _vec.bottomRows(n * c)            = _pathError;
@@ -2080,7 +2231,8 @@ bool PathContinuityError::calcPathCorrection(const WrappingArgs& args)
 
 const Geodesic::Correction* PathContinuityError::begin() const
 {
-    static_assert(sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
+    static_assert(
+        sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
     return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
 }
 
@@ -2100,7 +2252,7 @@ std::vector<Geodesic> calcInitWrappingPathGuess(
     for (size_t i = 0; getSurface(i); ++i) {
         geodesics.push_back({});
         Geodesic& g = geodesics.back();
-        g.status = Geodesic::Status::Disabled;
+        g.status    = Geodesic::Status::Disabled;
     }
     return geodesics;
 }
@@ -2109,8 +2261,8 @@ WrappingPath::WrappingPath(
     Vector3 pathStart,
     Vector3 pathEnd,
     GetSurfaceFn& GetSurface) :
-    startPoint(pathStart), endPoint(pathEnd),
-    segments(calcInitWrappingPathGuess(GetSurface))
+    startPoint(pathStart),
+    endPoint(pathEnd), segments(calcInitWrappingPathGuess(GetSurface))
 {}
 
 void applyNaturalGeodesicVariation(
@@ -2127,16 +2279,17 @@ void applyNaturalGeodesicVariation(
     K_P = Trihedron(K_P.p() + v, Darboux::FromTangenGuessAndNormal(t, n));
 }
 
-void Surface::applyVariation(Geodesic& geodesic, const Geodesic::Correction& correction)
-    const
+void Surface::applyVariation(
+    Geodesic& geodesic,
+    const Geodesic::Correction& correction) const
 {
-    applyNaturalGeodesicVariation(geodesic.K_P, geodesic.v_P, geodesic.w_P, correction);
-    geodesic.length += correction[Geodesic::DOF-1];
-    calcGeodesic(
-        geodesic.K_P.p(),
-        geodesic.K_P.t(),
-        geodesic.length,
-        geodesic);
+    applyNaturalGeodesicVariation(
+        geodesic.K_P,
+        geodesic.v_P,
+        geodesic.w_P,
+        correction);
+    geodesic.length += correction[Geodesic::DOF - 1];
+    calcGeodesic(geodesic.K_P.p(), geodesic.K_P.t(), geodesic.length, geodesic);
 }
 
 void calcSegmentPathErrorJacobian(
@@ -2197,16 +2350,15 @@ void calcSegmentPathErrorJacobian(
     }
 }
 
-const Geodesic* getActive(
-        const std::vector<Geodesic>& geodesics,
-        size_t idx)
+const Geodesic* getActive(const std::vector<Geodesic>& geodesics, size_t idx)
 {
     size_t i = 0;
-    for (const Geodesic& g: geodesics)
-    {
-        if (!isActive(g.status)) continue;
+    for (const Geodesic& g : geodesics) {
+        if (!isActive(g.status))
+            continue;
 
-        if (i == idx) return &g;
+        if (i == idx)
+            return &g;
 
         ++i;
     }
@@ -2219,9 +2371,10 @@ void calcLengthJacobian(WrappingPath& path)
 
     double& lTot = path.smoothness._length = 0.;
 
-    if (n == 0) return;
+    if (n == 0)
+        return;
 
-    Vector3 e {NAN, NAN, NAN};
+    Vector3 e{NAN, NAN, NAN};
     double l = NAN;
 
     // First segment start.
@@ -2231,9 +2384,8 @@ void calcLengthJacobian(WrappingPath& path)
         lTot += l;
     }
 
-    GeodesicJacobian jacobian {NAN, NAN, NAN, NAN};
-    for (size_t i = 0; i < n; ++i)
-    {
+    GeodesicJacobian jacobian{NAN, NAN, NAN, NAN};
+    for (size_t i = 0; i < n; ++i) {
         const Geodesic& g = *getActive(path.segments, i);
 
         // Length of curve segment.
@@ -2241,19 +2393,19 @@ void calcLengthJacobian(WrappingPath& path)
         lTot += g.length;
 
         // Length of previous line segment.
-        jacobian += (e/l).transpose() * g.v_P;
+        jacobian += (e / l).transpose() * g.v_P;
 
         // Length of next line segment.
-        Vector3 p_I = i == n - 1
-            ? path.endPoint
-            : getActive(path.segments, i+1)->K_P.p();
-        e = (p_I - g.K_Q.p());
-        l = e.norm();
+        Vector3 p_I = i == n - 1 ? path.endPoint
+                                 : getActive(path.segments, i + 1)->K_P.p();
+        e           = (p_I - g.K_Q.p());
+        l           = e.norm();
         lTot += l;
-        jacobian += -(e/l).transpose() * g.v_Q;
+        jacobian += -(e / l).transpose() * g.v_Q;
 
         // Write jacobian elements.
-        path.smoothness._lengthJacobian.middleRows<Geodesic::DOF>(i * Geodesic::DOF) = jacobian;
+        path.smoothness._lengthJacobian.middleRows<Geodesic::DOF>(
+            i * Geodesic::DOF) = jacobian;
     }
 }
 
@@ -2267,7 +2419,7 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
     calcLengthJacobian(path);
 
     // Active segment count.
-    size_t row               = 0;
+    size_t row = 0;
     /* SegmentIterator end = SegmentIterator::End(path); */
     /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it)
      */
@@ -2291,8 +2443,7 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
                 path.segments.at(idx).v_P,
                 path.segments.at(idx).w_P,
                 nullptr,
-                prev < 0 ? path.startPoint
-                         : path.segments.at(prev).K_Q.p(),
+                prev < 0 ? path.startPoint : path.segments.at(prev).K_Q.p(),
                 path.smoothness.updPathError(),
                 path.smoothness.updPathErrorJacobian(),
                 row,
@@ -2308,8 +2459,7 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
                 path.segments.at(idx).v_Q,
                 path.segments.at(idx).w_Q,
                 next < 0 ? nullptr : &path.segments.at(next).v_P,
-                next < 0 ? path.endPoint
-                         : path.segments.at(next).K_P.p(),
+                next < 0 ? path.endPoint : path.segments.at(next).K_P.p(),
                 path.smoothness.updPathError(),
                 path.smoothness.updPathErrorJacobian(),
                 row,
@@ -2318,12 +2468,10 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
 
         for (size_t i = 0; i < Geodesic::DOF; ++i) {
             for (size_t j = 0; j < Geodesic::DOF; ++j) {
-                const size_t r = i + Geodesic::DOF * idx;
-                const size_t c = j + Geodesic::DOF * idx;
-                path.smoothness._costP(r, c) =
-                    s.v_P.col(i).dot(s.v_P.col(j));
-                path.smoothness._costQ(r, c) +=
-                    s.v_Q.col(i).dot(s.v_Q.col(j));
+                const size_t r               = i + Geodesic::DOF * idx;
+                const size_t c               = j + Geodesic::DOF * idx;
+                path.smoothness._costP(r, c) = s.v_P.col(i).dot(s.v_P.col(j));
+                path.smoothness._costQ(r, c) += s.v_Q.col(i).dot(s.v_Q.col(j));
             }
         }
     }
@@ -2337,7 +2485,8 @@ void calcInitWrappingPath(
 {
     for (size_t i = 0; getSurface(i); ++i) {
         if (geodesics.size() <= i) {
-            throw std::runtime_error("number of surfaces does not match number of geodesics");
+            throw std::runtime_error(
+                "number of surfaces does not match number of geodesics");
         }
         Geodesic& g = geodesics.at(i);
 
@@ -2391,8 +2540,7 @@ size_t WrappingPath::updPath(
             /* std::cout << "    ===== ERRR ==== = " <<
              * path.smoothness.calcMaxPathError() << "\n"; */
 
-            if (smoothness.calcMaxPathError() < eps && false)
-            {
+            if (smoothness.calcMaxPathError() < eps && false) {
                 return loopIter;
             }
 
