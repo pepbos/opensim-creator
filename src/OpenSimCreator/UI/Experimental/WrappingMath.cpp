@@ -1295,13 +1295,12 @@ void RunIntegratorTests()
         const Vector3 y1_expected = q * y0;
         const double e_real = (y1 - y1_expected).norm();
 
-        std::cout << "y0     = " << y0 << std::endl;
-        std::cout << "y1     = " << y1.transpose() << std::endl;
-        std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
-        std::cout << "e      = " << e << std::endl;
-        std::cout << "e_exp  = " << e_real << std::endl;
-
         if (e_real > 1e-10) {
+            std::cout << "y0     = " << y0 << std::endl;
+            std::cout << "y1     = " << y1.transpose() << std::endl;
+            std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
+            std::cout << "e      = " << e << std::endl;
+            std::cout << "e_exp  = " << e_real << std::endl;
             throw std::runtime_error("Failed RungeKuttaMerson fixed step integrator test");
         }
     }
@@ -1327,9 +1326,7 @@ void RunIntegratorTests()
         for (size_t i = 0; i < 20; ++i) {
             e = rkm.stepTo(y0, x, f);
             y1 = rkm.getSamples().back().y;
-            std::cout << "n      = " << rkm.getSamples().size() << std::endl;
         }
-        std::cout << "failed = " << rkm.getNumberOfFailedSteps() << std::endl;
 
         // Check the result
         Vector3 axis = w / w.norm();
@@ -1339,18 +1336,17 @@ void RunIntegratorTests()
         const Vector3 y1_expected = q * y0;
         const double e_real = (y1 - y1_expected).norm();
 
-        std::cout << "y0     = " << y0 << std::endl;
-        std::cout << "y1     = " << y1.transpose() << std::endl;
-        std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
-        std::cout << "e      = " << e << std::endl;
-        std::cout << "e_exp  = " << e_real << std::endl;
-
         if (e_real > 10. * accuracy) {
+            std::cout << "n      = " << rkm.getSamples().size() << std::endl;
+            std::cout << "failed = " << rkm.getNumberOfFailedSteps() << std::endl;
+            std::cout << "y0     = " << y0 << std::endl;
+            std::cout << "y1     = " << y1.transpose() << std::endl;
+            std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
+            std::cout << "e      = " << e << std::endl;
+            std::cout << "e_exp  = " << e_real << std::endl;
             throw std::runtime_error("Failed RungeKuttaMerson variable step integrator test");
         }
     }
-
-    throw std::runtime_error("stop");
 }
 
 } // namespace osc

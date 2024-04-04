@@ -225,6 +225,7 @@ private:
 
     void implOnTick() final
     {
+        RunIntegratorTests();
 
         // Create path anew, or start from previous.
         if (m_SingleStep) {
