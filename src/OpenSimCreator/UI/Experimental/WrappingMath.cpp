@@ -1218,7 +1218,8 @@ template <typename Y, typename DY, typename S>
 double RungeKuttaMerson<Y, DY, S>::stepTo(
     Y y0,
     double x1,
-    std::function<DY(const Y&)>& f)
+    std::function<DY(const Y&)>& f,
+    std::function<void(Y&)>& g)
 {
     _y.at(0) = std::move(y0);
     double h = _h0;
@@ -1246,6 +1247,7 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
             _y.at(2) = _y.at(0);
             ++_failedCount;
         } else { // Accepted
+            g(_y.at(2)); // Enforce constraints.
             _y.at(0) = _y.at(2);
             _y.at(1) = _y.at(2);
             x += h;
@@ -1271,21 +1273,27 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
 void RunIntegratorTests()
 {
 
+    const Vector3 w {1., 2., 3.};
+    std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
+    {
+        return w.cross(yk);
+    };
+
+    std::function<void(Vector3&)> g = [&](Vector3& yk)
+    {
+        yk.normalize();
+    };
+
     // Fixed step integrator test.
     {
         RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-3, 1e-3, 1e-6);
 
-        const Vector3 w {1., 2., 3.};
 
-        std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
-        {
-            return w.cross(yk);
-        };
 
         const Vector3 y0 {1., 0., 0.};
         const double x = 1.;
 
-        const double e = rkm.stepTo(y0, x, f);
+        const double e = rkm.stepTo(y0, x, f, g);
         const Vector3 y1 = rkm.getSamples().back().y;
 
         // Check the result
@@ -1311,13 +1319,6 @@ void RunIntegratorTests()
         const double accuracy = 1e-6;
         RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-5, 1e-1, accuracy);
 
-        const Vector3 w {1., 2., 3.};
-
-        std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
-        {
-            return w.cross(yk);
-        };
-
         const Vector3 y0 {1., 0., 0.};
         const double x = 1.;
 
@@ -1325,7 +1326,7 @@ void RunIntegratorTests()
         Vector3 y1;
 
         for (size_t i = 0; i < 20; ++i) {
-            e = rkm.stepTo(y0, x, f);
+            e = rkm.stepTo(y0, x, f, g);
             y1 = rkm.getSamples().back().y;
         }
 

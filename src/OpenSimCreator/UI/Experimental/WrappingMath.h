@@ -398,7 +398,9 @@ class RungeKuttaMerson
     double stepTo(
             Y y0,
             double x1,
-            std::function<DY(const Y&)>& f);
+            std::function<DY(const Y&)>& f,
+            std::function<void(Y&)>& g
+            );
 
     struct Sample
     {
