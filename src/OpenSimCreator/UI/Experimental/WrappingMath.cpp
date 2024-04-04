@@ -1231,6 +1231,8 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
     _samples.push_back(Sample(x, _y.at(0)));
 
     while (x < x1 - 1e-13) {
+        const bool init = x == 0.;
+
         h = x + h > x1 ? x1 - x : h;
 
         // Attempt step.
@@ -1257,12 +1259,11 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
 
         e = std::max(e, err);
         h = std::min(_hMax, std::max(_hMin, h));
-    }
 
-    if (_samples.size() > 2) {
-        _h0 = _samples.at(2).x - _samples.at(1).x;
+        if (init) {
+            _h0 = h;
+        }
     }
-    _h0 = std::min(_hMax, std::max(_hMin, _h0));
 
     return e;
 }
@@ -1336,7 +1337,10 @@ void RunIntegratorTests()
         const Vector3 y1_expected = q * y0;
         const double e_real = (y1 - y1_expected).norm();
 
-        if (e_real > 10. * accuracy) {
+        bool failed = false;
+        failed |= rkm.getSamples().size() != 26;
+        failed |= e_real > 10. * accuracy;
+        if (failed) {
             std::cout << "n      = " << rkm.getSamples().size() << std::endl;
             std::cout << "failed = " << rkm.getNumberOfFailedSteps() << std::endl;
             std::cout << "y0     = " << y0 << std::endl;
