@@ -229,15 +229,6 @@ ImplicitGeodesicState operator+(
 //                      DARBOUX FRAME
 //==============================================================================
 
-Darboux::Matrix stackCols(Vector3 t, Vector3 n, Vector3 b)
-{
-    Darboux::Matrix mat;
-    mat.col(0) = t;
-    mat.col(1) = n;
-    mat.col(2) = b;
-    return mat;
-}
-
 void AssertDarbouxFrame(const Darboux& frame)
 {
     const Vector3 t = frame.t();
