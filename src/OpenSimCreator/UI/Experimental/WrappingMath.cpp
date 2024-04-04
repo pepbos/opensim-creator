@@ -1148,6 +1148,138 @@ size_t calcTouchdown(
 }
 
 //==============================================================================
+//                      IMPLICIT GEODESIC INTEGRATOR
+//==============================================================================
+
+namespace osc
+{
+
+template <typename Y, typename DY, typename S>
+double RungeKuttaMerson<Y, DY, S>::step(
+    double h,
+    std::function<DY(const Y&)>& f)
+{
+    Y& yk = _y.at(1);
+
+    // k1
+    _k.at(0) = f(_y.at(0));
+
+    // k2
+    {
+        yk       = _y.at(0) + (h / 3.) * _k.at(0);
+        _k.at(1) = f(yk);
+    }
+
+    // k3
+    {
+        yk       = _y.at(0) + (h / 6.) * _k.at(0) + (h / 6.) * _k.at(1);
+        _k.at(2) = f(yk);
+    }
+
+    // k4
+    {
+        yk = _y.at(0) + (1. / 8. * h) * _k.at(0) + (3. / 8. * h) * _k.at(2);
+        _k.at(3) = f(yk);
+    }
+
+    // k5
+    {
+        yk = _y.at(0) + (1. / 2. * h) * _k.at(0) + (-3. / 2. * h) * _k.at(2) +
+             (2. * h) * _k.at(3);
+        _k.at(4) = f(yk);
+    }
+
+    // y1: Auxiliary --> Already updated in k5 computation.
+
+    // y2: Final state.
+    _y.at(2) = _y.at(0) + (1. / 6. * h) * _k.at(0) + (2. / 3. * h) * _k.at(3) +
+               (1. / 6. * h) * _k.at(4);
+
+    return calcInfNorm<Y>(_y.at(1) - _y.at(2)) * 0.2;
+}
+
+template <typename Y, typename DY, typename S>
+double RungeKuttaMerson<Y, DY, S>::stepTo(
+    Y y0,
+    double x1,
+    std::function<DY(const Y&)>& f)
+{
+    _y.at(0) = std::move(y0);
+    double h = _h0;
+    double x = 0.;
+    double e = 0.;
+
+    _samples.clear();
+    _samples.push_back(Sample(x, _y.at(0)));
+
+    while (x < x1 - 1e-13) {
+        h = x + h > x1 ? x1 - x : h;
+
+        // Attempt step.
+        double err = step(h, f);
+
+        // Reject if accuracy was not met.
+        if (err > _accuracy) { // Rejected
+            // Descrease stepsize.
+            h /= 2.;
+            _y.at(1) = _y.at(0);
+            _y.at(2) = _y.at(0);
+        } else { // Accepted
+            _y.at(0) = _y.at(2);
+            _y.at(1) = _y.at(2);
+            x += h;
+            _samples.push_back(Sample(x, _y.at(0)));
+        }
+
+        // Potentially increase stepsize.
+        if (err < _accuracy / 64.) {
+            h *= 2.;
+        }
+
+        e = std::max(e, err);
+    }
+
+    return e;
+}
+
+void RunIntegratorTests()
+{
+
+    RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-3, 1e-3, 1e-6);
+
+    const Vector3 w {1., 2., 3.};
+
+    std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
+    {
+        return w.cross(yk);
+    };
+
+    const Vector3 y0 {1., 0., 0.};
+    const double x = 1.;
+
+    const double e = rkm.stepTo(y0, x, f);
+    const Vector3 y1 = rkm.getSamples().back().y;
+
+    // Check the result
+    Vector3 axis = w / w.norm();
+    double angle = w.norm() * x;
+    Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
+
+    const Vector3 y1_expected = q * y0;
+    const double e_expected = (y1 - y1_expected).norm();
+
+    std::cout << "y0     = " << y0 << std::endl;
+    std::cout << "y1     = " << y1.transpose() << std::endl;
+    std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
+    std::cout << "e      = " << e << std::endl;
+    std::cout << "e_exp  = " << e_expected << std::endl;
+
+    throw std::runtime_error("stop");
+}
+
+} // namespace osc
+
+//==============================================================================
 //                      GEODESIC STATUS FLAGS
 //==============================================================================
 

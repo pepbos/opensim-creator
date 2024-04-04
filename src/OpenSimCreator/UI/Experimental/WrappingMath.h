@@ -386,6 +386,46 @@ private:
     size_t _integratorSteps = 1000;
 };
 
+template <typename Y, typename DY = Y, typename S = Y>
+class RungeKuttaMerson
+{
+    public:
+    RungeKuttaMerson(double hMin, double hMax, double accuracy): _h0(hMin), _hMin(hMin), _hMax(hMax), _accuracy(accuracy) {}
+
+    // Integrate y0, populating y1, y2.
+    double step(double h, std::function<DY(const Y&)>& f);
+
+    double stepTo(
+            Y y0,
+            double x1,
+            std::function<DY(const Y&)>& f);
+
+    struct Sample
+    {
+        Sample(double xk, const Y& yk) : x(xk), y({yk}) {}
+
+        double x;
+        S y;
+    };
+
+    const std::vector<Sample>& getSamples() const {return _samples;}
+
+    private:
+    static constexpr size_t ORDER = 5;
+
+    std::array<DY, ORDER> _k {};
+    std::array<Y, 3> _y {};
+
+    std::vector<Sample> _samples {};
+
+    double _h0 = NAN;
+    double _hMin = NAN;
+    double _hMax = NAN;
+    double _accuracy = NAN;
+};
+
+void RunIntegratorTests();
+
 //==============================================================================
 //                      IMPLICIT ELLIPSOID SURFACE
 //==============================================================================
