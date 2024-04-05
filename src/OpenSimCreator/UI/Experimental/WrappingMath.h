@@ -67,6 +67,51 @@ void RungeKutta4(Y& y, double& t, double dt, std::function<D(const Y&)> f)
     t += dt;
 }
 
+template <typename Y, typename DY = Y, typename S = Y>
+class RungeKuttaMerson
+{
+    public:
+    RungeKuttaMerson() = default;
+
+    RungeKuttaMerson(double hMin, double hMax, double accuracy): _h0(hMin), _hMin(hMin), _hMax(hMax), _accuracy(accuracy) {}
+
+    // Integrate y0, populating y1, y2.
+    double step(double h, std::function<DY(const Y&)>& f);
+
+    double stepTo(
+            Y y0,
+            double x1,
+            std::function<DY(const Y&)>& f,
+            std::function<void(Y&)>& g
+            );
+
+    struct Sample
+    {
+        Sample(double xk, const Y& yk) : x(xk), y({yk}) {}
+
+        double x;
+        S y;
+    };
+
+    const std::vector<Sample>& getSamples() const {return _samples;}
+    size_t getNumberOfFailedSteps() const {return _failedCount;}
+
+    private:
+    static constexpr size_t ORDER = 5;
+
+    std::array<DY, ORDER> _k {};
+    std::array<Y, 3> _y {};
+
+    std::vector<Sample> _samples {};
+
+    double _h0 = 1e-6;
+    double _hMin = 1e-6;
+    double _hMax = 1e-1;
+    double _accuracy = 1e-4;
+
+    size_t _failedCount = 0;
+};
+
 class Darboux
 {
     public:
@@ -230,7 +275,7 @@ public:
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
-        Geodesic& geodesic) const;
+        Geodesic& geodesic);
 
     void calcGeodesic(
         Vector3 initPosition,
@@ -238,7 +283,7 @@ public:
         double length,
         Vector3 pointBefore,
         Vector3 pointAfter,
-        Geodesic& geodesic) const;
+        Geodesic& geodesic);
 
     // TODO This is just here for the current test.
     void setOffsetFrame(Transf transform)
@@ -281,7 +326,7 @@ private:
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
-        Geodesic& geodesic) const = 0;
+        Geodesic& geodesic) = 0;
 
     // Required for touchdown.
     virtual size_t calcAccurateLocalSurfaceProjectionImpl(
@@ -307,6 +352,47 @@ private:
     // TODO weird guess (keep until fixed)
     Vector3 _pathLocalStartGuess = {1., 1., 1.};
 };
+
+//==============================================================================
+//                         IMPLICIT SURFACE STATE
+//==============================================================================
+
+struct ImplicitGeodesicState
+{
+    ImplicitGeodesicState() = default;
+
+    ImplicitGeodesicState(Vector3 aPosition, Vector3 aVelocity) :
+        position(std::move(aPosition)), velocity(std::move(aVelocity)){};
+
+    Vector3 position = {NAN, NAN, NAN};
+    Vector3 velocity = {NAN, NAN, NAN};
+    double a         = 1.;
+    double aDot      = 0.;
+    double r         = 0.;
+    double rDot      = 1.;
+};
+
+struct ImplicitGeodesicStateDerivative
+{
+    Vector3 velocity     = {NAN, NAN, NAN};
+    Vector3 acceleration = {NAN, NAN, NAN};
+    double aDot          = NAN;
+    double aDDot         = NAN;
+    double rDot          = NAN;
+    double rDDot         = NAN;
+};
+
+ImplicitGeodesicState operator*(
+        double dt,
+        const ImplicitGeodesicStateDerivative& dy);
+
+ImplicitGeodesicState operator+(
+        const ImplicitGeodesicState& lhs,
+        const ImplicitGeodesicState& rhs);
+
+ImplicitGeodesicState operator-(
+        const ImplicitGeodesicState& lhs,
+        const ImplicitGeodesicState& rhs);
 
 //==============================================================================
 //                      IMPLICIT SURFACE
@@ -366,7 +452,7 @@ private:
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
-        Geodesic& geodesic) const override;
+        Geodesic& geodesic) override;
 
     size_t calcAccurateLocalSurfaceProjectionImpl(
         Vector3 pointInit,
@@ -382,54 +468,99 @@ private:
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
-    // TODO would become obsolete with variable step integration.
-    size_t _integratorSteps = 1000;
-};
-
-template <typename Y, typename DY = Y, typename S = Y>
-class RungeKuttaMerson
-{
-    public:
-    RungeKuttaMerson(double hMin, double hMax, double accuracy): _h0(hMin), _hMin(hMin), _hMax(hMax), _accuracy(accuracy) {}
-
-    // Integrate y0, populating y1, y2.
-    double step(double h, std::function<DY(const Y&)>& f);
-
-    double stepTo(
-            Y y0,
-            double x1,
-            std::function<DY(const Y&)>& f,
-            std::function<void(Y&)>& g
-            );
-
-    struct Sample
-    {
-        Sample(double xk, const Y& yk) : x(xk), y({yk}) {}
-
-        double x;
-        S y;
-    };
-
-    const std::vector<Sample>& getSamples() const {return _samples;}
-    size_t getNumberOfFailedSteps() const {return _failedCount;}
-
-    private:
-    static constexpr size_t ORDER = 5;
-
-    std::array<DY, ORDER> _k {};
-    std::array<Y, 3> _y {};
-
-    std::vector<Sample> _samples {};
-
-    double _h0 = NAN;
-    double _hMin = NAN;
-    double _hMax = NAN;
-    double _accuracy = NAN;
-
-    size_t _failedCount = 0;
+    RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative> _rkm;
 };
 
 void RunIntegratorTests();
+
+class SphereSurface final
+{
+    public:
+    explicit SphereSurface(double radius) : _radius(radius) {}
+
+    double getRadius() const;
+
+    private:
+    double _radius = NAN;
+};
+
+class WrapSurface
+{
+    public:
+    struct GeodesicInitConditions {
+
+    };
+
+    struct GeodesicBoundaryState {
+        GeodesicInitConditions applyVariation() const;
+
+        // etc ...
+        double lenght = NAN;
+
+    };
+
+    enum Status {
+
+    };
+
+    struct Sample {};
+
+    // Interface:
+    private:
+
+    virtual void calcLocalGeodescImpl(GeodesicInitConditions q0) = 0;
+
+    virtual bool calcLocalLineToSurfaceTouchdownPointImpl(Vector3& p) = 0;
+
+    virtual const GeodesicBoundaryState& getLocalGeodesicBoundaryStateImpl() const = 0;
+
+    virtual void writeLocalGeodesicImpl(std::vector<Sample>& samples) const = 0;
+
+    // Supplied:
+    public:
+
+    Transf& updTransform();
+    const Transf& getTransform();
+
+    void calcLocalGeodesic(GeodesicInitConditions q0);
+    void calcLocalLineToSurfaceTouchdownPoint();
+    const GeodesicBoundaryState& getLocalGeodesicBoundaryState() const;
+    void writeLocalGeodesic(std::vector<Sample>& samples) const;
+
+    Status getStatus() const;
+
+    private:
+    Transf _transform;
+    Status _status;
+};
+
+class ImplicitWrapSurface
+{
+    /* struct Sample { */
+    /*     Sample(ImplicitGeodesicState q): p(q.position), t(q.velocity) {} */
+
+    /*     Vector3 p = {NAN, NAN, NAN}; */
+    /*     Vector3 t = {NAN, NAN, NAN}; */
+    /* }; */
+
+    /* RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative, Sample> */
+};
+
+class WrapPath
+{
+    void calcWrappingPath();
+
+    std::vector<WrapSurface> updSurfaces();
+    Vector3& updPathStart();
+    Vector3& updPathEnd();
+    WrappingArgs& updArgs();
+
+    std::vector<WrapSurface> getSurfaces();
+
+    const std::vector<std::vector<Vector3>>& getPathPoints() const;
+    double getLength() const;
+    double getLengtheningSpeed() const;
+};
 
 //==============================================================================
 //                      IMPLICIT ELLIPSOID SURFACE
@@ -529,7 +660,7 @@ private:
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
-        Geodesic& geodesic) const override;
+        Geodesic& geodesic) override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
@@ -609,7 +740,7 @@ private:
         Vector3 initPosition,
         Vector3 initVelocity,
         double length,
-        Geodesic& geodesic) const override;
+        Geodesic& geodesic) override;
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
@@ -754,7 +885,7 @@ public:
 // The result of computing a path over surfaces.
 struct WrappingPath
 {
-    using GetSurfaceFn = std::function<const Surface*(size_t)>;
+    using GetSurfaceFn = std::function<Surface*(size_t)>;
 
     WrappingPath() = default;
 

@@ -151,80 +151,6 @@ void AssertEq(
 
 } // namespace
 
-namespace
-{
-//==============================================================================
-//                         IMPLICIT SURFACE STATE
-//==============================================================================
-
-struct ImplicitGeodesicState
-{
-    ImplicitGeodesicState() = default;
-
-    ImplicitGeodesicState(Vector3 aPosition, Vector3 aVelocity) :
-        position(std::move(aPosition)), velocity(std::move(aVelocity)){};
-
-    Vector3 position = {NAN, NAN, NAN};
-    Vector3 velocity = {NAN, NAN, NAN};
-    double a         = 1.;
-    double aDot      = 0.;
-    double r         = 0.;
-    double rDot      = 1.;
-};
-
-struct ImplicitGeodesicStateDerivative
-{
-    Vector3 velocity     = {NAN, NAN, NAN};
-    Vector3 acceleration = {NAN, NAN, NAN};
-    double aDot          = NAN;
-    double aDDot         = NAN;
-    double rDot          = NAN;
-    double rDDot         = NAN;
-};
-
-ImplicitGeodesicStateDerivative calcImplicitGeodesicStateDerivative(
-    const ImplicitGeodesicState& y,
-    const Vector3& acceleration,
-    double gaussianCurvature)
-{
-    ImplicitGeodesicStateDerivative dy;
-    dy.velocity     = y.velocity;
-    dy.acceleration = acceleration;
-    dy.aDot         = y.aDot;
-    dy.aDDot        = -y.a * gaussianCurvature;
-    dy.rDot         = y.rDot;
-    dy.rDDot        = -y.r * gaussianCurvature;
-    return dy;
-}
-
-ImplicitGeodesicState operator*(double dt, ImplicitGeodesicStateDerivative& dy)
-{
-    ImplicitGeodesicState y;
-    y.position = dt * dy.velocity;
-    y.velocity = dt * dy.acceleration;
-    y.a        = dt * dy.aDot;
-    y.aDot     = dt * dy.aDDot;
-    y.r        = dt * dy.rDot;
-    y.rDot     = dt * dy.rDDot;
-    return y;
-}
-
-ImplicitGeodesicState operator+(
-    const ImplicitGeodesicState& lhs,
-    const ImplicitGeodesicState& rhs)
-{
-    ImplicitGeodesicState y;
-    y.position = lhs.position + rhs.position;
-    y.velocity = lhs.velocity + rhs.velocity;
-    y.a        = lhs.a + rhs.a;
-    y.aDot     = lhs.aDot + rhs.aDot;
-    y.r        = lhs.r + rhs.r;
-    y.rDot     = lhs.rDot + rhs.rDot;
-    return y;
-}
-
-} // namespace
-
 //==============================================================================
 //                      DARBOUX FRAME
 //==============================================================================
@@ -303,7 +229,7 @@ Trihedron Trihedron::FromPointAndTangentGuessAndNormal(
             std::move(normal))};
 }
 
-namespace
+namespace osc
 {
 
 Darboux operator*(Eigen::Quaterniond lhs, const Darboux& rhs)
@@ -421,27 +347,27 @@ double calcScaledToFit(
     return std::min(c, 1.);
 }
 
-/* template <> */
-/* double calcInfNorm<ImplicitGeodesicState>(const ImplicitGeodesicState& y) */
-/* { */
-/*     double infNorm = 0.; */
+template <>
+double calcInfNorm<ImplicitGeodesicState>(const ImplicitGeodesicState& y)
+{
+    double infNorm = 0.;
 
-/*     infNorm = std::max(infNorm, y.position[0]); */
-/*     infNorm = std::max(infNorm, y.position[1]); */
-/*     infNorm = std::max(infNorm, y.position[2]); */
+    infNorm = std::max(infNorm, y.position[0]);
+    infNorm = std::max(infNorm, y.position[1]);
+    infNorm = std::max(infNorm, y.position[2]);
 
-/*     infNorm = std::max(infNorm, y.velocity[0]); */
-/*     infNorm = std::max(infNorm, y.velocity[1]); */
-/*     infNorm = std::max(infNorm, y.velocity[2]); */
+    infNorm = std::max(infNorm, y.velocity[0]);
+    infNorm = std::max(infNorm, y.velocity[1]);
+    infNorm = std::max(infNorm, y.velocity[2]);
 
-/*     infNorm = std::max(infNorm, y.a); */
-/*     infNorm = std::max(infNorm, y.aDot); */
+    infNorm = std::max(infNorm, y.a);
+    infNorm = std::max(infNorm, y.aDot);
 
-/*     infNorm = std::max(infNorm, y.r); */
-/*     infNorm = std::max(infNorm, y.rDot); */
+    infNorm = std::max(infNorm, y.r);
+    infNorm = std::max(infNorm, y.rDot);
 
-/*     return infNorm; */
-/* } */
+    return infNorm;
+}
 
 //==============================================================================
 //                      CURVATURES
@@ -610,6 +536,69 @@ size_t calcFastSurfaceProjection(
     v = v / v.norm();
 
     return steps;
+}
+
+//==============================================================================
+//                         IMPLICIT SURFACE STATE
+//==============================================================================
+
+namespace osc {
+ImplicitGeodesicStateDerivative calcImplicitGeodesicStateDerivative(
+    const ImplicitGeodesicState& y,
+    const Vector3& acceleration,
+    double gaussianCurvature)
+{
+    ImplicitGeodesicStateDerivative dy;
+    dy.velocity     = y.velocity;
+    dy.acceleration = acceleration;
+    dy.aDot         = y.aDot;
+    dy.aDDot        = -y.a * gaussianCurvature;
+    dy.rDot         = y.rDot;
+    dy.rDDot        = -y.r * gaussianCurvature;
+    return dy;
+}
+
+ImplicitGeodesicState operator*(
+    double dt,
+    const ImplicitGeodesicStateDerivative& dy)
+{
+    ImplicitGeodesicState y;
+    y.position = dt * dy.velocity;
+    y.velocity = dt * dy.acceleration;
+    y.a        = dt * dy.aDot;
+    y.aDot     = dt * dy.aDDot;
+    y.r        = dt * dy.rDot;
+    y.rDot     = dt * dy.rDDot;
+    return y;
+}
+
+ImplicitGeodesicState operator+(
+    const ImplicitGeodesicState& lhs,
+    const ImplicitGeodesicState& rhs)
+{
+    ImplicitGeodesicState y;
+    y.position = lhs.position + rhs.position;
+    y.velocity = lhs.velocity + rhs.velocity;
+    y.a        = lhs.a + rhs.a;
+    y.aDot     = lhs.aDot + rhs.aDot;
+    y.r        = lhs.r + rhs.r;
+    y.rDot     = lhs.rDot + rhs.rDot;
+    return y;
+}
+
+ImplicitGeodesicState operator-(
+    const ImplicitGeodesicState& lhs,
+    const ImplicitGeodesicState& rhs)
+{
+    ImplicitGeodesicState y;
+    y.position = lhs.position - rhs.position;
+    y.velocity = lhs.velocity - rhs.velocity;
+    y.a        = lhs.a - rhs.a;
+    y.aDot     = lhs.aDot - rhs.aDot;
+    y.r        = lhs.r - rhs.r;
+    y.rDot     = lhs.rDot - rhs.rDot;
+    return y;
+}
 }
 
 //==============================================================================
@@ -1586,7 +1575,7 @@ void Surface::calcGeodesic(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Geodesic& geodesic) const
+    Geodesic& geodesic)
 {
     Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
     Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
@@ -1608,7 +1597,7 @@ void Surface::calcGeodesic(
     double length,
     Vector3 pointBefore,
     Vector3 pointAfter,
-    Geodesic& geodesic) const
+    Geodesic& geodesic)
 {
     Vector3 p0 = calcPointInLocal(_transform, std::move(initPosition));
     Vector3 v0 = calcVectorInLocal(_transform, std::move(initVelocity));
@@ -1692,36 +1681,57 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Geodesic& geodesic) const
+    Geodesic& geodesic)
 {
-    std::function<void(const ImplicitGeodesicState&)> Monitor =
-        [&](const ImplicitGeodesicState& q) {
-            geodesic.samples.emplace_back(calcTrihedron(*this, q));
+
+    std::function<ImplicitGeodesicStateDerivative(const ImplicitGeodesicState&)> f =
+        [&](const ImplicitGeodesicState& q) -> ImplicitGeodesicStateDerivative
+        {
+            return calcImplicitGeodesicStateDerivative(q, calcAcceleration(*this, q.position, q.velocity), calcGaussianCurvature(*this, q));
+        };
+    std::function<void(ImplicitGeodesicState&)> g =
+        [&](ImplicitGeodesicState& q)
+        {
+            // Position reprojection.
+            Vector3& p = q.position;
+            const double c = calcSurfaceConstraint(p);
+            const Vector3 g = calcSurfaceConstraintGradient(p);
+            p += -g * c / g.dot(g);
+            // Tangent reprojection.
+            Vector3 n = calcSurfaceConstraintGradient(p);
+            Vector3& v = q.velocity;
+            v = v - n.dot(v) * n / n.dot(n);
+            v = v / v.norm();
         };
 
-    std::pair<ImplicitGeodesicState, ImplicitGeodesicState> out =
-        calcLocalImplicitGeodesic(
-            *this,
-            initPosition,
-            initVelocity,
-            length,
-            _integratorSteps,
-            Monitor);
+    calcFastSurfaceProjection(*this, initPosition, initVelocity);
+
+    const ImplicitGeodesicState q0{initPosition, initVelocity};
+    _rkm.stepTo(q0, length, f, g);
+
+    if(_rkm.getSamples().empty()) {
+        std::cout << "no sample";
+        throw std::runtime_error("failed to shoot geodesic: empty log");
+    }
+
+    for (const auto& sample: _rkm.getSamples()) {
+        geodesic.samples.emplace_back(calcTrihedron(*this, sample.y));
+    }
 
     calcGeodesicBoundaryState(
-        *this,
-        out.first,
-        false,
-        geodesic.K_P,
-        geodesic.v_P,
-        geodesic.w_P);
+            *this,
+            _rkm.getSamples().front().y,
+            false,
+            geodesic.K_P,
+            geodesic.v_P,
+            geodesic.w_P);
     calcGeodesicBoundaryState(
-        *this,
-        out.second,
-        true,
-        geodesic.K_Q,
-        geodesic.v_Q,
-        geodesic.w_Q);
+            *this,
+            _rkm.getSamples().back().y,
+            true,
+            geodesic.K_Q,
+            geodesic.v_Q,
+            geodesic.w_Q);
     geodesic.length = length;
 }
 
@@ -1832,7 +1842,7 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Geodesic& geodesic) const
+    Geodesic& geodesic)
 {
     const double r     = _radius;
     const double angle = length / r;
@@ -1871,7 +1881,7 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
 
     // Integration is a rotation over the axis by the angle.
     const Vector3 axis = -K_P.b(); // axis is negative of binormal
-    const Rotation dq{Eigen::AngleAxisd(angle, axis)};
+    const Eigen::Quaterniond dq{Eigen::AngleAxisd(angle, axis)};
 
     // Final frame: Rotate the input of the initial frame.
     K_Q = dq * K_P;
@@ -1976,7 +1986,7 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
     double length,
-    Geodesic& geodesic) const
+    Geodesic& geodesic)
 {
     const double r = _radius;
     const double l = length;
@@ -2455,7 +2465,7 @@ const Geodesic::Correction* PathContinuityError::end() const
 //==============================================================================
 
 std::vector<Geodesic> calcInitWrappingPathGuess(
-    std::function<const Surface*(size_t)>& getSurface)
+        WrappingPath::GetSurfaceFn& getSurface)
 {
     std::vector<Geodesic> geodesics;
     for (size_t i = 0; getSurface(i); ++i) {
@@ -2489,16 +2499,17 @@ void applyNaturalGeodesicVariation(
 }
 
 void Surface::applyVariation(
-    Geodesic& geodesic,
-    const Geodesic::Correction& correction) const
+    Geodesic&,
+    const Geodesic::Correction&) const
 {
-    applyNaturalGeodesicVariation(
-        geodesic.K_P,
-        geodesic.v_P,
-        geodesic.w_P,
-        correction);
-    geodesic.length += correction[Geodesic::DOF - 1];
-    calcGeodesic(geodesic.K_P.p(), geodesic.K_P.t(), geodesic.length, geodesic);
+    throw std::runtime_error("not yet implemented");
+    /* applyNaturalGeodesicVariation( */
+    /*     geodesic.K_P, */
+    /*     geodesic.v_P, */
+    /*     geodesic.w_P, */
+    /*     correction); */
+    /* geodesic.length += correction[Geodesic::DOF - 1]; */
+    /* calcGeodesic(geodesic.K_P.p(), geodesic.K_P.t(), geodesic.length, geodesic); */
 }
 
 void calcSegmentPathErrorJacobian(
@@ -2690,7 +2701,7 @@ size_t calcPathErrorJacobian(WrappingPath& path, const WrappingArgs& args)
 void calcInitWrappingPath(
     const Vector3& p_O,
     std::vector<Geodesic>& geodesics,
-    std::function<const Surface*(size_t)>& getSurface)
+    WrappingPath::GetSurfaceFn& getSurface)
 {
     for (size_t i = 0; getSurface(i); ++i) {
         if (geodesics.size() <= i) {

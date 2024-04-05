@@ -130,7 +130,7 @@ namespace
             const Vec3 end)
     {
         const size_t n = s.size();
-        WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> const Surface*
+        WrappingPath::GetSurfaceFn GetSurface = [&](size_t i) -> Surface*
         {
             if (i >= n) {
                 return nullptr;
