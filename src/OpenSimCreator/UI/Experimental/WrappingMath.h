@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <iostream>
 #include <iterator>
+#include <memory>
+#include <functional>
 #include <vector>
 
 namespace osc
@@ -181,6 +183,13 @@ struct Geodesic
         Disabled                       = 128,
     };
 
+    struct InitialConditions
+    {
+        Vector3 p;
+        Vector3 t;
+        double l;
+    };
+
     static constexpr size_t DOF = 4;
 
     using Variation  = Eigen::Matrix<double, 3, DOF>;
@@ -189,7 +198,6 @@ struct Geodesic
     Trihedron K_P;
     Trihedron K_Q;
 
-    // Variations (in local frame, not body frame).
     Variation v_P;
     Variation w_P;
 
@@ -197,11 +205,6 @@ struct Geodesic
     Variation w_Q;
 
     double length;
-
-    // Points and frames along the geodesic (TODO keep in local frame).
-    std::vector<Trihedron> samples;
-
-    Status status = Status::Ok;
 };
 
 std::ostream& operator<<(std::ostream& os, const Geodesic& x);
@@ -252,7 +255,7 @@ struct WrappingArgs
 //                      SURFACE
 //==============================================================================
 
-struct WrappingPath;
+class WrappingPath;
 
 // An abstract component class that you can calculate geodesics over.
 class Surface
@@ -268,52 +271,20 @@ protected:
     Surface& operator=(const Surface&)     = default;
 
 public:
-    static constexpr double MIN_DIST_FROM_SURF =
-        1e-3; // TODO this must be a setting.
+    Geodesic::Status calcGeodesic(Geodesic::InitialConditions g0);
+    const Geodesic& getGeodesic() {return _geodesic;}
 
-    void calcGeodesic(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Geodesic& geodesic);
+    void applyVariation(const Geodesic::Correction& var);
 
-    void calcGeodesic(
-        Vector3 initPosition,
-        Vector3 initVelocity,
-        double length,
-        Vector3 pointBefore,
-        Vector3 pointAfter,
-        Geodesic& geodesic);
+    // Returns true if touchdown was detected, with the point written to argument p.
+    bool calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps);
+    bool isAboveSurface(Vector3 point, double bound) const {return isAboveSurfaceImpl(std::move(point), bound);}
 
-    // TODO This is just here for the current test.
-    void setOffsetFrame(Transf transform)
-    {
-        _transform = std::move(transform);
-    }
+    Vector3 getPathStartGuess() const {return _pathLocalStartGuess;}
+    void setLocalPathStartGuess(Vector3 pathStartGuess) {_pathLocalStartGuess = std::move(pathStartGuess);}
 
-    const Transf& getOffsetFrame() const;
-
-    Vector3 getPathStartGuess() const;
-
-    void setLocalPathStartGuess(Vector3 pathStartGuess);
-
-    bool isAboveSurface(Vector3 point, double bound) const;
-
-    size_t calcAccurateLocalSurfaceProjection(
-        Vector3 pointInit,
-        Trihedron& K,
-        double eps,
-        size_t maxIter) const;
-
-    std::pair<Vector3, size_t> calcPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const;
-    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurface(Vector3 a, Vector3 b, double eps, size_t maxIter) const;
-
-    size_t calcPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const;
-    size_t calcLocalPointOnSurfaceNearLine(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const;
-
-    size_t calcLocalTrihedronOnLineNearSurface(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const;
-
-    void applyVariation(Geodesic& geodesic, const Geodesic::Correction& var) const;
+    Geodesic::Status getStatus() const {return _status;}
+    Geodesic::Status& updStatus() {return _status;}
 
     // For convenience:
     // (Assumes the point lies on the surface)
@@ -328,29 +299,75 @@ private:
         double length,
         Geodesic& geodesic) = 0;
 
-    // Required for touchdown.
-    virtual size_t calcAccurateLocalSurfaceProjectionImpl(
-        Vector3 pointInit,
-        Trihedron& K,
-        double eps,
-        size_t maxIter) const = 0;
-
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
 
     virtual Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const = 0;
     virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
     virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
 
-    virtual std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const = 0;
-    virtual size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const = 0;
-    virtual size_t calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const = 0;
+    virtual void calcLocalGeodesicPointsImpl(std::vector<Trihedron>& pts) const = 0;
 
-    // This would be a socket to an offset frame for example.
-    Transf _transform;
+    virtual std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) = 0;
 
     // TODO this should not be surface dependent.
     // TODO weird guess (keep until fixed)
     Vector3 _pathLocalStartGuess = {1., 1., 1.};
+
+    Geodesic _geodesic {};
+    Geodesic::Status _status = Geodesic::Status::Ok;
+};
+
+class WrapObstacle
+{
+    private:
+    WrapObstacle() = default;
+    WrapObstacle(
+            std::shared_ptr<Transf> transform,
+            std::unique_ptr<Surface> surface) :
+        _transform(std::move(transform)),
+        _surface(std::move(surface)) {}
+
+    public:
+    template<typename SURFACE, typename ...Args>
+    static WrapObstacle Create(std::shared_ptr<Transf> transform, Args&&...args)
+    {
+        return WrapObstacle(
+                std::move(transform),
+                std::make_unique<SURFACE>(std::forward<Args>(args)...));
+    }
+
+    /* Surface* updSurface() {return _surface.get();} */
+    /* const Surface& getSurface() const {return *_surface;} */
+
+    Vector3 getPathStartGuess() const;
+    void setLocalPathStartGuess(Vector3 point) {_surface->setLocalPathStartGuess(std::move(point));}
+
+    Geodesic::Status& updStatus() {return _surface->updStatus();}
+    Geodesic::Status getStatus() const {return _surface->getStatus();}
+
+    const Geodesic& calcGeodesic(Geodesic::InitialConditions g0);
+    const Geodesic& calcGeodesicInGround();
+    const Geodesic& getGeodesic() const {return _geodesic;}
+
+    void attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size_t maxIter = 20, double eps = 1e-3);
+    void detectLiftOff(const Vector3& p_O, const Vector3& p_I);
+
+    const Transf& getOffsetFrame() const {return *_transform;}
+
+    // For convenience:
+    // (Assumes the point lies on the surface)
+    Vector3 calcSurfaceNormal(Vector3 point) const;
+    double calcNormalCurvature(Vector3 point, Vector3 tangent) const;
+    double calcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
+
+    private:
+
+    std::shared_ptr<Transf> _transform;
+    std::unique_ptr<Surface> _surface;
+    Geodesic _geodesic;
+    std::vector<Trihedron> _samples;
+
+    friend WrappingPath;
 };
 
 //==============================================================================
@@ -420,26 +437,6 @@ public:
     Vector3 calcSurfaceConstraintGradient(Vector3 position) const;
     Hessian calcSurfaceConstraintHessian(Vector3 position) const;
 
-    // TODO DO NOT USE THIS. FOR TESTING ONLY.
-    // Computes the normal curvature. Arguments are in global coordinates.
-    // Does not project the point and tangent to the surface.
-    // Unsafe: for testing only.
-    double testCalcNormalCurvature(Vector3 point, Vector3 tangent) const;
-
-    // TODO DO NOT USE THIS. FOR TESTING ONLY.
-    // Computes the geodesic torsion. Arguments are in global coordinates.
-    // Does not project the point and tangent to the surface.
-    // Unsafe: for testing only.
-    double testCalcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
-
-    // TODO DO NOT USE THIS. FOR TESTING ONLY.
-    // Computes the surface normal direction Argument is in global coordinates.
-    // Does not project the point to the surface.
-    // Unsafe: for testing only.
-    Vector3 testCalcSurfaceNormal(Vector3 point) const;
-
-    Vector3 testCalcAcceleration(Vector3 point, Vector3 tangent) const;
-
 private:
     // Implicit surface constraint.
     virtual double calcSurfaceConstraintImpl(Vector3 position) const = 0;
@@ -454,19 +451,11 @@ private:
         double length,
         Geodesic& geodesic) override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(
-        Vector3 pointInit,
-        Trihedron& K,
-        double eps,
-        size_t maxIter) const override;
-
-    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
 
     RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative> _rkm;
 };
@@ -482,84 +471,6 @@ class SphereSurface final
 
     private:
     double _radius = NAN;
-};
-
-class WrapSurface
-{
-    public:
-    struct GeodesicInitConditions {
-
-    };
-
-    struct GeodesicBoundaryState {
-        GeodesicInitConditions applyVariation() const;
-
-        // etc ...
-        double lenght = NAN;
-
-    };
-
-    enum Status {
-
-    };
-
-    struct Sample {};
-
-    // Interface:
-    private:
-
-    virtual void calcLocalGeodescImpl(GeodesicInitConditions q0) = 0;
-
-    virtual bool calcLocalLineToSurfaceTouchdownPointImpl(Vector3& p) = 0;
-
-    virtual const GeodesicBoundaryState& getLocalGeodesicBoundaryStateImpl() const = 0;
-
-    virtual void writeLocalGeodesicImpl(std::vector<Sample>& samples) const = 0;
-
-    // Supplied:
-    public:
-
-    Transf& updTransform();
-    const Transf& getTransform();
-
-    void calcLocalGeodesic(GeodesicInitConditions q0);
-    void calcLocalLineToSurfaceTouchdownPoint();
-    const GeodesicBoundaryState& getLocalGeodesicBoundaryState() const;
-    void writeLocalGeodesic(std::vector<Sample>& samples) const;
-
-    Status getStatus() const;
-
-    private:
-    Transf _transform;
-    Status _status;
-};
-
-class ImplicitWrapSurface
-{
-    /* struct Sample { */
-    /*     Sample(ImplicitGeodesicState q): p(q.position), t(q.velocity) {} */
-
-    /*     Vector3 p = {NAN, NAN, NAN}; */
-    /*     Vector3 t = {NAN, NAN, NAN}; */
-    /* }; */
-
-    /* RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative, Sample> */
-};
-
-class WrapPath
-{
-    void calcWrappingPath();
-
-    std::vector<WrapSurface> updSurfaces();
-    Vector3& updPathStart();
-    Vector3& updPathEnd();
-    WrappingArgs& updArgs();
-
-    std::vector<WrapSurface> getSurfaces();
-
-    const std::vector<std::vector<Vector3>>& getPathPoints() const;
-    double getLength() const;
-    double getLengtheningSpeed() const;
 };
 
 //==============================================================================
@@ -664,19 +575,11 @@ private:
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(
-        Vector3 pointInit,
-        Trihedron& K,
-        double eps,
-        size_t maxIter) const override;
-
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
-    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
 
     double _radius = 1.;
 };
@@ -744,19 +647,11 @@ private:
 
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
-    size_t calcAccurateLocalSurfaceProjectionImpl(
-        Vector3 pointInit,
-        Trihedron& K,
-        double eps,
-        size_t maxIter) const override;
-
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
     double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
-    std::pair<Vector3, size_t> calcLocalPointOnLineNearSurfaceImpl(Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalPointOnSurfaceNearLineImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
-    size_t calcLocalTrihedronOnLineNearSurfaceImpl(Trihedron& K, Vector3 a, Vector3 b, double eps, size_t maxIter) const override;
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
 
     double _radius = 1.;
 };
@@ -883,39 +778,74 @@ public:
 };
 
 // The result of computing a path over surfaces.
-struct WrappingPath
+class WrappingPath
 {
-    using GetSurfaceFn = std::function<Surface*(size_t)>;
-
-    WrappingPath() = default;
-
-    WrappingPath(Vector3 pathStart, Vector3 pathEnd, GetSurfaceFn& GetSurface);
-
-    size_t updPath(
-        GetSurfaceFn& GetSurface,
-        const WrappingArgs& args,
-        double eps     = 1e-6,
-        size_t maxIter = 10);
-
-    Vector3 startPoint{
-        NAN,
-        NAN,
-        NAN,
-    };
-    Vector3 endPoint{
-        NAN,
-        NAN,
-        NAN,
-    };
-    std::vector<Geodesic> segments = {};
-    PathContinuityError smoothness = {};
-
+    public:
     enum Status
     {
         Ok                     = 0,
         FailedToInvertJacobian = 1,
         ExceededMaxIterations  = 2,
-    } status = Status::Ok;
+    };
+
+    WrappingPath() = default;
+
+    WrappingPath(Vector3 pathStart, Vector3 pathEnd) : _startPoint(std::move(pathStart)), _endPoint(std::move(pathEnd)) {}
+
+    std::vector<WrapObstacle>& updSegments() {return _segments;}
+
+    const std::vector<WrapObstacle>& getSegments() const
+    {return _segments;}
+
+    const PathContinuityError& getSolver() const
+    {return _smoothness;}
+
+    PathContinuityError& updSolver()
+    {return _smoothness;}
+
+    size_t calcInitPath(
+        double eps     = 1e-6,
+        size_t maxIter = 10);
+
+    size_t calcPath(
+        bool breakOnErr = false,
+        double eps     = 1e-6,
+        size_t maxIter = 10);
+
+    const Vector3& getStart() const {return _startPoint;}
+    Vector3& updStart() {return _startPoint;}
+
+    const Vector3& getEnd() const {return _endPoint;}
+    Vector3& updEnd() {return _endPoint;}
+
+    Status getStatus() const {return _status;}
+    Status& updStatus() {return _status;}
+
+    double getLength() const;
+    const std::vector<Vector3>& calcPathPoints() const;
+    const std::vector<Vector3>& getPathPoints() const;
+
+    WrappingArgs& updOpts() {return _opts;}
+    const WrappingArgs& getOpts() {return _opts;}
+
+    private:
+    Vector3 _startPoint{
+        NAN,
+        NAN,
+        NAN,
+    };
+    Vector3 _endPoint{
+        NAN,
+        NAN,
+        NAN,
+    };
+
+    std::vector<WrapObstacle> _segments = {};
+    std::vector<Vector3> _pathPoints = {};
+    PathContinuityError _smoothness = {};
+
+    Status _status = Status::Ok;
+    WrappingArgs _opts;
 };
 
 std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s);
