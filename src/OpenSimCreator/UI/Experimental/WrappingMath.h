@@ -519,7 +519,7 @@ private:
     Vector3 calcSurfaceConstraintGradientImpl(Vector3 position) const override;
     Hessian calcSurfaceConstraintHessianImpl(Vector3 position) const override;
 
-    virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
+    bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double _xRadius = 1.;
     double _yRadius = 1.;
