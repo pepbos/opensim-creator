@@ -2007,6 +2007,7 @@ void calcPathErrorJacobian(
     const size_t n = obs.size();
 
     pathErrorJacobian.resize(n * 2, n * Q);
+    pathErrorJacobian.fill(0.);
 
     ActiveLambda f = [&](
             size_t prev,
