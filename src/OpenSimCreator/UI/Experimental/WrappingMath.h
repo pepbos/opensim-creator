@@ -294,6 +294,11 @@ public:
     double calcNormalCurvature(Vector3 point, Vector3 tangent) const;
     double calcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
 
+    void calcPathPoints(std::vector<Vector3>& pts, Transf transform) const
+    {
+        calcPathPointsImpl(pts, std::move(transform));
+    }
+
 private:
     virtual void calcLocalGeodesicImpl(
         Vector3 initPosition,
@@ -307,7 +312,7 @@ private:
     virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
     virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
 
-    virtual void calcLocalGeodesicPointsImpl(std::vector<Trihedron>& pts) const = 0;
+    virtual void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const = 0;
 
     virtual std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) = 0;
 
@@ -357,6 +362,8 @@ class WrapObstacle
 
     const Transf& getOffsetFrame() const {return *_transform;}
 
+    void calcPathPoints(std::vector<Vector3>& points) const;
+
     // For convenience:
     // (Assumes the point lies on the surface)
     Vector3 calcSurfaceNormal(Vector3 point) const;
@@ -368,7 +375,6 @@ class WrapObstacle
     std::shared_ptr<Transf> _transform;
     std::unique_ptr<Surface> _surface;
     Geodesic _geodesic;
-    std::vector<Trihedron> _samples;
 
     friend WrappingPath;
 };
@@ -459,6 +465,8 @@ private:
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
     std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
+
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
 
     RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative> _rkm;
 };
@@ -583,6 +591,7 @@ private:
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
     std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
 
     double _radius = 1.;
 };
@@ -655,6 +664,7 @@ private:
     double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
 
     std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
 
     double _radius = 1.;
 };

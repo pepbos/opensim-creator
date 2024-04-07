@@ -1130,6 +1130,13 @@ double ImplicitSurface::calcLocalNormalCurvatureImpl(
     return ::calcNormalCurvature(*this, std::move(point), std::move(tangent));
 }
 
+void ImplicitSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const
+{
+    for (const auto& q:  _rkm.getSamples()) {
+        points.push_back(calcPointInGround(transform, q.y.position));
+    }
+}
+
 //==============================================================================
 //                      IMPLICIT ELLIPSOID SURFACE
 //==============================================================================
@@ -1305,6 +1312,16 @@ double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     const
 {
     return 0.;
+}
+
+void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf) const
+{
+    throw std::runtime_error("NOTYETIMPLEMENTED");
+}
+
+void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf) const
+{
+    throw std::runtime_error("NOTYETIMPLEMENTED");
 }
 
 //==============================================================================
@@ -1901,6 +1918,11 @@ double WrapObstacle::calcGeodesicTorsion(Vector3 point, Vector3 tangent) const
     return _surface->calcGeodesicTorsion(
                 calcPointInLocal(offset, point),
                 calcVectorInLocal(offset, tangent));
+}
+
+void WrapObstacle::calcPathPoints(std::vector<Vector3>& points) const
+{
+    _surface->calcPathPoints(points, getOffsetFrame());
 }
 
 //==============================================================================
