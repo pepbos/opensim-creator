@@ -780,9 +780,9 @@ public:
     friend WrappingPath;
 };
 
-struct LineSegment
+struct LineSeg
 {
-    LineSegment(const Vector3& a, const Vector3& b) : l((b-a).norm()), d((b-a)/l) {}
+    LineSeg(const Vector3& a, const Vector3& b) : l((b-a).norm()), d((b-a)/l) {}
     double l = NAN;
     Vector3 d {NAN, NAN, NAN};
 };
@@ -812,11 +812,11 @@ public:
     // jacobian.
     bool calcPathCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSegment>& lines);
+            const std::vector<LineSeg>& lines);
 
     bool calcNormalsCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSegment>& lines);
+            const std::vector<LineSeg>& lines);
 
     void resize(size_t nSurfaces);
 
@@ -860,7 +860,7 @@ class WrappingPath
     const std::vector<WrapObstacle>& getSegments() const
     {return _segments;}
 
-    const std::vector<LineSegment>& getLineSegments() const
+    const std::vector<LineSeg>& getLineSegments() const
     {return _lineSegments;}
 
     const SolverT& getSolver() const
@@ -907,7 +907,7 @@ class WrappingPath
     };
 
     std::vector<WrapObstacle> _segments = {};
-    std::vector<LineSegment> _lineSegments = {};
+    std::vector<LineSeg> _lineSegments = {};
     std::vector<Vector3> _pathPoints = {};
     SolverT _smoothness = {};
 

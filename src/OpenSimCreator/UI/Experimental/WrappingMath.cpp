@@ -652,7 +652,7 @@ void calcGeodesicBoundaryState(
 using GeodesicJacobian = Eigen::Vector<double, Geodesic::DOF>;
 
 GeodesicJacobian calcDirectionJacobian(
-    const LineSegment& e,
+    const LineSeg& e,
     Vector3 axis,
     const Geodesic::Variation& v)
 {
@@ -662,7 +662,7 @@ GeodesicJacobian calcDirectionJacobian(
 }
 
 GeodesicJacobian calcPathErrorJacobian(
-    const LineSegment& line,
+    const LineSeg& line,
     Vector3 axis,
     const Geodesic::Variation& v,
     const Geodesic::Variation& w,
@@ -1929,12 +1929,11 @@ double getOutput(PathErrorKind kind)
     return kind == PathErrorKind::Tangent ? 1. : 0.;
 }
 
+using ActiveLambda  = std::function<void(size_t, size_t, size_t)>;
+
 void forEachActive(
         const std::vector<WrapObstacle>& obs,
-        std::function<void(
-            size_t prev,
-            size_t next,
-            size_t current)>& f)
+        ActiveLambda& f)
 {
     const ptrdiff_t n = obs.size();
     ptrdiff_t next = 0;
@@ -1969,7 +1968,7 @@ void forEachActive(
 }
 
 double calcPathError(
-    const LineSegment& e,
+    const LineSeg& e,
     const Trihedron& K,
     PathErrorKind kind)
 {
@@ -1978,7 +1977,7 @@ double calcPathError(
 
 void calcPathError(
     const std::vector<WrapObstacle>& obs,
-    const std::vector<LineSegment>& lines,
+    const std::vector<LineSeg>& lines,
     Eigen::VectorXd& pathError,
     PathErrorKind kind)
 {
@@ -1992,11 +1991,9 @@ void calcPathError(
     }
 }
 
-using ActiveLambda  = std::function<void(size_t, size_t, size_t)>;
-
 void calcPathErrorJacobian(
     const std::vector<WrapObstacle>& obs,
-    const std::vector<LineSegment>& lines,
+    const std::vector<LineSeg>& lines,
     Eigen::MatrixXd& pathErrorJacobian,
     PathErrorKind kind)
 {
@@ -2014,8 +2011,8 @@ void calcPathErrorJacobian(
             size_t next,
             size_t i)
         {
-            const LineSegment& l_P = lines.at(i);
-            const LineSegment& l_Q = lines.at(++i);
+            const LineSeg& l_P = lines.at(i);
+            const LineSeg& l_Q = lines.at(++i);
 
             const Geodesic& g = obs.at(i).getGeodesic();
             const Vector3 a_P = getAxis(g.K_P, kind);
@@ -2041,10 +2038,10 @@ void calcPathErrorJacobian(
 
 double calcPathLength(
         const std::vector<WrapObstacle>& obs,
-        const std::vector<LineSegment>& lines)
+        const std::vector<LineSeg>& lines)
 {
     double lTot = 0.;
-    for (const LineSegment& l: lines) {
+    for (const LineSeg& l: lines) {
         lTot += l.l;
     }
 
@@ -2058,7 +2055,7 @@ double calcPathLength(
 
 void calcPathLengthJacobian(
         const std::vector<WrapObstacle>& obs,
-        const std::vector<LineSegment>& lines,
+        const std::vector<LineSeg>& lines,
         Eigen::VectorXd& lengthJacobian)
 {
     size_t i = 0;
@@ -2090,7 +2087,7 @@ void calcLineSegments(
         Vector3 p_O,
         Vector3 p_I,
     const std::vector<WrapObstacle>& obs,
-std::vector<LineSegment>& lines)
+std::vector<LineSeg>& lines)
 {
     const size_t n = obs.size();
     lines.clear();
@@ -2109,7 +2106,7 @@ std::vector<LineSegment>& lines)
     lines.push_back({a, p_I});
 }
 
-double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSegment>& lines)
+double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSeg>& lines)
 {
     size_t i = 0;
     double maxAbsErr = 0.;
@@ -2159,7 +2156,7 @@ size_t WrappingPath::calcInitPath(
 
 bool SolverT::calcNormalsCorrection(
         const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSegment> &lines)
+        const std::vector<LineSeg> &lines)
 {
     Eigen::MatrixXd& J = _pathErrorJacobian;
     calcPathErrorJacobian(obs, lines, J, PathErrorKind::Normal);
@@ -2183,7 +2180,7 @@ bool SolverT::calcNormalsCorrection(
 
 bool SolverT::calcPathCorrection(
         const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSegment> &lines)
+        const std::vector<LineSeg> &lines)
 {
     calcPathLengthJacobian(obs, lines, _lengthJacobian);
     _length = calcPathLength(obs, lines);
