@@ -261,6 +261,8 @@ class WrappingPath;
 class Surface
 {
 public:
+    static constexpr double MIN_DIST_FROM_SURF = 1e-3;
+
     virtual ~Surface() = default;
 
 protected:
@@ -351,6 +353,7 @@ class WrapObstacle
 
     void attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size_t maxIter = 20, double eps = 1e-3);
     void detectLiftOff(const Vector3& p_O, const Vector3& p_I);
+    bool isAboveSurface(const Vector3& p, double bound);
 
     const Transf& getOffsetFrame() const {return *_transform;}
 
@@ -777,6 +780,66 @@ public:
     friend WrappingPath;
 };
 
+struct LineSegment
+{
+    LineSegment(const Vector3& a, const Vector3& b) : l((b-a).norm()), d((b-a)/l) {}
+    double l = NAN;
+    Vector3 d {NAN, NAN, NAN};
+};
+
+// Captures the smoothness of the wrapping path.
+class SolverT final
+{
+public:
+    ~SolverT()                                         = default;
+    SolverT()                                          = default;
+    SolverT(const SolverT&)                = default;
+    SolverT(SolverT&&) noexcept            = default;
+    SolverT& operator=(const SolverT&)     = default;
+    SolverT& operator=(SolverT&&) noexcept = default;
+
+    // Maximum natural geodesic correction for reducing the path error.
+    double calcMaxCorrectionStep() const;
+
+    // Pointer to first geodesic's correction.
+    const Geodesic::Correction* begin() const;
+    // Pointer to one past last geodesic's correction.
+    const Geodesic::Correction* end() const;
+
+    // Get access to the path error and path error jacobian.
+
+    // Compute the geodesic corrections from the path error and path error
+    // jacobian.
+    bool calcPathCorrection(
+            const std::vector<WrapObstacle>& obs,
+            const std::vector<LineSegment>& lines);
+
+    bool calcNormalsCorrection(
+            const std::vector<WrapObstacle>& obs,
+            const std::vector<LineSegment>& lines);
+
+    void resize(size_t nSurfaces);
+
+    CorrectionBounds maxStep;
+
+    Eigen::VectorXd _pathCorrections;
+
+    Eigen::VectorXd _pathError;
+    Eigen::MatrixXd _pathErrorJacobian;
+
+    Eigen::MatrixXd _mat;
+    Eigen::VectorXd _vec;
+    Eigen::VectorXd _vecL;
+
+    double _length = 0.;
+    Eigen::VectorXd _lengthJacobian;
+
+    double _weight = 0.;
+
+    friend Surface; // TODO change to whomever is calculating the path.
+    friend WrappingPath;
+};
+
 // The result of computing a path over surfaces.
 class WrappingPath
 {
@@ -797,10 +860,13 @@ class WrappingPath
     const std::vector<WrapObstacle>& getSegments() const
     {return _segments;}
 
-    const PathContinuityError& getSolver() const
+    const std::vector<LineSegment>& getLineSegments() const
+    {return _lineSegments;}
+
+    const SolverT& getSolver() const
     {return _smoothness;}
 
-    PathContinuityError& updSolver()
+    SolverT& updSolver()
     {return _smoothness;}
 
     size_t calcInitPath(
@@ -841,11 +907,14 @@ class WrappingPath
     };
 
     std::vector<WrapObstacle> _segments = {};
+    std::vector<LineSegment> _lineSegments = {};
     std::vector<Vector3> _pathPoints = {};
-    PathContinuityError _smoothness = {};
+    SolverT _smoothness = {};
 
     Status _status = Status::Ok;
     WrappingArgs _opts;
+    double _pathError = NAN;
+    double _pathErrorBound = std::abs(1. - cos(1. / 180. * M_PI));
 };
 
 std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s);

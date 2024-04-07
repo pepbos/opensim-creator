@@ -652,29 +652,25 @@ void calcGeodesicBoundaryState(
 using GeodesicJacobian = Eigen::Vector<double, Geodesic::DOF>;
 
 GeodesicJacobian calcDirectionJacobian(
-    Vector3 d,
-    double l,
+    const LineSegment& e,
     Vector3 axis,
     const Geodesic::Variation& v)
 {
-    AssertEq(d.dot(d), 1., "direction must be unit");
-
-    Vector3 y = axis - d * d.dot(axis);
-    y /= l;
+    Vector3 y = axis - e.d * e.d.dot(axis);
+    y /= e.l;
     return y.transpose() * v;
 }
 
 GeodesicJacobian calcPathErrorJacobian(
-    Vector3 e,
-    double l,
+    const LineSegment& line,
     Vector3 axis,
     const Geodesic::Variation& v,
     const Geodesic::Variation& w,
     bool invertV = false)
 {
     GeodesicJacobian jacobian =
-        calcDirectionJacobian(e, l, axis, v) * (invertV ? -1. : 1.);
-    jacobian += axis.cross(e).transpose() * w;
+        calcDirectionJacobian(line, axis, v) * (invertV ? -1. : 1.);
+    jacobian += axis.cross(line.d).transpose() * w;
     return jacobian;
 }
 
@@ -682,10 +678,10 @@ GeodesicJacobian calcPathErrorJacobian(
 //                      ACCURATE SURFACE PROJECTION
 //==============================================================================
 
-double calcMaxAlignmentError(double angleDeg)
-{
-    return std::abs(1. - cos(angleDeg / 180. * M_PI));
-}
+/* double calcMaxAlignmentError(double angleDeg) */
+/* { */
+/*     return std::abs(1. - cos(angleDeg / 180. * M_PI)); */
+/* } */
 
 // Find the touchdown point of a line to a surface.
 size_t calcLineToImplicitSurfaceTouchdownPoint(
@@ -967,67 +963,6 @@ void RunIntegratorTests()
 
 namespace
 {
-using GS = Geodesic::Status;
-
-GS isPrevOrNextLineSegmentInsideSurface(
-    const Surface& surface,
-    Vector3 prevPoint,
-    Vector3 nextPoint)
-{
-    GS a = surface.isAboveSurface(
-               std::move(prevPoint),
-               Surface::MIN_DIST_FROM_SURF)
-               ? GS::Ok
-               : GS::PrevLineSegmentInsideSurface;
-
-    GS b = surface.isAboveSurface(
-               std::move(nextPoint),
-               Surface::MIN_DIST_FROM_SURF)
-               ? GS::Ok
-               : GS::NextLineSegmentInsideSurface;
-
-    return a | b;
-}
-
-bool calcLiftoff(const Trihedron& K, Vector3 point)
-{
-    return K.n().dot(point - K.p()) > 0.;
-}
-
-GS calcLiftoff(
-    const Trihedron& K_P,
-    const Trihedron& K_Q,
-    Vector3 prevPoint,
-    Vector3 nextPoint)
-{
-    const bool lift_P =
-        calcLiftoff(K_P, prevPoint) && calcLiftoff(K_P, nextPoint);
-    const bool lift_Q =
-        calcLiftoff(K_Q, prevPoint) && calcLiftoff(K_Q, nextPoint);
-    const bool liftoff = lift_P || lift_Q;
-    return liftoff ? GS::LiftOff : GS::Ok;
-}
-
-GS calcLiftoff(
-    Trihedron* begin,
-    Trihedron* end,
-    Vector3 prevPoint,
-    Vector3 nextPoint)
-{
-    bool liftoff = begin != end;
-
-    for (Trihedron* it = begin;
-         it != end && (liftoff &= calcLiftoff(*it, prevPoint));
-         ++it) {
-    }
-    for (Trihedron* it = end;
-         begin != it && (liftoff &= calcLiftoff(*(it - 1), nextPoint));
-         --it) {
-    }
-
-    return liftoff ? GS::LiftOff : GS::Ok;
-}
-
 bool isActive(Geodesic::Status s)
 {
     return s == Geodesic::Status::Ok || s == Geodesic::Status::NegativeLength;
@@ -1037,82 +972,6 @@ bool isError(Geodesic::Status s)
 {
     return !isActive(s) || s == Geodesic::Status::Disabled;
 }
-
-size_t countActive(const std::vector<WrapObstacle>& obs)
-{
-    size_t count = 0;
-    for (const WrapObstacle& o : obs) {
-        if (!isActive(o.getStatus())) {
-            continue;
-        }
-        ++count;
-    }
-    return count;
-}
-
-ptrdiff_t findPrevSegmentIndex(
-    const std::vector<WrapObstacle>& obs,
-    ptrdiff_t idx)
-{
-    ptrdiff_t prev = -1;
-    for (ptrdiff_t i = 0; i < idx; ++i) {
-        if (isActive(obs.at(i).getStatus())) {
-            prev = i;
-        }
-    }
-    return prev;
-}
-
-ptrdiff_t findNextSegmentIndex(
-    const std::vector<WrapObstacle>& obs,
-    ptrdiff_t idx)
-{
-    for (ptrdiff_t i = idx + 1; i < static_cast<ptrdiff_t>(obs.size());
-         ++i) {
-        if (isActive(obs.at(i).getStatus())) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-Vector3 findPrevSegmentEndPoint(
-    const Vector3& pathStart,
-    const std::vector<WrapObstacle>& segments,
-    ptrdiff_t idx)
-{
-    ptrdiff_t prev = findPrevSegmentIndex(segments, idx);
-    return prev < 0 ? pathStart : segments.at(prev).getGeodesic().K_Q.p();
-}
-
-Vector3 findNextSegmentStartPoint(
-    const Vector3& pathEnd,
-    const std::vector<WrapObstacle>& segments,
-    ptrdiff_t idx)
-{
-    ptrdiff_t next = findNextSegmentIndex(segments, idx);
-    return next < 0 ? pathEnd : segments.at(next).getGeodesic().K_P.p();
-}
-
-} // namespace
-
-//==============================================================================
-//                      WRAPPING STATUS FLAGS
-//==============================================================================
-
-namespace
-{
-using WS = WrappingPath::Status;
-
-void setStatusFlag(WS& current, WS flag, bool value = true)
-{
-    if (value) {
-        current = current | flag;
-    } else {
-        current = current & ~flag;
-    }
-}
-
 } // namespace
 
 //==============================================================================
@@ -1148,8 +1007,7 @@ Geodesic::InitialConditions applyNaturalGeodesicVariation(
     return {p, t, l};
 }
 
-void Surface::applyVariation(
-    const Geodesic::Correction& c)
+void Surface::applyVariation(const Geodesic::Correction& c)
 {
     calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
 }
@@ -1158,7 +1016,7 @@ bool Surface::calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3
 {
     std::pair<bool, size_t> y = calcLocalLineToSurfaceTouchdownPointImpl(a, b, p, maxIter, eps);
     const bool touchdown = y.first;
-    const bool iter = y.second;
+    const size_t iter = y.second;
     if (iter >= maxIter) {
         updStatus() |= Geodesic::Status::TouchDownFailed;
     }
@@ -1415,13 +1273,13 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     }
 
     // TODO seems a waste...
-    size_t nSamples = 10;
-    for (size_t i = 0; i < nSamples; ++i) {
-        const double angle_i =
-            angle * static_cast<double>(i) / static_cast<double>(nSamples);
-        const Rotation dq{Eigen::AngleAxisd(angle_i, axis)};
-        geodesic.samples.emplace_back(dq * K_P);
-    }
+    /* size_t nSamples = 10; */
+    /* for (size_t i = 0; i < nSamples; ++i) { */
+    /*     const double angle_i = */
+    /*         angle * static_cast<double>(i) / static_cast<double>(nSamples); */
+    /*     const Rotation dq{Eigen::AngleAxisd(angle_i, axis)}; */
+    /*     geodesic.samples.emplace_back(dq * K_P); */
+    /* } */
 
     geodesic.length = length;
 }
@@ -1586,17 +1444,17 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
     w_Q.col(3) = dAlpha_dl * z;
 
-    size_t nSamples = 10;
-    for (size_t i = 0; i < nSamples; ++i) {
-        const double factor =
-            static_cast<double>(i) / static_cast<double>(nSamples);
-        const double angle_i = alpha * factor;
-        const double h_i     = h * factor;
-        const Rotation dq{Eigen::AngleAxisd(angle_i, z)};
-        const Darboux f   = dq * f_P;
-        const Vector3 p_i = dq * K_P.p() + h_i * z;
-        geodesic.samples.emplace_back(p_i, f);
-    }
+    /* size_t nSamples = 10; */
+    /* for (size_t i = 0; i < nSamples; ++i) { */
+    /*     const double factor = */
+    /*         static_cast<double>(i) / static_cast<double>(nSamples); */
+    /*     const double angle_i = alpha * factor; */
+    /*     const double h_i     = h * factor; */
+    /*     const Rotation dq{Eigen::AngleAxisd(angle_i, z)}; */
+    /*     const Darboux f   = dq * f_P; */
+    /*     const Vector3 p_i = dq * K_P.p() + h_i * z; */
+    /*     geodesic.samples.emplace_back(p_i, f); */
+    /* } */
 
     geodesic.length = length;
 }
@@ -1981,7 +1839,7 @@ void WrapObstacle::attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size
 {
     Geodesic::Status s = getStatus();
     const bool active = isActive(s & ~Geodesic::Status::LiftOff);
-    const bool liftoff = s & Geodesic::Status::LiftOff;
+    const bool liftoff = (s & Geodesic::Status::LiftOff) > 0;
 
     // Only attempt touchdown if segment is active, and in liftoff.
     if (!active || !liftoff) return;
@@ -2049,237 +1907,245 @@ double WrapObstacle::calcGeodesicTorsion(Vector3 point, Vector3 tangent) const
 //                      WRAP PATH
 //==============================================================================
 
-void calcSegmentPathErrorJacobian(
-    const WrappingArgs& args,
-    const Geodesic::Variation* v_Q_prev,
-    const Trihedron& K,
-    const Geodesic::Variation& v,
-    const Geodesic::Variation& w,
-    const Geodesic::Variation* v_P_next,
-    const Vector3& point,
-    Eigen::VectorXd& pathError,
-    Eigen::MatrixXd& pathErrorJacobian,
-    size_t& row,
-    bool isFirst)
+enum class PathErrorKind {
+    Tangent,
+    Normal,
+    Binormal,
+};
+
+Vector3 getAxis(const Trihedron& K, PathErrorKind kind)
 {
-    constexpr size_t DIM = Geodesic::DOF;
+    switch (kind) {
+        case PathErrorKind::Tangent: return K.t();
+        case PathErrorKind::Normal: return K.n();
+        case PathErrorKind::Binormal: return K.b();
+        default: break;
+    }
+    return {NAN, NAN, NAN};
+}
 
-    const double l  = (K.p() - point).norm();
-    const Vector3 e = (K.p() - point) / l;
+double getOutput(PathErrorKind kind)
+{
+    return kind == PathErrorKind::Tangent ? 1. : 0.;
+}
 
-    const size_t col =
-        (row / PathContinuityError::NUMBER_OF_CONSTRAINTS) * Geodesic::DOF;
+void forEachActive(
+        const std::vector<WrapObstacle>& obs,
+        std::function<void(
+            size_t prev,
+            size_t next,
+            size_t current)>& f)
+{
+    const ptrdiff_t n = obs.size();
+    ptrdiff_t next = 0;
+    ptrdiff_t prev = -1;
 
-    auto UpdatePathErrorElementAndJacobian = [&](const Vector3& m, double y) {
-        pathError[row] = e.dot(m) + y;
+    for (ptrdiff_t i = 0; i < n; ++i)
+    {
+        // Call function f for each active segment.
+        if (!isActive(obs.at(i).getStatus())) {
+            continue;
+        }
 
-        const Vector3 de = (m - e * e.dot(m)) / l;
-
-        for (size_t i = 0; i < Geodesic::DOF; ++i) {
-
-            const Vector3 dm = w.col(i).cross(m);
-
-            pathErrorJacobian(row, col + i) = de.dot(v.col(i)) + e.dot(dm);
-
-            // Check if other end was connected to a geodesic.
-            if (v_Q_prev) {
-                pathErrorJacobian(row, col - DIM + i) =
-                    -de.dot(v_Q_prev->col(i));
-            }
-
-            if (v_P_next) {
-                pathErrorJacobian(row, col + DIM + i) =
-                    -de.dot(v_P_next->col(i));
+        // Find the active segment before the current.
+        if (i > 0) {
+            if (isActive(obs.at(i-1).getStatus())) {
+                prev = i - 1;
             }
         }
 
-        ++row;
-    };
+        // Find the active segment after the current.
+        if(next <= i) {
+            for(; ++next < n;) {
+                const WrapObstacle& o = obs.at(next);
+                if (isActive(o.getStatus())) {
+                    break;
+                }
+            }
+        }
 
-    if (args.m_CostT) {
-        UpdatePathErrorElementAndJacobian(K.t(), isFirst ? -1. : 1.);
-    }
-    if (args.m_CostN) {
-        UpdatePathErrorElementAndJacobian(K.n(), 0.);
-    }
-    if (args.m_CostB) {
-        UpdatePathErrorElementAndJacobian(K.b(), 0.);
+        f(prev < 0 ? n : prev, next, i);
     }
 }
 
-const WrapObstacle* getActive(const std::vector<WrapObstacle>& obs, size_t idx)
+double calcPathError(
+    const LineSegment& e,
+    const Trihedron& K,
+    PathErrorKind kind)
+{
+    return e.d.dot(getAxis(K, kind)) - getOutput(kind);
+}
+
+void calcPathError(
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSegment>& lines,
+    Eigen::VectorXd& pathError,
+    PathErrorKind kind)
 {
     size_t i = 0;
-    for (const WrapObstacle& o : obs) {
-        if (!isActive(o.getStatus()))
-            continue;
+    ptrdiff_t row = -1;
+    pathError.resize(obs.size() *2);
+    for(const WrapObstacle& o : obs) {
+        const Geodesic& g = o.getGeodesic();
+        pathError(++row) = calcPathError(lines.at(i), g.K_P, kind);
+        pathError(++row) = calcPathError(lines.at(++i), g.K_Q, kind);
+    }
+}
 
-        if (i == idx)
-            return &g;
+using ActiveLambda  = std::function<void(size_t, size_t, size_t)>;
+
+void calcPathErrorJacobian(
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSegment>& lines,
+    Eigen::MatrixXd& pathErrorJacobian,
+    PathErrorKind kind)
+{
+    size_t row = 0;
+    size_t col = 0;
+
+    constexpr size_t Q = Geodesic::DOF;
+    const size_t n = obs.size();
+
+    pathErrorJacobian.resize(n * 2, n * Q);
+
+    ActiveLambda f = [&](
+            size_t prev,
+            size_t next,
+            size_t i)
+        {
+            const LineSegment& l_P = lines.at(i);
+            const LineSegment& l_Q = lines.at(++i);
+
+            const Geodesic& g = obs.at(i).getGeodesic();
+            const Vector3 a_P = getAxis(g.K_P, kind);
+            const Vector3 a_Q = getAxis(g.K_Q, kind);
+
+            pathErrorJacobian.block<1, Q>(row, col) = calcPathErrorJacobian(l_P, a_P, g.v_P, g.w_P);
+            if (prev != n) {
+                pathErrorJacobian.block<1, Q>(row, col-Q) = -calcDirectionJacobian(l_P, a_P, obs.at(prev).getGeodesic().v_Q);
+            }
+            ++row;
+            col += Q;
+
+            pathErrorJacobian.block<1, Q>(row, col) = calcPathErrorJacobian(l_Q, a_Q, g.v_Q, g.w_Q, true);
+            if (next != n) {
+                pathErrorJacobian.block<1, Q>(row, col+Q) = calcDirectionJacobian(l_Q, a_Q, obs.at(next).getGeodesic().v_P);
+            }
+            ++row;
+            col += Q;
+        };
+
+    forEachActive(obs, f);
+}
+
+double calcPathLength(
+        const std::vector<WrapObstacle>& obs,
+        const std::vector<LineSegment>& lines)
+{
+    double lTot = 0.;
+    for (const LineSegment& l: lines) {
+        lTot += l.l;
+    }
+
+    for (const WrapObstacle& o: obs)
+    {
+        if (!isActive(o.getStatus())) continue;
+        lTot += std::abs(o.getGeodesic().length);
+    }
+    return lTot;
+}
+
+void calcPathLengthJacobian(
+        const std::vector<WrapObstacle>& obs,
+        const std::vector<LineSegment>& lines,
+        Eigen::VectorXd& lengthJacobian)
+{
+    size_t i = 0;
+    constexpr size_t Q = Geodesic::DOF;
+    lengthJacobian.resize(obs.size() * Q);
+    for (const WrapObstacle& o: obs)
+    {
+        if (!isActive(o.getStatus())) continue;
+        const Geodesic& g = o.getGeodesic();
+
+        // Length of curve segment.
+        GeodesicJacobian jacobian = {0., 0., 0., 1.};
+
+        // Length of previous line segment.
+        const Vector3 e_P = lines.at(i).d;
+        const Vector3 e_Q = lines.at(i+1).d;
+
+        jacobian += e_P.transpose() * g.v_P;
+        jacobian -= e_Q.transpose() * g.v_Q;
+
+        // Write jacobian elements.
+        lengthJacobian.middleRows<Q>(i * Q) = jacobian;
 
         ++i;
     }
-    return nullptr;
 }
 
-void calcLengthJacobian(WrappingPath& path)
+void calcLineSegments(
+        Vector3 p_O,
+        Vector3 p_I,
+    const std::vector<WrapObstacle>& obs,
+std::vector<LineSegment>& lines)
 {
-    const size_t n = countActive(path.getSegments());
+    const size_t n = obs.size();
+    lines.clear();
 
-    double& lTot = path.updSolver()._length = 0.;
-
-    if (n == 0)
-        return;
-
-    Vector3 e{NAN, NAN, NAN};
-    double l = NAN;
-
-    // First segment start.
-    {
-        e = getActive(path.getSegments(), 0)->K_P.p() - path.getStart();
-        l = e.norm();
-        lTot += l;
-    }
-
-    GeodesicJacobian jacobian{NAN, NAN, NAN, NAN};
+    Vector3 a = std::move(p_O);
     for (size_t i = 0; i < n; ++i) {
-        const Geodesic& g = getActive(path.getSegments(), i)->getGeodesic();
-
-        // Length of curve segment.
-        jacobian = {0., 0., 0., 1.};
-        lTot += g.length;
-
-        // Length of previous line segment.
-        jacobian += (e / l).transpose() * g.v_P;
-
-        // Length of next line segment.
-        Vector3 p_I = i == n - 1 ? path.getEnd()
-                                 : getActive(path.getSegments(), i + 1)->getGeodesic().K_P.p();
-        e           = (p_I - g.K_Q.p());
-        l           = e.norm();
-        lTot += l;
-        jacobian += -(e / l).transpose() * g.v_Q;
-
-        // Write jacobian elements.
-        path.updSolver()._lengthJacobian.middleRows<Geodesic::DOF>(
-            i * Geodesic::DOF) = jacobian;
-    }
-}
-
-size_t calcPathErrorJacobian(WrappingPath& path)
-{
-    size_t nActiveSegments = countActive(path.getSegments());
-    /* std::cout << "nActiveSegments = " << nActiveSegments << "\n"; */
-
-    path.updSolver().resize(nActiveSegments, path.getOpts());
-
-    calcLengthJacobian(path);
-
-    // Active segment count.
-    size_t row = 0;
-    /* SegmentIterator end = SegmentIterator::End(path); */
-    /* for (SegmentIterator it = SegmentIterator::Begin(path); it != end; ++it)
-     */
-    for (ptrdiff_t idx = 0; idx < static_cast<ptrdiff_t>(path.getSegments().size());
-         ++idx) {
-        const WrapObstacle& s = path.getSegments().at(idx);
-        if (!isActive(s.getStatus())) {
+        if (!isActive(obs.at(i).getStatus())) {
             continue;
         }
 
-        {
-            ptrdiff_t prev = findPrevSegmentIndex(path.getSegments(), idx);
-
-            /* std::cout << "idx = " << idx << "\n"; */
-            /* std::cout << "row = " << row << "\n"; */
-            /* std::cout << "col = " << row << "\n"; */
-            calcSegmentPathErrorJacobian(
-                path.getOpts(),
-                prev < 0 ? nullptr : &path.getSegments().at(prev).getGeodesic().v_Q,
-                path.getSegments().at(idx).getGeodesic().K_P,
-                path.getSegments().at(idx).getGeodesic().v_P,
-                path.getSegments().at(idx).getGeodesic().w_P,
-                nullptr,
-                prev < 0 ? path.getStart() : path.getSegments().at(prev).getGeodesic().K_Q.p(),
-                path.updSolver().updPathError(),
-                path.updSolver().updPathErrorJacobian(),
-                row,
-                true);
-        }
-
-        {
-            ptrdiff_t next = findNextSegmentIndex(path.getSegments(), idx);
-            calcSegmentPathErrorJacobian(
-                path.getOpts(),
-                nullptr,
-                path.getSegments().at(idx).getGeodesic().K_Q,
-                path.getSegments().at(idx).getGeodesic().v_Q,
-                path.getSegments().at(idx).getGeodesic().w_Q,
-                next < 0 ? nullptr : &path.getSegments().at(next).getGeodesic().v_P,
-                next < 0 ? path.getEnd() : path.getSegments().at(next).getGeodesic().K_P.p(),
-                path.updSolver().updPathError(),
-                path.updSolver().updPathErrorJacobian(),
-                row,
-                false);
-        }
-
-        for (size_t i = 0; i < Geodesic::DOF; ++i) {
-            for (size_t j = 0; j < Geodesic::DOF; ++j) {
-                const size_t r               = i + Geodesic::DOF * idx;
-                const size_t c               = j + Geodesic::DOF * idx;
-                path.updSolver()._costP(r, c) = s.getGeodesic().v_P.col(i).dot(s.getGeodesic().v_P.col(j));
-                path.updSolver()._costQ(r, c) += s.getGeodesic().v_Q.col(i).dot(s.getGeodesic().v_Q.col(j));
-            }
-        }
+        const Geodesic& g = obs.at(i).getGeodesic();
+        const Vector3 b = g.K_P.p();
+        lines.push_back({a, b});
+        a = g.K_Q.p();
     }
-    return nActiveSegments;
+    lines.push_back({a, p_I});
+}
+
+double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSegment>& lines)
+{
+    size_t i = 0;
+    double maxAbsErr = 0.;
+    for(const WrapObstacle& o: obs)
+    {
+        if (!isActive(o.getStatus())) {
+            continue;
+        }
+
+        const Geodesic& g = o.getGeodesic();
+
+        double err = lines.at(i).d.dot(g.K_P.t()) - 1.;
+        maxAbsErr = std::max(maxAbsErr, std::abs(err));
+
+        err = lines.at(++i).d.dot(g.K_Q.t()) - 1.;
+        maxAbsErr = std::max(maxAbsErr, std::abs(err));
+    }
+    return maxAbsErr;
 }
 
 void calcInitZeroLengthGeodesics(
     const Vector3& p_O,
     std::vector<WrapObstacle>& obs)
 {
-    size_t i = 0;
+    Vector3 prev = p_O;
     for (WrapObstacle& o: obs) {
         if (!isActive(o.getStatus())) {
             continue;
         }
-
-        Vector3 prev = findPrevSegmentEndPoint(p_O, obs, i);
 
         Vector3 initPositon  = o.getPathStartGuess();
         Vector3 initVelocity = (initPositon - prev);
 
         // Shoot a zero-length geodesic as initial guess.
         o.calcGeodesic({initPositon, initVelocity, 0.});
+        prev = o.getGeodesic().K_Q.p();
     }
-}
-
-double calcMaxPathError(
-    const std::vector<WrapObstacle>& obs,
-    const Vector3& p_O,
-    const Vector3& p_I)
-{
-    size_t i = 0;
-    double maxAbsErr = 0.;
-    auto UpdError = [&](const Trihedron& K, const Vector3& p)
-    {
-        double l = (K.p() - p).norm();
-        double e = (K.p() - p).dot(K.t()) / l;
-        maxAbsErr = std::max(std::abs(e), maxAbsErr);
-    };
-    for (const WrapObstacle& o: obs) {
-        if (!isActive(o.getStatus())) {
-            ++i;
-            continue;
-        }
-
-        UpdError(o.getGeodesic().K_P, findPrevSegmentEndPoint(p_O, obs, i));
-        UpdError(o.getGeodesic().K_Q, findNextSegmentStartPoint(p_I, obs, i));
-
-        ++i;
-    }
-    return maxAbsErr;
 }
 
 size_t WrappingPath::calcInitPath(
@@ -2290,13 +2156,66 @@ size_t WrappingPath::calcInitPath(
     std::cout << eps << maxIter;
 }
 
+bool SolverT::calcNormalsCorrection(
+        const std::vector<WrapObstacle> &obs,
+        const std::vector<LineSegment> &lines)
+{
+    Eigen::MatrixXd& J = _pathErrorJacobian;
+    calcPathErrorJacobian(obs, lines, J, PathErrorKind::Normal);
+
+    Eigen::VectorXd& g = _pathError;
+    calcPathError(obs, lines, g, PathErrorKind::Normal);
+
+    const double w = 1.;
+
+    _mat = J.transpose() * J;
+    for (int i = 0; i < _mat.rows(); ++i) {
+        _mat(i,i) += w;
+    }
+
+    _vec = - J.transpose() * g;
+
+    _pathCorrections = _mat.colPivHouseholderQr().solve(_vec);
+
+    return true;
+}
+
+bool SolverT::calcPathCorrection(
+        const std::vector<WrapObstacle> &obs,
+        const std::vector<LineSegment> &lines)
+{
+    calcPathLengthJacobian(obs, lines, _lengthJacobian);
+    _length = calcPathLength(obs, lines);
+
+    Eigen::MatrixXd& J = _pathErrorJacobian;
+    calcPathErrorJacobian(obs, lines, J, PathErrorKind::Normal);
+
+    Eigen::VectorXd& g = _pathError;
+    calcPathError(obs, lines, g, PathErrorKind::Normal);
+
+    _mat = J * J.transpose() * J;
+
+    const double w = 1.;
+    const double alpha = 1. / (1. + w);
+
+    Eigen::VectorXd& L = _vecL;
+    L =  (alpha * _length * _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian;
+
+    _vec = J * L - g;
+
+    _pathCorrections = _mat.colPivHouseholderQr().solve(_vec);
+    _pathCorrections -= L;
+
+    return true;
+}
+
 size_t WrappingPath::calcPath(
     bool breakOnErr,
-    double eps,
+    double,
     size_t maxIter)
 {
     updStatus() = WrappingPath::Status::Ok;
-    const ptrdiff_t n = getSegments().size();
+    const size_t n = getSegments().size();
     if (n == 0) {
         return 0;
     }
@@ -2307,20 +2226,24 @@ size_t WrappingPath::calcPath(
     }
 
     for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
-        // Evaluate path error, and stop when converged.
-        // TODO  expensive?
-        if (calcMaxPathError(getSegments(), getStart(), getEnd()) < eps) {
-            return loopIter;
-        }
 
         // Detect touchdown & liftoff.
-        for (ptrdiff_t i = 0; i < n; ++i) {
-            Vector3 prev = findPrevSegmentEndPoint(getStart(), getSegments(), i);
-            Vector3 next = findNextSegmentStartPoint(getEnd(), getSegments(), i);
+        ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i)
+        {
+            const Vector3 p_O = prev == n ? getStart() : getSegments().at(prev).getGeodesic().K_Q.p();
+            const Vector3 p_I = next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
+            updSegments().at(i).attemptTouchdown(p_O, p_I);
+            updSegments().at(i).detectLiftOff(p_O, p_I);
+        };
+        forEachActive(getSegments(), TouchdownAndLiftOff);
 
-            WrapObstacle& o = updSegments().at(i);
-            o.attemptTouchdown(prev, next);
-            o.detectLiftOff(prev, next);
+        // Compute the line segments.
+        calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
+
+        // Evaluate path error, and stop when converged.
+        _pathError = calcMaxPathError(getSegments(), getLineSegments());
+        if (_pathError < _pathErrorBound) {
+            return loopIter;
         }
 
         // Optionally return on error.
@@ -2333,8 +2256,7 @@ size_t WrappingPath::calcPath(
         }
 
         // Compute path corrections.
-        calcPathErrorJacobian(*this);
-        if (!updSolver().calcPathCorrection(_opts)) {
+        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
             return loopIter;
         }
