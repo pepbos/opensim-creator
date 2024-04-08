@@ -2280,8 +2280,11 @@ bool SolverT::calcPathCorrection(
 
     Eigen::VectorXd& L = _vecL;
     /* L =  (alpha * _length / _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian; */
+    /* if (pathErr < pathErrBnd) { */
     L =  alpha * (_lengthJacobian + qB);
-    L =  alpha * _lengthJacobian;
+    /* } else { */
+    /*     L =  alpha * _lengthJacobian; */
+    /* } */
 
     _pathCorrections = J.transpose() * _inv * (J * L - g) - L;
     /* calcScaledToFit<Eigen::VectorXd>(_pathCorrections, 1e-1); */
