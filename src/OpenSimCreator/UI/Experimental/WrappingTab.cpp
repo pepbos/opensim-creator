@@ -56,7 +56,7 @@ namespace
         Mesh m_Mesh{};
         Vec3 m_Scale {1., 1., 1.};
         Quat m_Quat {1., 0., 0., 0.};
-        Vec3 m_OffsetPos {1., 1., 1.};
+        Vec3 m_OffsetPos {0., 0., 0.};
     };
 
     std::pair<SceneSurface, WrapObstacle> CreateSphere(double radius)
@@ -152,8 +152,8 @@ public:
         auto AppendSurface = [&](std::pair<SceneSurface, WrapObstacle>&& s)
             -> WrapObstacle&
         {
-            m_Surface.push_back(s.first);
-            m_WrappingPath.updSegments().push_back(s.second);
+            m_Surface.push_back(std::move(s.first));
+            m_WrappingPath.updSegments().push_back(std::move(s.second));
             return m_WrappingPath.updSegments().back();
         };
         // Add an ellipsoid.
@@ -183,6 +183,9 @@ public:
 
         m_Camera.setBackgroundColor({1.0f, 1.0f, 1.0f, 0.0f});
         m_Camera.setPosition({0., 0., 5.});
+
+        m_StartPoint.point = {-5., 0., 0.};
+        m_EndPoint.point = {5., 0.1, 0.1};
     }
 
 private:
@@ -313,7 +316,7 @@ private:
             ImGui::SliderFloat3("p_I", m_EndPoint.point.begin(), m_EndPoint.min, m_EndPoint.max);
 
             // Set wrapping args.
-            ui::Checkbox("Cache path", &m_WrappingPath.updOpts().m_Cache);
+            ui::Checkbox("Cache path", &m_Cache);
 
             // Some simulation args.
             ui::Checkbox("Freeze", &m_FreezePath);
@@ -352,8 +355,32 @@ private:
             RenderSurface(s, m_TransparantMaterial, m_Camera, m_GreenColorMaterialProps);
         }
 
+        float r = 0.05f;
+
+        Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                .scale    = {r, r, r},
+                .position = m_StartPoint.point,
+                },
+                m_Material,
+                m_Camera,
+                m_BlueColorMaterialProps);
+
+        Graphics::DrawMesh(
+                m_SphereMesh,
+                {
+                .scale    = {r, r, r},
+                .position = m_EndPoint.point,
+                },
+                m_Material,
+                m_Camera,
+                m_GreenColorMaterialProps);
+
+        r = 0.02f;
+
         // render curve
-        if(!m_WrappingPath.getPathPoints().empty())
+        if(!m_WrappingPath.calcPathPoints().empty())
         {
             auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, const MeshBasicMaterial::PropertyBlock& color) {
                 Graphics::DrawMesh(
@@ -365,7 +392,7 @@ private:
                 Graphics::DrawMesh(
                         m_SphereMesh,
                         {
-                        .scale    = {0.01, 0.01, 0.01},
+                        .scale    = {r, r, r},
                         .position = p1,
                         },
                         m_Material,
@@ -378,6 +405,8 @@ private:
                     DrawCurveSegmentMesh(prev, next, m_RedColorMaterialProps);
                     prev = next;
             }
+        } else {
+            throw std::runtime_error("path points empty");
         }
 
         Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
@@ -417,6 +446,7 @@ private:
 
     // scene state
     bool m_FreezePath = false;
+    bool m_Cache = false;
     bool m_SingleStep = false;
 
     bool m_IsMouseCaptured = false;

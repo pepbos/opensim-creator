@@ -107,9 +107,9 @@ class RungeKuttaMerson
     std::vector<Sample> _samples {};
 
     double _h0 = 1e-6;
-    double _hMin = 1e-6;
+    double _hMin = 1e-8;
     double _hMax = 1e-1;
-    double _accuracy = 1e-4;
+    double _accuracy = 1e-8;
 
     size_t _failedCount = 0;
 };
@@ -358,7 +358,7 @@ class WrapObstacle
 
     void attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size_t maxIter = 20, double eps = 1e-3);
     void detectLiftOff(const Vector3& p_O, const Vector3& p_I);
-    bool isAboveSurface(const Vector3& p, double bound);
+    bool isAboveSurface(const Vector3& p, double bound) const;
 
     const Transf& getOffsetFrame() const {return *_transform;}
 
@@ -813,8 +813,6 @@ public:
 
     // Pointer to first geodesic's correction.
     const Geodesic::Correction* begin() const;
-    // Pointer to one past last geodesic's correction.
-    const Geodesic::Correction* end() const;
 
     // Get access to the path error and path error jacobian.
 
@@ -826,9 +824,9 @@ public:
 
     bool calcNormalsCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines);
+            const std::vector<LineSeg>& lines, double pathErr);
 
-    void resize(size_t nSurfaces);
+    void resize(const std::vector<WrapObstacle>& obs, bool warmStart = false);
 
     CorrectionBounds maxStep;
 
@@ -884,7 +882,7 @@ class WrappingPath
         size_t maxIter = 10);
 
     size_t calcPath(
-        bool breakOnErr = false,
+        bool breakOnErr = true,
         double eps     = 1e-6,
         size_t maxIter = 10);
 
@@ -898,8 +896,11 @@ class WrappingPath
     Status& updStatus() {return _status;}
 
     double getLength() const;
-    const std::vector<Vector3>& calcPathPoints() const;
-    const std::vector<Vector3>& getPathPoints() const;
+    const std::vector<Vector3>& calcPathPoints();
+    const std::vector<Vector3>& getPathPoints() const
+    {
+        return _pathPoints;
+    }
 
     WrappingArgs& updOpts() {return _opts;}
     const WrappingArgs& getOpts() {return _opts;}

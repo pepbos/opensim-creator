@@ -1826,6 +1826,47 @@ const Geodesic::Correction* PathContinuityError::end() const
     return begin() + _nSurfaces;
 }
 
+const Geodesic::Correction* SolverT::begin() const
+{
+    static_assert(
+        sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
+    return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
+}
+
+void SolverT::resize(const std::vector<WrapObstacle>& obs, bool warmStart)
+{
+    size_t n = 0;
+    for (const WrapObstacle& o: obs) {
+        if (isActive(o.getStatus())) {
+            ++n;
+        }
+    }
+
+    constexpr size_t Q = Geodesic::DOF;
+    constexpr size_t C = 2;
+
+    _pathError.resize(n * C);
+    _pathErrorJacobian.resize(n * C, n * Q);
+    _pathCorrections.resize(n * Q);
+    _lengthJacobian.resize(n * Q);
+    _vecL.resize(n * Q);
+
+    if (warmStart) {
+        _mat.resize(n * Q, n * Q);
+        _vec.resize(n * Q);
+    } else {
+        _mat.resize(n * C, n * Q);
+        _vec.resize(n * C);
+    }
+
+    // Reset values.
+    _pathCorrections.fill(NAN);
+    _pathError.fill(NAN);
+    _lengthJacobian.fill(NAN);
+    _pathErrorJacobian.fill(0.);
+    _length = NAN;
+}
+
 //==============================================================================
 //                      WRAP OBSTACLE
 //==============================================================================
@@ -1925,6 +1966,11 @@ void WrapObstacle::calcPathPoints(std::vector<Vector3>& points) const
     _surface->calcPathPoints(points, getOffsetFrame());
 }
 
+bool WrapObstacle::isAboveSurface(const Vector3 &p, double bound) const
+{
+    return _surface->isAboveSurface(calcPointInLocal(getOffsetFrame(), p), bound);
+}
+
 //==============================================================================
 //                      WRAP PATH
 //==============================================================================
@@ -2005,7 +2051,6 @@ void calcPathError(
 {
     size_t i = 0;
     ptrdiff_t row = -1;
-    pathError.resize(obs.size() *2);
     for(const WrapObstacle& o : obs) {
         const Geodesic& g = o.getGeodesic();
         pathError(++row) = calcPathError(lines.at(i), g.K_P, kind);
@@ -2025,7 +2070,6 @@ void calcPathErrorJacobian(
     constexpr size_t Q = Geodesic::DOF;
     const size_t n = obs.size();
 
-    pathErrorJacobian.resize(n * 2, n * Q);
     pathErrorJacobian.fill(0.);
 
     ActiveLambda f = [&](
@@ -2034,7 +2078,7 @@ void calcPathErrorJacobian(
             size_t i)
         {
             const LineSeg& l_P = lines.at(i);
-            const LineSeg& l_Q = lines.at(++i);
+            const LineSeg& l_Q = lines.at(i+1);
 
             const Geodesic& g = obs.at(i).getGeodesic();
             const Vector3 a_P = getAxis(g.K_P, kind);
@@ -2045,7 +2089,6 @@ void calcPathErrorJacobian(
                 pathErrorJacobian.block<1, Q>(row, col-Q) = -calcDirectionJacobian(l_P, a_P, obs.at(prev).getGeodesic().v_Q);
             }
             ++row;
-            col += Q;
 
             pathErrorJacobian.block<1, Q>(row, col) = calcPathErrorJacobian(l_Q, a_Q, g.v_Q, g.w_Q, true);
             if (next != n) {
@@ -2082,7 +2125,6 @@ void calcPathLengthJacobian(
 {
     size_t i = 0;
     constexpr size_t Q = Geodesic::DOF;
-    lengthJacobian.resize(obs.size() * Q);
     for (const WrapObstacle& o: obs)
     {
         if (!isActive(o.getStatus())) continue;
@@ -2128,10 +2170,11 @@ std::vector<LineSeg>& lines)
     lines.push_back({a, p_I});
 }
 
-double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSeg>& lines)
+double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSeg>& lines, PathErrorKind kind)
 {
     size_t i = 0;
     double maxAbsErr = 0.;
+    const double y = getOutput(kind);
     for(const WrapObstacle& o: obs)
     {
         if (!isActive(o.getStatus())) {
@@ -2140,10 +2183,10 @@ double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<
 
         const Geodesic& g = o.getGeodesic();
 
-        double err = lines.at(i).d.dot(g.K_P.t()) - 1.;
+        double err = lines.at(i).d.dot(getAxis(g.K_P, kind)) - y;
         maxAbsErr = std::max(maxAbsErr, std::abs(err));
 
-        err = lines.at(++i).d.dot(g.K_Q.t()) - 1.;
+        err = lines.at(++i).d.dot(getAxis(g.K_Q, kind)) - y;
         maxAbsErr = std::max(maxAbsErr, std::abs(err));
     }
     return maxAbsErr;
@@ -2169,34 +2212,34 @@ void calcInitZeroLengthGeodesics(
 }
 
 size_t WrappingPath::calcInitPath(
-    double eps,
+    double,
     size_t maxIter)
 {
-    throw std::runtime_error("NOT YET IMPLEMENTED");
-    std::cout << eps << maxIter;
+    calcInitZeroLengthGeodesics(getStart(), updSegments());
+    return maxIter;
 }
 
 bool SolverT::calcNormalsCorrection(
         const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSeg> &lines)
+        const std::vector<LineSeg> &lines, double pathErr)
 {
+    resize(obs, true);
+
     Eigen::MatrixXd& J = _pathErrorJacobian;
     calcPathErrorJacobian(obs, lines, J, PathErrorKind::Normal);
 
     Eigen::VectorXd& g = _pathError;
     calcPathError(obs, lines, g, PathErrorKind::Normal);
 
-    const double w = 1.;
+    const double w = pathErr;
 
-    _mat = J.transpose() * J;
-    for (int i = 0; i < _mat.rows(); ++i) {
-        _mat(i,i) += w;
-    }
+    _mat.setIdentity();
+    _mat *= w + 1e-4;
+    _mat += J.transpose() * J;
 
     _vec = - J.transpose() * g;
 
     _pathCorrections = _mat.colPivHouseholderQr().solve(_vec);
-
     return true;
 }
 
@@ -2204,6 +2247,12 @@ bool SolverT::calcPathCorrection(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines)
 {
+    if (lines.size() != obs.size() + 1) {
+        throw std::runtime_error("invalid number of line segments");
+    }
+
+    resize(obs);
+
     calcPathLengthJacobian(obs, lines, _lengthJacobian);
     _length = calcPathLength(obs, lines);
 
@@ -2229,6 +2278,15 @@ bool SolverT::calcPathCorrection(
     return true;
 }
 
+Geodesic::Status clearErrorFlag()
+{
+    return ~(Geodesic::Status::InitialTangentParallelToNormal
+        | Geodesic::Status::PrevLineSegmentInsideSurface
+        | Geodesic::Status::NextLineSegmentInsideSurface
+        | Geodesic::Status::TouchDownFailed
+        | Geodesic::Status::IntegratorFailed);
+}
+
 size_t WrappingPath::calcPath(
     bool breakOnErr,
     double,
@@ -2239,6 +2297,14 @@ size_t WrappingPath::calcPath(
     if (n == 0) {
         return 0;
     }
+
+    // Clear the error flags.
+    static const Geodesic::Status clearErrMap = clearErrorFlag();
+    for (WrapObstacle& o: updSegments()) {
+        o.updStatus() = o.getStatus() & clearErrMap;
+    }
+    
+    std::cout << "status before =" << getSegments().front().getStatus() << "\n";
 
     // Update the frame offsets.
     for (WrapObstacle& o: _segments) {
@@ -2252,8 +2318,16 @@ size_t WrappingPath::calcPath(
         {
             const Vector3 p_O = prev == n ? getStart() : getSegments().at(prev).getGeodesic().K_Q.p();
             const Vector3 p_I = next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
-            updSegments().at(i).attemptTouchdown(p_O, p_I);
-            updSegments().at(i).detectLiftOff(p_O, p_I);
+            if (!getSegments().at(i).isAboveSurface(p_O, 0.)) {
+                updSegments().at(i).updStatus() |= Geodesic::Status::PrevLineSegmentInsideSurface;
+            }
+            if (!getSegments().at(i).isAboveSurface(p_I, 0.)) {
+                updSegments().at(i).updStatus() |= Geodesic::Status::NextLineSegmentInsideSurface;
+            }
+            /* updSegments().at(i).attemptTouchdown(p_O, p_I); */
+            /* updSegments().at(i).detectLiftOff(p_O, p_I); */
+            std::cout << "Updating status of segment " << i << "\n";
+            std::cout << "status after =" << getSegments().at(i).getStatus() << "\n";
         };
         forEachActive(getSegments(), TouchdownAndLiftOff);
 
@@ -2261,7 +2335,7 @@ size_t WrappingPath::calcPath(
         calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
 
         // Evaluate path error, and stop when converged.
-        _pathError = calcMaxPathError(getSegments(), getLineSegments());
+        _pathError = calcMaxPathError(getSegments(), getLineSegments(), PathErrorKind::Normal);
         if (_pathError < _pathErrorBound) {
             return loopIter;
         }
@@ -2276,7 +2350,7 @@ size_t WrappingPath::calcPath(
         }
 
         // Compute path corrections.
-        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments)) {
+        if (!updSolver().calcNormalsCorrection(getSegments(), _lineSegments, _pathError)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
             return loopIter;
         }
@@ -2288,13 +2362,24 @@ size_t WrappingPath::calcPath(
                 continue;
             }
             o._surface->applyVariation(*corrIt);
+            o.calcGeodesicInGround();
             ++corrIt;
-        }
-        if (corrIt != getSolver().end()) {
-            throw std::runtime_error("invalid pointer to path-correction");
         }
     }
 
     updStatus() = Status::ExceededMaxIterations;
     return maxIter;
+}
+
+const std::vector<Vector3>& WrappingPath::calcPathPoints()
+{
+    _pathPoints.clear();
+    _pathPoints.push_back(getStart());
+    for (const WrapObstacle& o: getSegments())
+    {
+        if (!isActive(o.getStatus())) continue;
+        o.calcPathPoints(_pathPoints);
+    }
+    _pathPoints.push_back(getEnd());
+    return _pathPoints;
 }
