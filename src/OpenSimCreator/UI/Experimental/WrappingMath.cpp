@@ -1009,7 +1009,7 @@ Geodesic::InitialConditions applyNaturalGeodesicVariation(
 
 void Surface::applyVariation(const Geodesic::Correction& c)
 {
-    calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
+    _status = calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
 }
 
 bool Surface::calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps)
