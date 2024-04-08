@@ -1934,12 +1934,12 @@ void WrapObstacle::detectLiftOff(const Vector3& p_O, const Vector3& p_I)
     // Only detect liftoff if surface is active and has negative length.
     Geodesic::Status s = getStatus();
     liftoff &= isActive(s);
-    liftoff &= s & Geodesic::Status::NegativeLength;
+    liftoff &= (s & Geodesic::Status::NegativeLength) > 0;
 
     // Use the normal to detect liftoff.
     const Geodesic g = getGeodesic();
-    liftoff &= g.K_P.n().dot(g.K_P.p() - p_O) > 0.;
-    liftoff &= g.K_Q.n().dot(g.K_Q.p() - p_I) > 0.;
+    liftoff &= g.K_P.n().dot(p_O - g.K_P.p()) > 0.;
+    liftoff &= g.K_Q.n().dot(p_I - g.K_Q.p()) > 0.;
 
     if (liftoff) {
         updStatus() |= Geodesic::Status::LiftOff;
