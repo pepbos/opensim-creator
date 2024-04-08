@@ -836,12 +836,14 @@ public:
     Eigen::VectorXd _pathError;
     Eigen::MatrixXd _pathErrorJacobian;
 
+    Eigen::VectorXd _vecB;
+    Eigen::VectorXd _pathErrorB;
+    Eigen::MatrixXd _pathErrorJacobianB;
+
     Eigen::MatrixXd _mat;
+    Eigen::MatrixXd _inv;
     Eigen::VectorXd _vec;
     Eigen::VectorXd _vecL;
-
-    Eigen::MatrixXd _matN;
-    Eigen::VectorXd _vecN;
 
     double _length = 0.;
     Eigen::VectorXd _lengthJacobian;

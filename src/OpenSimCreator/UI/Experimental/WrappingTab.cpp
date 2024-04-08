@@ -260,8 +260,15 @@ private:
 
             std::cout << "\n";
 
+            std::cout << "JB:\n";
+            std::cout << m_WrappingPath.updSolver()._pathErrorJacobianB << "\n";
+            std::cout << "gB: " << m_WrappingPath.updSolver()._pathErrorB.transpose() << "\n";
+            std::cout << "qB: " << m_WrappingPath.updSolver()._vecB.transpose() << "\n";
+
             std::cout << "mat:\n";
             std::cout << m_WrappingPath.updSolver()._mat << "\n";
+            std::cout << "inv:\n";
+            std::cout << m_WrappingPath.updSolver()._inv << "\n";
             std::cout << "vec: " << m_WrappingPath.updSolver()._vec.transpose() << "\n";
 
             std::cout << "\n";

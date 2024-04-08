@@ -1859,6 +1859,14 @@ void SolverT::resize(const std::vector<WrapObstacle>& obs, bool warmStart)
         _vec.resize(n * C);
     }
 
+    _pathErrorJacobianB.resize(n*C, n*Q);
+    _pathErrorB.resize(n*C);
+    _vecB.resize(n*Q);
+
+    _pathErrorJacobianB.fill(0.);
+    _pathErrorB.fill(NAN);
+    _vecB.fill(NAN);
+
     // Reset values.
     _pathCorrections.fill(NAN);
     _pathError.fill(NAN);
@@ -2255,18 +2263,26 @@ bool SolverT::calcPathCorrection(
     Eigen::VectorXd& g = _pathError;
     calcPathError(obs, lines, g, PathErrorKind::Normal);
 
-    _mat = J * J.transpose() * J;
+    Eigen::MatrixXd& JB = _pathErrorJacobianB;
+    calcPathErrorJacobian(obs, lines, JB, PathErrorKind::Binormal);
+
+    Eigen::VectorXd& gB = _pathErrorB;
+    calcPathError(obs, lines, gB, PathErrorKind::Binormal);
+
+    Eigen::VectorXd& qB = _vecB;
+    qB = JB.colPivHouseholderQr().solve(gB);
+
+    _mat = J * J.transpose();
+    _inv = _mat.colPivHouseholderQr().inverse();
 
     const double w = pathErr * pathErr;
     const double alpha = 1. / (1. + w);
 
     Eigen::VectorXd& L = _vecL;
-    L =  (alpha * _length * _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian;
+    /* L =  (alpha * _length * _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian; */
+    L =  alpha * (_lengthJacobian + qB);
 
-    _vec = J * L - g;
-
-    _pathCorrections = _mat.colPivHouseholderQr().solve(_vec);
-    _pathCorrections -= L;
+    _pathCorrections = J.transpose() * _inv * (J * L - g) - L;
 
     return true;
 }
@@ -2346,8 +2362,6 @@ size_t WrappingPath::calcPath(
         o.updStatus() = o.getStatus() & clearErrMap;
     }
     
-    std::cout << "status before =" << getSegments().front().getStatus() << "\n";
-
     // Update the frame offsets.
     for (WrapObstacle& o: _segments) {
         o.calcGeodesicInGround();
@@ -2368,8 +2382,6 @@ size_t WrappingPath::calcPath(
             }
             updSegments().at(i).attemptTouchdown(p_O, p_I);
             updSegments().at(i).detectLiftOff(p_O, p_I);
-            std::cout << "Updating status of segment " << i << "\n";
-            std::cout << "status after =" << getSegments().at(i).getStatus() << "\n";
         };
         forEachActive(getSegments(), TouchdownAndLiftOff);
 
