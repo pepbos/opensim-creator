@@ -2246,7 +2246,7 @@ bool SolverT::calcNormalsCorrection(
 bool SolverT::calcPathCorrection(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines,
-        double pathErr, double pathErrBnd)
+        double pathErr, double)
 {
     if (lines.size() != obs.size() + 1) {
         throw std::runtime_error("invalid number of line segments");
@@ -2275,14 +2275,17 @@ bool SolverT::calcPathCorrection(
     _mat = J * J.transpose();
     _inv = _mat.colPivHouseholderQr().inverse();
 
-    const double w = pathErr * pathErr;
+    const double w = pathErr + 1.;
     const double alpha = 1. / (1. + w);
 
     Eigen::VectorXd& L = _vecL;
-    /* L =  (alpha * _length * _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian; */
+    /* L =  (alpha * _length / _lengthJacobian.dot(_lengthJacobian)) * _lengthJacobian; */
     L =  alpha * (_lengthJacobian + qB);
+    L =  alpha * _lengthJacobian;
 
     _pathCorrections = J.transpose() * _inv * (J * L - g) - L;
+    /* calcScaledToFit<Eigen::VectorXd>(_pathCorrections, 1e-1); */
+
 
     return true;
 }
