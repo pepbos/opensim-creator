@@ -2367,6 +2367,7 @@ size_t WrappingPath::calcPath(
         o.calcGeodesicInGround();
     }
 
+    const size_t prevLoopIter = loopIter;
     for (loopIter = 0; loopIter < maxIter; ++loopIter) {
 
         // Detect touchdown & liftoff.
@@ -2391,7 +2392,7 @@ size_t WrappingPath::calcPath(
         // Evaluate path error, and stop when converged.
         _pathError = calcMaxPathError(getSegments(), getLineSegments(), PathErrorKind::Tangent);
         if (_pathError < _pathErrorBound) {
-            std::cout << "Converged! err = " << _pathError << " < " << _pathErrorBound << "\n";
+            loopIter = loopIter == 0 ? prevLoopIter : loopIter;
             return loopIter;
         }
 
