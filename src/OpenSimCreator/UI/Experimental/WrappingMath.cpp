@@ -2246,7 +2246,7 @@ bool SolverT::calcNormalsCorrection(
 bool SolverT::calcPathCorrection(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines,
-        double pathErr)
+        double pathErr, double pathErrBnd)
 {
     if (lines.size() != obs.size() + 1) {
         throw std::runtime_error("invalid number of line segments");
@@ -2406,7 +2406,7 @@ size_t WrappingPath::calcPath(
         }
 
         // Compute path corrections.
-        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError)) {
+        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError, _pathErrorBoundWide)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
             std::cout << "Exiciting with error : Failed to invert\n";
             return loopIter;
