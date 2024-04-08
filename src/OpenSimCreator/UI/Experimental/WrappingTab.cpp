@@ -227,42 +227,36 @@ private:
         }
 
         if (!m_FreezePath) {
-            m_WrappingPath.calcPath();
+            m_WrappingPath.updStart() = ToVector3(m_StartPoint.point);
+            m_WrappingPath.updEnd() = ToVector3(m_EndPoint.point);
+            if (m_Cache) {
+                m_WrappingPath.calcPath();
+            } else {
+                m_WrappingPath.calcInitPath();
+            }
         }
 
-        if (m_SingleStep && false) {
+
+        if (m_SingleStep) {
             m_FreezePath = true;
             m_SingleStep = false;
 
             /* RunImplicitGeodesicTest(m_WrappingPath, "Path", std::cout); */
 
             std::cout << "\n";
-            std::cout << "pathError: " << m_WrappingPath.updSolver().updPathError().transpose() << "\n";
+            std::cout << "pathError: " << m_WrappingPath.updSolver()._pathError.transpose() << "\n";
             std::cout << "pathJacobian:\n";
-            std::cout << m_WrappingPath.updSolver().updPathErrorJacobian() << "\n";
+            std::cout << m_WrappingPath.updSolver()._pathErrorJacobian << "\n";
             std::cout << "CORRECTION: " << m_WrappingPath.updSolver()._pathCorrections.transpose() << "\n";
 
             std::cout << "\n";
 
-            std::cout << "_costL:\n";
-            std::cout << m_WrappingPath.updSolver()._costL << "\n";
             std::cout << "_vecL: ";
             std::cout << m_WrappingPath.updSolver()._vecL.transpose() << "\n";
             std::cout << "_lengthJacobian: ";
             std::cout << m_WrappingPath.updSolver()._lengthJacobian.transpose() << "\n";
             std::cout << "_length: ";
             std::cout << m_WrappingPath.updSolver()._length << "\n";
-
-            std::cout << "_costP:\n";
-            std::cout << m_WrappingPath.updSolver()._costP << "\n";
-            std::cout << "_costQ:\n";
-            std::cout << m_WrappingPath.updSolver()._costQ << "\n";
-
-            std::cout << "\n";
-
-            std::cout << "_matSmall:\n";
-            std::cout << m_WrappingPath.updSolver()._matSmall << "\n";
-            std::cout << "_vecSmall: " << m_WrappingPath.updSolver()._vecSmall.transpose() << "\n";
 
             std::cout << "\n";
 
@@ -273,9 +267,9 @@ private:
             std::cout << "\n";
 
             std::cout << "status" << m_WrappingPath.getStatus() << "\n";
-            /* for (const WrapObstacle& s: m_WrappingPath.getSegments()) { */
-            /*     std::cout << "    " << s << "\n"; */
-            /* } */
+            for (const WrapObstacle& o: m_WrappingPath.getSegments()) {
+                std::cout << "    " << o.getStatus() << "\n";
+            }
             std::cout << "\n";
             std::cout << "\n";
         }
@@ -329,6 +323,18 @@ private:
             ui::Checkbox("CostB", &m_WrappingPath.updOpts().m_CostB);
             ui::Checkbox("CostL", &m_WrappingPath.updOpts().m_CostL);
             ui::Checkbox("Augment", &m_WrappingPath.updOpts().m_Augment);
+
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.getLoopIter());
+            ui::Text(buffer);
+
+            snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.getPathError());
+            ui::Text(buffer);
+
+            snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.getPathErrorBound());
+            ui::Text(buffer);
+
+
 
             // Surface specific stuff.
             {

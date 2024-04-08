@@ -280,7 +280,8 @@ public:
 
     // Returns true if touchdown was detected, with the point written to argument p.
     bool calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps);
-    bool isAboveSurface(Vector3 point, double bound) const {return isAboveSurfaceImpl(std::move(point), bound);}
+    bool isAboveSurface(Vector3 point, double bound) const {
+        return isAboveSurfaceImpl(std::move(point), bound);}
 
     Vector3 getPathStartGuess() const {return _pathLocalStartGuess;}
     void setLocalPathStartGuess(Vector3 pathStartGuess) {_pathLocalStartGuess = std::move(pathStartGuess);}
@@ -820,7 +821,7 @@ public:
     // jacobian.
     bool calcPathCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines);
+            const std::vector<LineSeg>& lines, double pathErr);
 
     bool calcNormalsCorrection(
             const std::vector<WrapObstacle>& obs,
@@ -838,6 +839,9 @@ public:
     Eigen::MatrixXd _mat;
     Eigen::VectorXd _vec;
     Eigen::VectorXd _vecL;
+
+    Eigen::MatrixXd _matN;
+    Eigen::VectorXd _vecN;
 
     double _length = 0.;
     Eigen::VectorXd _lengthJacobian;
@@ -857,6 +861,7 @@ class WrappingPath
         Ok                     = 0,
         FailedToInvertJacobian = 1,
         ExceededMaxIterations  = 2,
+        WarmStartFailed        = 3,
     };
 
     WrappingPath() = default;
@@ -905,6 +910,10 @@ class WrappingPath
     WrappingArgs& updOpts() {return _opts;}
     const WrappingArgs& getOpts() {return _opts;}
 
+    size_t getLoopIter() const {return loopIter;}
+    double getPathError() const {return _pathError;}
+    double getPathErrorBound() const {return _pathErrorBound;}
+
     private:
     Vector3 _startPoint{
         NAN,
@@ -926,6 +935,7 @@ class WrappingPath
     WrappingArgs _opts;
     double _pathError = NAN;
     double _pathErrorBound = std::abs(1. - cos(1. / 180. * M_PI));
+    size_t loopIter = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s);
