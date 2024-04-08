@@ -49,6 +49,7 @@ namespace
 
     constexpr size_t NUM_SURFACES = 4;
     constexpr std::array<CStringView, NUM_SURFACES> c_SurfNames = {"Ellipsoid", "Cylinder", "Torus", "Sphere"};
+    constexpr std::array<CStringView, 2> c_PathNames = {"Red", "Green"};
 
     struct SceneSurface final
     {
@@ -149,33 +150,36 @@ public:
 
     Impl() : StandardTabImpl{c_TabStringID}
     {
-        auto AppendSurface = [&](std::pair<SceneSurface, WrapObstacle>&& s)
-            -> WrapObstacle&
+        auto AppendSurface = [&](std::pair<SceneSurface, WrapObstacle>&& s, Vector3 pathStartGuess, bool var = false)
         {
-            m_Surface.push_back(std::move(s.first));
-            m_WrappingPath.updSegments().push_back(std::move(s.second));
-            return m_WrappingPath.updSegments().back();
+            size_t i = var ? 0 : 1;
+            m_Surface.at(i).push_back(std::move(s.first));
+            m_WrappingPath.at(i).updSegments().push_back(std::move(s.second));
+            m_WrappingPath.at(i).updSegments().back().setLocalPathStartGuess(pathStartGuess);
         };
         // Add an ellipsoid.
         {
-            WrapObstacle& s = AppendSurface(CreateEllipsoid(1., 5., 2.));
-            s.setLocalPathStartGuess({-1., 1., 1});
+            AppendSurface(CreateEllipsoid(1., 5., 2.), {-1., 1., 1.});
+            AppendSurface(CreateEllipsoid(1., 5., 2.), {-1., 1., 1.}, true);
         }
         const bool ok = false;
 
         if(ok)
         {
-            AppendSurface(CreateSphere(1.)).setLocalPathStartGuess({-2., 2., 2});
+            AppendSurface(CreateSphere(1.), {-2., 2., 2});
+            AppendSurface(CreateSphere(1.), {-2., 2., 2}, true);
         }
 
         if(ok)
         {
-            AppendSurface(CreateTorus(1., 0.1f)).setLocalPathStartGuess({-2., 2., 2});
+            AppendSurface(CreateTorus(1., 0.1f),{-2., 2., 2});
+            AppendSurface(CreateTorus(1., 0.1f),{-2., 2., 2}, true);
         }
 
         if(ok)
         {
-            AppendSurface(CreateCylinder(1., 10.)).setLocalPathStartGuess({-2., 2., 2});
+            AppendSurface(CreateCylinder(1., 10.), {-2., 2., 2});
+            AppendSurface(CreateCylinder(1., 10.), {-2., 2., 2}, true);
         }
 
         // Configure sphere material.
@@ -226,16 +230,21 @@ private:
             m_FreezePath = false;
         }
 
-        if (!m_FreezePath) {
-            m_WrappingPath.updStart() = ToVector3(m_StartPoint.point);
-            m_WrappingPath.updEnd() = ToVector3(m_EndPoint.point);
-            if (m_Cache) {
-                m_WrappingPath.calcPath();
-            } else {
-                m_WrappingPath.calcInitPath();
+        for (size_t i = 0; i < 2; ++i) {
+            if (!m_FreezePath) {
+                m_WrappingPath.at(i).updStart() = ToVector3(m_StartPoint.point);
+                m_WrappingPath.at(i).updEnd() = ToVector3(m_EndPoint.point);
+                if (m_Cache) {
+                    if (m_SingleStep) {
+                        m_WrappingPath.at(i).calcPath(true, 1e-6, 1);
+                    } else {
+                        m_WrappingPath.at(i).calcPath();
+                    }
+                } else {
+                    m_WrappingPath.at(i).calcInitPath();
+                }
             }
         }
-
 
         if (m_SingleStep) {
             m_FreezePath = true;
@@ -243,59 +252,63 @@ private:
 
             /* RunImplicitGeodesicTest(m_WrappingPath, "Path", std::cout); */
 
-            std::cout << "\n";
-            std::cout << "pathError: " << m_WrappingPath.updSolver()._pathError.transpose() << "\n";
-            std::cout << "pathJacobian:\n";
-            std::cout << m_WrappingPath.updSolver()._pathErrorJacobian << "\n";
-            std::cout << "CORRECTION: " << m_WrappingPath.updSolver()._pathCorrections.transpose() << "\n";
+            /* std::cout << "\n"; */
+            /* std::cout << "pathError: " << m_WrappingPath.updSolver()._pathError.transpose() << "\n"; */
+            /* std::cout << "pathJacobian:\n"; */
+            /* std::cout << m_WrappingPath.updSolver()._pathErrorJacobian << "\n"; */
+            /* std::cout << "CORRECTION: " << m_WrappingPath.updSolver()._pathCorrections.transpose() << "\n"; */
 
-            std::cout << "\n";
+            /* std::cout << "\n"; */
 
-            std::cout << "_vecL: ";
-            std::cout << m_WrappingPath.updSolver()._vecL.transpose() << "\n";
-            std::cout << "_lengthJacobian: ";
-            std::cout << m_WrappingPath.updSolver()._lengthJacobian.transpose() << "\n";
-            std::cout << "_length: ";
-            std::cout << m_WrappingPath.updSolver()._length << "\n";
+            /* std::cout << "_matM:\n" << m_WrappingPath.updSolver()._matM << "\n"; */
+            /* std::cout << "_Minv:\n" << m_WrappingPath.updSolver()._Minv << "\n"; */
 
-            std::cout << "\n";
+            /* std::cout << "_vecL: "; */
+            /* std::cout << m_WrappingPath.updSolver()._vecL.transpose() << "\n"; */
+            /* std::cout << "_lengthJacobian: "; */
+            /* std::cout << m_WrappingPath.updSolver()._lengthJacobian.transpose() << "\n"; */
+            /* std::cout << "_length: "; */
+            /* std::cout << m_WrappingPath.updSolver()._length << "\n"; */
 
-            std::cout << "JB:\n";
-            std::cout << m_WrappingPath.updSolver()._pathErrorJacobianB << "\n";
-            std::cout << "gB: " << m_WrappingPath.updSolver()._pathErrorB.transpose() << "\n";
-            std::cout << "qB: " << m_WrappingPath.updSolver()._vecB.transpose() << "\n";
+            /* std::cout << "\n"; */
 
-            std::cout << "mat:\n";
-            std::cout << m_WrappingPath.updSolver()._mat << "\n";
-            std::cout << "inv:\n";
-            std::cout << m_WrappingPath.updSolver()._inv << "\n";
-            std::cout << "vec: " << m_WrappingPath.updSolver()._vec.transpose() << "\n";
+            /* std::cout << "JB:\n"; */
+            /* std::cout << m_WrappingPath.updSolver()._pathErrorJacobianB << "\n"; */
+            /* std::cout << "gB: " << m_WrappingPath.updSolver()._pathErrorB.transpose() << "\n"; */
+            /* std::cout << "qB: " << m_WrappingPath.updSolver()._vecB.transpose() << "\n"; */
 
-            std::cout << "\n";
+            /* std::cout << "mat:\n"; */
+            /* std::cout << m_WrappingPath.updSolver()._mat << "\n"; */
+            /* std::cout << "inv:\n"; */
+            /* std::cout << m_WrappingPath.updSolver()._inv << "\n"; */
+            /* std::cout << "vec: " << m_WrappingPath.updSolver()._vec.transpose() << "\n"; */
 
-            std::cout << "status" << m_WrappingPath.getStatus() << "\n";
-            for (const WrapObstacle& o: m_WrappingPath.getSegments()) {
-                std::cout << "    " << o.getStatus() << "\n";
+            /* std::cout << "\n"; */
+
+            /* std::cout << "status" << m_WrappingPath.getStatus() << "\n"; */
+            /* for (const WrapObstacle& o: m_WrappingPath.getSegments()) { */
+            /*     std::cout << "    " << o.getStatus() << "\n"; */
+            /* } */
+            /* std::cout << "\n"; */
+            /* std::cout << "\n"; */
+        }
+
+        for (size_t i = 0; i < 2; ++i) {
+            bool error = m_WrappingPath.at(i).getStatus() > 0;
+            for (const WrapObstacle& o: m_WrappingPath.at(i).getSegments()) {
+                Geodesic::Status s = o.getStatus();
+                /* error |= s.status > 0; */
+                error |= (s & Geodesic::Status::InitialTangentParallelToNormal) > 0;
+                error |= (s & Geodesic::Status::PrevLineSegmentInsideSurface) > 0;
+                error |= (s & Geodesic::Status::NextLineSegmentInsideSurface) > 0;
+                /* error |= (s & Geodesic::Status::NegativeLength) > 0; */
+                /* error |= (s & Geodesic::Status::LiftOff) > 0; */
+                /* error |= (s & Geodesic::Status::TouchDownFailed) > 0; */
+                error |= (s & Geodesic::Status::IntegratorFailed) > 0;
             }
-            std::cout << "\n";
-            std::cout << "\n";
-        }
-
-        bool error = m_WrappingPath.getStatus() > 0;
-        for (const WrapObstacle& o: m_WrappingPath.getSegments()) {
-            Geodesic::Status s = o.getStatus();
-            /* error |= s.status > 0; */
-            error |= (s & Geodesic::Status::InitialTangentParallelToNormal) > 0;
-            error |= (s & Geodesic::Status::PrevLineSegmentInsideSurface) > 0;
-            error |= (s & Geodesic::Status::NextLineSegmentInsideSurface) > 0;
-            /* error |= (s & Geodesic::Status::NegativeLength) > 0; */
-            /* error |= (s & Geodesic::Status::LiftOff) > 0; */
-            /* error |= (s & Geodesic::Status::TouchDownFailed) > 0; */
-            error |= (s & Geodesic::Status::IntegratorFailed) > 0;
-        }
-        if (error && !m_FreezePath) {
-            std::cout << "    " << m_WrappingPath.getStatus() << "\n";
-            m_FreezePath = true;
+            if (error && !m_FreezePath) {
+                m_FreezePath = true;
+            }
         }
     }
 
@@ -316,37 +329,39 @@ private:
             ImGui::SliderFloat3("p_O", m_StartPoint.point.begin(), m_EndPoint.min, m_EndPoint.max);
             ImGui::SliderFloat3("p_I", m_EndPoint.point.begin(), m_EndPoint.min, m_EndPoint.max);
 
-            // Set wrapping args.
-            ui::Checkbox("Cache path", &m_Cache);
+            for (size_t i = 0; i < 2; ++i) {
+                if (ui::Begin(c_PathNames.at(i))) {
+                    // Set wrapping args.
+                    ui::Checkbox("Cache path", &m_Cache);
 
-            // Some simulation args.
-            ui::Checkbox("Freeze", &m_FreezePath);
-            ui::Checkbox("Single", &m_SingleStep);
+                    // Some simulation args.
+                    ui::Checkbox("Freeze", &m_FreezePath);
+                    ui::Checkbox("Single", &m_SingleStep);
 
-            ui::Checkbox("CostP", &m_WrappingPath.updOpts().m_CostP);
-            ui::Checkbox("CostQ", &m_WrappingPath.updOpts().m_CostQ);
-            ui::Checkbox("CostT", &m_WrappingPath.updOpts().m_CostT);
-            ui::Checkbox("CostN", &m_WrappingPath.updOpts().m_CostN);
-            ui::Checkbox("CostB", &m_WrappingPath.updOpts().m_CostB);
-            ui::Checkbox("CostL", &m_WrappingPath.updOpts().m_CostL);
-            ui::Checkbox("Augment", &m_WrappingPath.updOpts().m_Augment);
+                    ui::Checkbox("CostP", &m_WrappingPath.at(i).updOpts().m_CostP);
+                    ui::Checkbox("CostQ", &m_WrappingPath.at(i).updOpts().m_CostQ);
+                    ui::Checkbox("CostT", &m_WrappingPath.at(i).updOpts().m_CostT);
+                    ui::Checkbox("CostN", &m_WrappingPath.at(i).updOpts().m_CostN);
+                    ui::Checkbox("CostB", &m_WrappingPath.at(i).updOpts().m_CostB);
+                    ui::Checkbox("CostL", &m_WrappingPath.at(i).updOpts().m_CostL);
+                    ui::Checkbox("Augment", &m_WrappingPath.at(i).updOpts().m_Augment);
 
-            char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.getLoopIter());
-            ui::Text(buffer);
+                    char buffer[32];
+                    snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getLoopIter());
+                    ui::Text(buffer);
 
-            snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.getPathError());
-            ui::Text(buffer);
+                    snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.at(i).getPathError());
+                    ui::Text(buffer);
 
-            snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.getPathErrorBound());
-            ui::Text(buffer);
-
-
+                    snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.at(i).getPathErrorBound());
+                    ui::Text(buffer);
+                }
+            }
 
             // Surface specific stuff.
             {
                 size_t i = 0;
-                for (WrapObstacle& o: m_WrappingPath.updSegments()) {
+                for (WrapObstacle& o: m_WrappingPath.at(0).updSegments()) {
                     ui::Text(c_SurfNames.at(i));
 
                     // Enable / disable surface.
@@ -356,16 +371,18 @@ private:
                         ? o.getStatus() & ~Geodesic::Status::Disabled
                         : o.getStatus() | Geodesic::Status::Disabled;
 
-                    ImGui::SliderFloat3("p_S", m_Surface.at(i).m_OffsetPos.begin(), m_EndPoint.max, m_EndPoint.min);
-                    m_Surface.at(i).m_Offset->position = ToVector3(m_Surface.at(i).m_OffsetPos);
+                    ImGui::SliderFloat3("p_S", m_Surface.at(0).at(i).m_OffsetPos.begin(), m_EndPoint.max, m_EndPoint.min);
+                    m_Surface.at(0).at(i).m_Offset->position = ToVector3(m_Surface.at(0).at(i).m_OffsetPos);
                     ++i;
                 }
             }
         }
 
         // Render surfaces.
-        for (const SceneSurface& s: m_Surface) {
-            RenderSurface(s, m_TransparantMaterial, m_Camera, m_GreenColorMaterialProps);
+        for (size_t i = 0; i < 1; ++i) {
+            for (const SceneSurface& s: m_Surface.at(i)) {
+                RenderSurface(s, m_TransparantMaterial, m_Camera, m_GreenColorMaterialProps);
+            }
         }
 
         float r = 0.05f;
@@ -393,33 +410,35 @@ private:
         r = 0.02f;
 
         // render curve
-        if(!m_WrappingPath.calcPathPoints().empty())
-        {
-            auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, const MeshBasicMaterial::PropertyBlock& color) {
-                Graphics::DrawMesh(
-                        m_LineMesh,
-                        {.scale = p1 - p0, .position = p0},
-                        m_Material,
-                        m_Camera,
-                        color);
-                Graphics::DrawMesh(
-                        m_SphereMesh,
-                        {
-                        .scale    = {r, r, r},
-                        .position = p1,
-                        },
-                        m_Material,
-                        m_Camera,
-                        color);
-            };
-            Vec3 prev              = ToVec3(m_WrappingPath.getPathPoints().front());
-            for (const Vector3& p : m_WrappingPath.getPathPoints()) {
+        for (size_t i = 0; i < 2; ++i) {
+            if(!m_WrappingPath.at(i).calcPathPoints().empty())
+            {
+                auto DrawCurveSegmentMesh = [&](Vec3 p0, Vec3 p1, const MeshBasicMaterial::PropertyBlock& color) {
+                    Graphics::DrawMesh(
+                            m_LineMesh,
+                            {.scale = p1 - p0, .position = p0},
+                            m_Material,
+                            m_Camera,
+                            color);
+                    Graphics::DrawMesh(
+                            m_SphereMesh,
+                            {
+                            .scale    = {r, r, r},
+                            .position = p1,
+                            },
+                            m_Material,
+                            m_Camera,
+                            color);
+                };
+                Vec3 prev              = ToVec3(m_WrappingPath.at(i).getPathPoints().front());
+                for (const Vector3& p : m_WrappingPath.at(i).getPathPoints()) {
                     const Vec3 next = ToVec3(p);
-                    DrawCurveSegmentMesh(prev, next, m_RedColorMaterialProps);
+                    DrawCurveSegmentMesh(prev, next, i == 0 ? m_RedColorMaterialProps : m_GreenColorMaterialProps);
                     prev = next;
+                }
+            } else {
+                throw std::runtime_error("path points empty");
             }
-        } else {
-            throw std::runtime_error("path points empty");
         }
 
         Rect const viewport = ui::GetMainViewportWorkspaceScreenRect();
@@ -434,8 +453,8 @@ private:
     PathTerminalPoint m_StartPoint {};
     PathTerminalPoint m_EndPoint {};
 
-    WrappingPath m_WrappingPath = WrappingPath();
-    std::vector<SceneSurface> m_Surface {};
+    std::array<WrappingPath,2> m_WrappingPath = {WrappingPath(), WrappingPath()};
+    std::array<std::vector<SceneSurface>,2> m_Surface = {};
 
     ResourceLoader m_Loader = App::resource_loader();
     Camera m_Camera;
