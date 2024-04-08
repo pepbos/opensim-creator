@@ -241,13 +241,14 @@ inline Geodesic::Status& operator|=(Geodesic::Status& lhs, Geodesic::Status rhs)
 
 struct WrappingArgs
 {
-    bool m_CostP = true;
-    bool m_CostQ = true;
+    /* bool m_CostP = true; */
+    /* bool m_CostQ = true; */
+    bool m_CostW = true;
     bool m_CostL = false;
     bool m_CostT = true;
     bool m_CostN = false;
     bool m_CostB = false;
-    bool m_Augment = false;
+    bool m_AugN = false;
     bool m_Cache = false;
 };
 
@@ -821,7 +822,7 @@ public:
     // jacobian.
     bool calcPathCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr);
+            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd, const WrappingArgs& args);
 
     bool calcNormalsCorrection(
             const std::vector<WrapObstacle>& obs,
@@ -833,20 +834,32 @@ public:
 
     Eigen::VectorXd _pathCorrections;
 
-    Eigen::VectorXd _pathError;
-    Eigen::MatrixXd _pathErrorJacobian;
+    Eigen::VectorXd _qT;
+    Eigen::VectorXd _gT;
+    Eigen::MatrixXd _JT;
 
-    Eigen::VectorXd _vecB;
-    Eigen::VectorXd _pathErrorB;
-    Eigen::MatrixXd _pathErrorJacobianB;
+    Eigen::VectorXd _qB;
+    Eigen::VectorXd _gB;
+    Eigen::MatrixXd _JB;
+
+    Eigen::VectorXd _qN;
+    Eigen::VectorXd _gN;
+    Eigen::MatrixXd _JN;
+
+    double _l;
+    Eigen::VectorXd _JL;
+
+    Eigen::VectorXd _d;
+    Eigen::MatrixXd _P;
+    Eigen::MatrixXd _Pinv;
+
+    Eigen::MatrixXd _JJT;
+    Eigen::MatrixXd _JJTinv;
 
     Eigen::MatrixXd _mat;
     Eigen::MatrixXd _inv;
     Eigen::VectorXd _vec;
     Eigen::VectorXd _vecL;
-
-    double _length = 0.;
-    Eigen::VectorXd _lengthJacobian;
 
     double _weight = 0.;
 
@@ -891,7 +904,7 @@ class WrappingPath
     size_t calcPath(
         bool breakOnErr = true,
         double eps     = 1e-6,
-        size_t maxIter = 10);
+        size_t maxIter = 100);
 
     const Vector3& getStart() const {return _startPoint;}
     Vector3& updStart() {return _startPoint;}
@@ -937,6 +950,7 @@ class WrappingPath
     WrappingArgs _opts;
     double _pathError = NAN;
     double _pathErrorBound = std::abs(1. - cos(1. / 180. * M_PI));
+    double _pathErrorBoundWide = std::abs(1. - cos(5. / 180. * M_PI));
     size_t loopIter = 0;
 };
 

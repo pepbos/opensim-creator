@@ -50,25 +50,25 @@ struct StartPoint
     std::array<float, 3> angle = {0., 0., 0.};
 };
 
-Vector3 ComputePoint(const StartPoint& pt)
-{
-    Rotation qz =
-        Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{0., 0., 1.}));
-    Rotation qy =
-        Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.}));
-    return qz * qy * Vector3{-pt.radius, 0., 0.};
-}
+/* Vector3 ComputePoint(const StartPoint& pt) */
+/* { */
+/*     Rotation qz = */
+/*         Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{0., 0., 1.})); */
+/*     Rotation qy = */
+/*         Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.})); */
+/*     return qz * qy * Vector3{-pt.radius, 0., 0.}; */
+/* } */
 
-Vector3 ComputeVelocity(const StartPoint& pt)
-{
-    Rotation qx =
-        Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{1., 0., 0.}));
-    Rotation qy =
-        Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.}));
-    Rotation qz =
-        Rotation(Eigen::AngleAxisd(pt.angle.at(2), Vector3{0., 0., 1.}));
-    return qz * qy * qx * Vector3{0., 0., 1.};
-}
+/* Vector3 ComputeVelocity(const StartPoint& pt) */
+/* { */
+/*     Rotation qx = */
+/*         Rotation(Eigen::AngleAxisd(pt.angle.at(0), Vector3{1., 0., 0.})); */
+/*     Rotation qy = */
+/*         Rotation(Eigen::AngleAxisd(pt.angle.at(1), Vector3{0., 1., 0.})); */
+/*     Rotation qz = */
+/*         Rotation(Eigen::AngleAxisd(pt.angle.at(2), Vector3{0., 0., 1.})); */
+/*     return qz * qy * qx * Vector3{0., 0., 1.}; */
+/* } */
 
 enum class ShowSurface
 {
@@ -153,50 +153,50 @@ private:
     void implOnTick() final
     {
         // Analytic geodesic computation.
-        Vector3 p0 = ComputePoint(m_StartPoint);
-        Vector3 v0 = ComputeVelocity(m_StartPoint);
-        double l   = m_StartPoint.length;
-        const GeodesicTestBounds bnds;
+        /* Vector3 p0 = ComputePoint(m_StartPoint); */
+        /* Vector3 v0 = ComputeVelocity(m_StartPoint); */
+        /* double l   = m_StartPoint.length; */
+        /* const GeodesicTestBounds bnds; */
 
-        switch (m_ShowSurface) {
-        case ShowSurface::AnalyticSphere: {
-            m_AnalyticSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            break;
-        }
-        case ShowSurface::ImplicitSphere: {
-            m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            if (m_RunTestReport) {
-                RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout);
-                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitSphereSurface, m_Geodesic.K_P, m_Geodesic.length);
-                m_RunTestReport = false;
-            }
-            break;
-        }
-        case ShowSurface::ImplicitEllipsoid: {
-            m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            if (m_RunTestReport) {
-                RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_Geodesic, bnds, "Ellipsoid", std::cout);
-                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitEllipsoidSurface, m_Geodesic.K_P, m_Geodesic.length);
-                m_RunTestReport = false;
-            }
-            break;
-        }
-        case ShowSurface::ImplicitCylinder: {
-            m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            break;
-        }
-        case ShowSurface::ImplicitTorus: {
-            m_ImplicitTorusSurface.calcGeodesic(p0, v0, l, m_Geodesic);
-            if (m_RunTestReport) {
-                RunImplicitGeodesicTest(m_ImplicitTorusSurface, m_Geodesic, bnds, "Torus", std::cout);
-                m_TestGeodesic = calcImplicitTestSamples(m_ImplicitTorusSurface, m_Geodesic.K_P, m_Geodesic.length);
-                m_RunTestReport = false;
-            }
-            break;
-        }
-        default:
-            throw std::runtime_error("unknown surface");
-        }
+        /* switch (m_ShowSurface) { */
+        /* case ShowSurface::AnalyticSphere: { */
+        /*     m_AnalyticSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitSphere: { */
+        /*     m_ImplicitSphereSurface.calcGeodesic(p0, v0, l, m_Geodesic); */
+        /*     if (m_RunTestReport) { */
+        /*         RunImplicitGeodesicTest(m_ImplicitSphereSurface, m_Geodesic, bnds, "Sphere", std::cout); */
+        /*         m_TestGeodesic = calcImplicitTestSamples(m_ImplicitSphereSurface, m_Geodesic.K_P, m_Geodesic.length); */
+        /*         m_RunTestReport = false; */
+        /*     } */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitEllipsoid: { */
+        /*     m_ImplicitEllipsoidSurface.calcGeodesic(p0, v0, l, m_Geodesic); */
+        /*     if (m_RunTestReport) { */
+        /*         RunImplicitGeodesicTest(m_ImplicitEllipsoidSurface, m_Geodesic, bnds, "Ellipsoid", std::cout); */
+        /*         m_TestGeodesic = calcImplicitTestSamples(m_ImplicitEllipsoidSurface, m_Geodesic.K_P, m_Geodesic.length); */
+        /*         m_RunTestReport = false; */
+        /*     } */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitCylinder: { */
+        /*     m_ImplicitCylinderSurface.calcGeodesic(p0, v0, l, m_Geodesic); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitTorus: { */
+        /*     m_ImplicitTorusSurface.calcGeodesic(p0, v0, l, m_Geodesic); */
+        /*     if (m_RunTestReport) { */
+        /*         RunImplicitGeodesicTest(m_ImplicitTorusSurface, m_Geodesic, bnds, "Torus", std::cout); */
+        /*         m_TestGeodesic = calcImplicitTestSamples(m_ImplicitTorusSurface, m_Geodesic.K_P, m_Geodesic.length); */
+        /*         m_RunTestReport = false; */
+        /*     } */
+        /*     break; */
+        /* } */
+        /* default: */
+        /*     throw std::runtime_error("unknown surface"); */
+        /* } */
     }
 
     void implOnDraw() final
@@ -221,86 +221,86 @@ private:
 
         // render mesh
 
-        switch (m_ShowSurface) {
-        case ShowSurface::AnalyticSphere: {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .scale    = Vec3{static_cast<float>(
-                        m_AnalyticSphereSurface.getRadius())},
-                    .position = ToVec3(
-                        m_AnalyticSphereSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_BlueColorMaterialProps);
-            break;
-        }
-        case ShowSurface::ImplicitSphere: {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .scale    = Vec3{static_cast<float>(
-                        m_ImplicitSphereSurface.getRadius())},
-                    .position = ToVec3(
-                        m_ImplicitSphereSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_GreenColorMaterialProps);
-            break;
-        }
-        case ShowSurface::ImplicitEllipsoid: {
-            Graphics::DrawMesh(
-                m_SphereMesh,
-                {
-                    .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii() * 0.9),
-                    .position = ToVec3(
-                        m_ImplicitEllipsoidSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_GreenColorMaterialProps);
-            break;
-        }
-        case ShowSurface::ImplicitCylinder: {
-            Rotation q =
-                Rotation(Eigen::AngleAxisd(M_PI / 2., Vector3{1., 0., 0.}));
-            Quat qf = Quat{
-                static_cast<float>(q.w()),
-                static_cast<float>(q.x()),
-                static_cast<float>(q.y()),
-                static_cast<float>(q.z()),
-            };
-            Graphics::DrawMesh(
-                m_CylinderMesh,
-                {
-                    .scale    = Vec3{static_cast<float>(
-                        m_ImplicitCylinderSurface.getRadius())},
-                    .rotation = qf,
-                    .position = ToVec3(
-                        m_ImplicitCylinderSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_GreenColorMaterialProps);
-            break;
-        }
-        case ShowSurface::ImplicitTorus: {
-            Graphics::DrawMesh(
-                m_TorusMesh,
-                {
-                    .position = ToVec3(
-                        m_ImplicitTorusSurface.getOffsetFrame().position),
-                },
-                m_Material,
-                m_Camera,
-                m_GreenColorMaterialProps);
-            break;
-        }
-        default:
-            throw std::runtime_error("unknown surface");
-        }
+        /* switch (m_ShowSurface) { */
+        /* case ShowSurface::AnalyticSphere: { */
+        /*     Graphics::DrawMesh( */
+        /*         m_SphereMesh, */
+        /*         { */
+        /*             .scale    = Vec3{static_cast<float>( */
+        /*                 m_AnalyticSphereSurface.getRadius())}, */
+        /*             .position = ToVec3( */
+        /*                 m_AnalyticSphereSurface.getOffsetFrame().position), */
+        /*         }, */
+        /*         m_Material, */
+        /*         m_Camera, */
+        /*         m_BlueColorMaterialProps); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitSphere: { */
+        /*     Graphics::DrawMesh( */
+        /*         m_SphereMesh, */
+        /*         { */
+        /*             .scale    = Vec3{static_cast<float>( */
+        /*                 m_ImplicitSphereSurface.getRadius())}, */
+        /*             .position = ToVec3( */
+        /*                 m_ImplicitSphereSurface.getOffsetFrame().position), */
+        /*         }, */
+        /*         m_Material, */
+        /*         m_Camera, */
+        /*         m_GreenColorMaterialProps); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitEllipsoid: { */
+        /*     Graphics::DrawMesh( */
+        /*         m_SphereMesh, */
+        /*         { */
+        /*             .scale    = ToVec3(m_ImplicitEllipsoidSurface.getRadii() * 0.9), */
+        /*             .position = ToVec3( */
+        /*                 m_ImplicitEllipsoidSurface.getOffsetFrame().position), */
+        /*         }, */
+        /*         m_Material, */
+        /*         m_Camera, */
+        /*         m_GreenColorMaterialProps); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitCylinder: { */
+        /*     Rotation q = */
+        /*         Rotation(Eigen::AngleAxisd(M_PI / 2., Vector3{1., 0., 0.})); */
+        /*     Quat qf = Quat{ */
+        /*         static_cast<float>(q.w()), */
+        /*         static_cast<float>(q.x()), */
+        /*         static_cast<float>(q.y()), */
+        /*         static_cast<float>(q.z()), */
+        /*     }; */
+        /*     Graphics::DrawMesh( */
+        /*         m_CylinderMesh, */
+        /*         { */
+        /*             .scale    = Vec3{static_cast<float>( */
+        /*                 m_ImplicitCylinderSurface.getRadius())}, */
+        /*             .rotation = qf, */
+        /*             .position = ToVec3( */
+        /*                 m_ImplicitCylinderSurface.getOffsetFrame().position), */
+        /*         }, */
+        /*         m_Material, */
+        /*         m_Camera, */
+        /*         m_GreenColorMaterialProps); */
+        /*     break; */
+        /* } */
+        /* case ShowSurface::ImplicitTorus: { */
+        /*     Graphics::DrawMesh( */
+        /*         m_TorusMesh, */
+        /*         { */
+        /*             .position = ToVec3( */
+        /*                 m_ImplicitTorusSurface.getOffsetFrame().position), */
+        /*         }, */
+        /*         m_Material, */
+        /*         m_Camera, */
+        /*         m_GreenColorMaterialProps); */
+        /*     break; */
+        /* } */
+        /* default: */
+        /*     throw std::runtime_error("unknown surface"); */
+        /* } */
 
         // render curve
         {
@@ -345,21 +345,21 @@ private:
                     i = (i + 1) % wheel;
                 }
             };
-            if (!m_Geodesic.samples.empty()) {
-                DrawCurveSegmentMesh(
-                        ToVec3(ComputePoint(m_StartPoint)),
-                        ToVec3(m_Geodesic.samples.front().p()),
-                        m_PurpleColorMaterialProps);
-                DrawGeodesic(m_Geodesic.samples,
-                        m_RedColorMaterialProps,
-                        m_GreenColorMaterialProps,
-                        m_BlueColorMaterialProps,
-                        m_GreyColorMaterialProps);
-                DrawCurveSegmentMesh(
-                        ToVec3(ComputePoint(m_StartPoint)),
-                        ToVec3(m_Geodesic.samples.front().p()),
-                        m_PurpleColorMaterialProps);
-            }
+            /* if (!m_Geodesic.samples.empty()) { */
+            /*     DrawCurveSegmentMesh( */
+            /*             ToVec3(ComputePoint(m_StartPoint)), */
+            /*             ToVec3(m_Geodesic.samples.front().p()), */
+            /*             m_PurpleColorMaterialProps); */
+            /*     DrawGeodesic(m_Geodesic.samples, */
+            /*             m_RedColorMaterialProps, */
+            /*             m_GreenColorMaterialProps, */
+            /*             m_BlueColorMaterialProps, */
+            /*             m_GreyColorMaterialProps); */
+            /*     DrawCurveSegmentMesh( */
+            /*             ToVec3(ComputePoint(m_StartPoint)), */
+            /*             ToVec3(m_Geodesic.samples.front().p()), */
+            /*             m_PurpleColorMaterialProps); */
+            /* } */
             DrawGeodesic(m_TestGeodesic,
                     m_OrangeColorMaterialProps,
                     m_DarkGreenColorMaterialProps,
@@ -430,7 +430,7 @@ private:
     bool m_IsMouseCaptured = false;
     Eulers m_CameraEulers{};
 
-    ShowSurface m_ShowSurface = ShowSurface::ImplicitTorus;
+    /* ShowSurface m_ShowSurface = ShowSurface::ImplicitTorus; */
     bool m_RunTestReport = false;
 };
 

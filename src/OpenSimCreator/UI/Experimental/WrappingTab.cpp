@@ -327,24 +327,34 @@ private:
         if (ui::Begin("viewer")) {
             // Control path terminal points.
             ImGui::SliderFloat3("p_O", m_StartPoint.point.begin(), m_EndPoint.min, m_EndPoint.max);
-            ImGui::SliderFloat3("p_I", m_EndPoint.point.begin(), m_EndPoint.min, m_EndPoint.max);
+            /* ImGui::SliderFloat3("p_I", m_EndPoint.point.begin(), m_EndPoint.min, m_EndPoint.max); */
+            ImGui::SliderFloat3("p_I", m_Angles.begin(), -10., 10.);
+
+            {
+            float angle  = m_Angles[0];
+            float radius = m_Angles[1];
+            float height = m_Angles[2];
+            m_EndPoint.point = { cos(angle) * radius, height, sin(angle) * radius};
+            }
+
+            // Set wrapping args.
+            ui::Checkbox("Cache path", &m_Cache);
+
+            // Some simulation args.
+            ui::Checkbox("Freeze", &m_FreezePath);
+            ui::Checkbox("Single", &m_SingleStep);
 
             for (size_t i = 0; i < 2; ++i) {
                 if (ui::Begin(c_PathNames.at(i))) {
-                    // Set wrapping args.
-                    ui::Checkbox("Cache path", &m_Cache);
 
-                    // Some simulation args.
-                    ui::Checkbox("Freeze", &m_FreezePath);
-                    ui::Checkbox("Single", &m_SingleStep);
-
-                    ui::Checkbox("CostP", &m_WrappingPath.at(i).updOpts().m_CostP);
-                    ui::Checkbox("CostQ", &m_WrappingPath.at(i).updOpts().m_CostQ);
+                    /* ui::Checkbox("CostP", &m_WrappingPath.at(i).updOpts().m_CostP); */
+                    /* ui::Checkbox("CostQ", &m_WrappingPath.at(i).updOpts().m_CostQ); */
+                    ui::Checkbox("CostW", &m_WrappingPath.at(i).updOpts().m_CostW);
                     ui::Checkbox("CostT", &m_WrappingPath.at(i).updOpts().m_CostT);
                     ui::Checkbox("CostN", &m_WrappingPath.at(i).updOpts().m_CostN);
                     ui::Checkbox("CostB", &m_WrappingPath.at(i).updOpts().m_CostB);
                     ui::Checkbox("CostL", &m_WrappingPath.at(i).updOpts().m_CostL);
-                    ui::Checkbox("Augment", &m_WrappingPath.at(i).updOpts().m_Augment);
+                    ui::Checkbox("AugN", &m_WrappingPath.at(i).updOpts().m_AugN);
 
                     char buffer[32];
                     snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getLoopIter());
@@ -359,6 +369,7 @@ private:
             }
 
             // Surface specific stuff.
+            if(false)
             {
                 size_t i = 0;
                 for (WrapObstacle& o: m_WrappingPath.at(0).updSegments()) {
@@ -484,6 +495,7 @@ private:
     bool m_IsMouseCaptured = false;
 
     Eulers m_CameraEulers{};
+    Vec3 m_Angles = {0., 10., 0.};
 };
 
 // public API

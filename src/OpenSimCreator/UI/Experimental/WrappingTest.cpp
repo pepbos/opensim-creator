@@ -1,6 +1,7 @@
 #include "WrappingTest.h"
 
 #include "WrappingMath.h"
+#include <stdexcept>
 
 using namespace osc;
 
@@ -316,7 +317,7 @@ std::vector<Tri> RunImplicitGeodesicShooterTest(
 }
 
 void BinormalVariationTest(
-    const ImplicitSurface& s,
+    ImplicitSurface& s,
     const Geodesic& gZero,
     std::vector<Tri> samplesZero,
     Geodesic::Correction c,
@@ -349,7 +350,7 @@ void BinormalVariationTest(
     const double d = bnds.variation;
     c *= d;
     Geodesic gOne = gZero;
-    s.applyVariation(gOne, c);
+    s.applyVariation(c);
 
     auto ToTriFrame = [&](const Tri q, Vector3 v) -> Vector3
     {
@@ -396,7 +397,7 @@ void BinormalVariationTest(
 }
 
 void RunImplicitGeodesicVariationTest(
-    const ImplicitSurface& s,
+    ImplicitSurface& s,
     const Geodesic& gZero,
     GeodesicTestBounds bnds,
     TestRapport& o)
@@ -616,8 +617,8 @@ namespace osc
         ++_count;
     }
 
-bool RunImplicitGeodesicTest(
-        const ImplicitSurface& s,
+bool RunGeodesicTest(
+        ImplicitSurface& s,
         const Geodesic& g,
         GeodesicTestBounds bnds,
         const std::string& name,
@@ -642,7 +643,7 @@ bool RunAllWrappingTests(std::ostream& os)
 }
 
 std::vector<Trihedron> calcImplicitTestSamples(
-    const ImplicitSurface& s,
+    ImplicitSurface& s,
     Trihedron K,
     double l,
     size_t steps)

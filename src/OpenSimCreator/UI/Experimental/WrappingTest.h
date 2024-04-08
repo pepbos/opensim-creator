@@ -93,4 +93,5 @@ std::vector<Trihedron> calcImplicitTestSamples(
     Trihedron K,
     double l, size_t steps = 1000);
 
+
 } // namespace osc
