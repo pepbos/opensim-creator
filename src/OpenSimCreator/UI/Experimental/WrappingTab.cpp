@@ -349,12 +349,13 @@ private:
 
                     /* ui::Checkbox("CostP", &m_WrappingPath.at(i).updOpts().m_CostP); */
                     /* ui::Checkbox("CostQ", &m_WrappingPath.at(i).updOpts().m_CostQ); */
-                    ui::Checkbox("CostW", &m_WrappingPath.at(i).updOpts().m_CostW);
-                    ui::Checkbox("CostT", &m_WrappingPath.at(i).updOpts().m_CostT);
-                    ui::Checkbox("CostN", &m_WrappingPath.at(i).updOpts().m_CostN);
-                    ui::Checkbox("CostB", &m_WrappingPath.at(i).updOpts().m_CostB);
-                    ui::Checkbox("CostL", &m_WrappingPath.at(i).updOpts().m_CostL);
-                    ui::Checkbox("AugN", &m_WrappingPath.at(i).updOpts().m_AugN);
+
+                    /* ui::Checkbox("CostW", &m_WrappingPath.at(i).updOpts().m_CostW); */
+                    /* ui::Checkbox("CostT", &m_WrappingPath.at(i).updOpts().m_CostT); */
+                    /* ui::Checkbox("CostN", &m_WrappingPath.at(i).updOpts().m_CostN); */
+                    /* ui::Checkbox("CostB", &m_WrappingPath.at(i).updOpts().m_CostB); */
+                    /* ui::Checkbox("CostL", &m_WrappingPath.at(i).updOpts().m_CostL); */
+                    /* ui::Checkbox("AugN", &m_WrappingPath.at(i).updOpts().m_AugN); */
 
                     char buffer[32];
                     snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getLoopIter());

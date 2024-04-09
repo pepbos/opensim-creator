@@ -1574,154 +1574,6 @@ bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 }
 
 //==============================================================================
-//                      PATH CONTINUITY ERROR
-//==============================================================================
-
-Geodesic::Correction calcClamped(
-    const CorrectionBounds& bnds,
-    const Geodesic::Correction& correction)
-{
-    auto Clamp = [](double bnd, double x) {
-        if (std::abs(x) > std::abs(bnd)) {
-            return x / std::abs(x) * std::abs(bnd);
-        }
-        return x;
-    };
-    const double maxAngle = bnds.maxAngleDegrees / 180. * M_PI;
-
-    return {
-        Clamp(bnds.maxRepositioning, correction(0)),
-        Clamp(bnds.maxRepositioning, correction(1)),
-        Clamp(maxAngle, correction(2)),
-        Clamp(bnds.maxLengthening, correction(3)),
-    };
-}
-
-size_t countConstraints(const WrappingArgs& args)
-{
-    size_t c = 0;
-    c += args.m_CostT;
-    c += args.m_CostN;
-    c += args.m_CostB;
-    c *= 2;
-    return c;
-}
-
-void PathContinuityError::resize(size_t nSurfaces, const WrappingArgs& args)
-{
-    constexpr size_t Q = Geodesic::DOF;
-    const size_t c     = countConstraints(args);
-    const size_t n = _nSurfaces = nSurfaces;
-
-    _pathError.resize(n * c);
-    _solverError.resize(n * Q);
-    _pathErrorJacobian.resize(n * c, n * Q);
-
-    _costP.resize(n * Q, n * Q);
-    _costQ.resize(n * Q, n * Q);
-    _costL.resize(n * Q, n * Q);
-    _vecL.resize(n * Q);
-
-    _matSmall.resize(n * Q, n * Q);
-    _vecSmall.resize(n * Q);
-    _solveSmall.resize(_matSmall.cols());
-
-    _mat.resize(n * (Q + c), n * (Q + c));
-    _vec.resize(n * (Q + c));
-    _solve.resize(_mat.cols());
-
-    _pathCorrections.resize(n * Q);
-
-    _length = 0.;
-    _lengthJacobian.resize(n * Q);
-
-    // Reset values.
-    _pathCorrections.fill(NAN);
-    _pathError.fill(NAN);
-    _solverError.fill(NAN);
-    _vec.fill(NAN);
-    _vecSmall.fill(NAN);
-    _solve.fill(NAN);
-    _solveSmall.fill(NAN);
-    _lengthJacobian.fill(0.);
-
-    _costP.fill(0.);
-    _costQ.fill(0.);
-    _costL.fill(NAN);
-    _vecL.fill(NAN);
-
-    // Fill with zeros because it is sparse.
-    _pathErrorJacobian.fill(0.);
-    _mat.fill(0.);
-    _matSmall.fill(0.);
-}
-
-Eigen::VectorXd& PathContinuityError::updPathError()
-{
-    return _pathError;
-}
-Eigen::MatrixXd& PathContinuityError::updPathErrorJacobian()
-{
-    return _pathErrorJacobian;
-}
-
-double PathContinuityError::calcMaxPathError() const
-{
-    double maxPathError = 0.;
-    for (int i = 0; i < _pathError.rows(); ++i) {
-        maxPathError = std::max(maxPathError, std::abs(_pathError[i]));
-    }
-    return maxPathError;
-}
-
-double PathContinuityError::calcMaxCorrectionStep() const
-{
-    double maxCorr = 0.;
-    for (int i = 0; i < _pathCorrections.rows(); ++i) {
-        maxCorr = std::max(maxCorr, std::abs(_pathCorrections[i]));
-    }
-    return maxCorr;
-}
-
-// Apply max angle limit to the path error.
-void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
-{
-
-    static constexpr double PI = M_PI;
-    const double cap           = 1. - cos(maxAngleDegrees / 180. * PI);
-
-    /* std::cout << "before pathError =" << pathError.transpose() << std::endl;
-     */
-
-    for (int r = 0; r < pathError.rows(); ++r) {
-        double& err = pathError[r];
-        err         = (std::abs(err) > cap) ? err / std::abs(err) * cap : err;
-    }
-
-    /* std::cout << "after pathError =" << pathError.transpose() << std::endl;
-     */
-}
-
-const Geodesic::Correction* PathContinuityError::begin() const
-{
-    static_assert(
-        sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
-    return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
-}
-
-const Geodesic::Correction* PathContinuityError::end() const
-{
-    return begin() + _nSurfaces;
-}
-
-const Geodesic::Correction* SolverT::begin() const
-{
-    static_assert(
-        sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
-    return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
-}
-
-//==============================================================================
 //                      WRAP OBSTACLE
 //==============================================================================
 
@@ -2065,29 +1917,66 @@ void calcInitZeroLengthGeodesics(
     }
 }
 
-bool SolverT::calcNormalsCorrection(
-        const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSeg> &lines, double pathErr)
+//==============================================================================
+//                      SOLVER
+//==============================================================================
+
+Geodesic::Correction calcClamped(
+    const CorrectionBounds& bnds,
+    const Geodesic::Correction& correction)
 {
-    resize(obs, true);
+    auto Clamp = [](double bnd, double x) {
+        if (std::abs(x) > std::abs(bnd)) {
+            return x / std::abs(x) * std::abs(bnd);
+        }
+        return x;
+    };
+    const double maxAngle = bnds.maxAngleDegrees / 180. * M_PI;
 
-    calcPathErrorJacobian(obs, lines, _JN, PathErrorKind::Normal);
-
-    calcPathError(obs, lines, _gN, PathErrorKind::Normal);
-
-    const double w = pathErr;
-
-    _mat.setIdentity();
-    _mat *= w + 1e-4;
-    _mat += _JN.transpose() * _JN;
-
-    _vec = - _JN.transpose() * _gN;
-
-    _pathCorrections = _mat.colPivHouseholderQr().solve(_vec);
-    return true;
+    return {
+        Clamp(bnds.maxRepositioning, correction(0)),
+        Clamp(bnds.maxRepositioning, correction(1)),
+        Clamp(maxAngle, correction(2)),
+        Clamp(bnds.maxLengthening, correction(3)),
+    };
 }
 
-void SolverT::resize(const std::vector<WrapObstacle>& obs, bool warmStart)
+double WrappingPathSolver::calcMaxCorrectionStep() const
+{
+    double maxCorr = 0.;
+    for (int i = 0; i < _pathCorrections.rows(); ++i) {
+        maxCorr = std::max(maxCorr, std::abs(_pathCorrections[i]));
+    }
+    return maxCorr;
+}
+
+// Apply max angle limit to the path error.
+void clampPathError(Eigen::VectorXd& pathError, double maxAngleDegrees)
+{
+
+    static constexpr double PI = M_PI;
+    const double cap           = 1. - cos(maxAngleDegrees / 180. * PI);
+
+    /* std::cout << "before pathError =" << pathError.transpose() << std::endl;
+     */
+
+    for (int r = 0; r < pathError.rows(); ++r) {
+        double& err = pathError[r];
+        err         = (std::abs(err) > cap) ? err / std::abs(err) * cap : err;
+    }
+
+    /* std::cout << "after pathError =" << pathError.transpose() << std::endl;
+     */
+}
+
+const Geodesic::Correction* WrappingPathSolver::begin() const
+{
+    static_assert(
+        sizeof(Geodesic::Correction) == sizeof(double) * Geodesic::DOF);
+    return reinterpret_cast<const Geodesic::Correction*>(&_pathCorrections(0));
+}
+
+size_t countActive(const std::vector<WrapObstacle>& obs)
 {
     size_t n = 0;
     for (const WrapObstacle& o: obs) {
@@ -2095,22 +1984,33 @@ void SolverT::resize(const std::vector<WrapObstacle>& obs, bool warmStart)
             ++n;
         }
     }
+    return n;
+}
+
+void WrappingPathSolver::resize(size_t n)
+{
+    constexpr size_t Q = Geodesic::DOF;
+    constexpr size_t C = 2;
+
+    _pathCorrections.resize(n * Q);
+    _vec.resize(n * C);
+    _mat.resize(n * C, n * Q);
+
+    _pathCorrections.fill(NAN);
+    _vec.fill(NAN);
+    _mat.fill(0.);
+}
+
+void OptSolver::resize(size_t n)
+{
+    WrappingPathSolver::resize(n);
 
     constexpr size_t Q = Geodesic::DOF;
     constexpr size_t C = 2;
 
-    _gT.resize(n * C);
-    _qT.resize(n * Q);
-    _JT.resize(n * C, n * Q);
-
-    _gN.resize(n * C);
-    _JN.resize(n * C, n * Q);
-    _qN.resize(n * Q);
-
-    _gB.resize(n * C);
-    _JB.resize(n * C, n * Q);
-    _qB.resize(n * Q);
-
+    _gT.resize(n * C); _qT.resize(n * Q); _JT.resize(n * C, n * Q);
+    _gN.resize(n * C); _JN.resize(n * C, n * Q); _qN.resize(n * Q);
+    _gB.resize(n * C); _JB.resize(n * C, n * Q); _qB.resize(n * Q);
     _JL.resize(n * Q);
 
     _P.resize(n * Q, n * Q);
@@ -2120,50 +2020,97 @@ void SolverT::resize(const std::vector<WrapObstacle>& obs, bool warmStart)
 
     _vecL.resize(n * Q);
 
-    if (warmStart) {
-        _mat.resize(n * Q, n * Q);
-        _vec.resize(n * Q);
-    } else {
-        _mat.resize(n * C, n * Q);
-        _vec.resize(n * C);
-    }
-
-    _JT.fill(0.);
-    _gT.fill(0.);
-    _qT.fill(0.);
-
-    _JN.fill(0.);
-    _gN.fill(0.);
-    _qN.fill(0.);
-
-    _JB.fill(0.);
-    _gB.fill(0.);
-    _qB.fill(0.);
-
-    _JL.fill(0.);
-    _l = 0.;
-
-    _P.setIdentity();
-    _d.fill(0.);
+    _mat.resize(n * C, n * Q);
+    _vec.resize(n * C);
 
     // Reset values.
+
+    _JT.fill(0.); _gT.fill(0.); _qT.fill(0.);
+    _JN.fill(0.); _gN.fill(0.); _qN.fill(0.);
+    _JB.fill(0.); _gB.fill(0.); _qB.fill(0.);
+    _JL.fill(0.); _l = 0.;
+    _P.setIdentity(); _d.fill(0.);
+
     _pathCorrections.fill(NAN);
 }
 
-bool SolverT::calcPathCorrection(
+void WrappingPath::Solver::resize(size_t n)
+{
+    WrappingPathSolver::resize(n);
+
+    constexpr size_t Q = Geodesic::DOF;
+    constexpr size_t C = 2;
+
+    _g.resize(n * C);
+    _J.resize(n * C, n * Q);
+
+    _g.fill(NAN);
+    _J.fill(0.);
+}
+
+void addPathErrorToCost(
+    const std::vector<WrapObstacle> &obs,
+    const std::vector<LineSeg> &lines,
+    Eigen::VectorXd& fun,
+    Eigen::MatrixXd& jac,
+    Eigen::VectorXd& vec,
+    Eigen::MatrixXd& mat,
+    PathErrorKind kind)
+{
+    calcPathErrorJacobian(obs, lines, jac, kind);
+    calcPathError(obs, lines, fun, kind);
+
+    mat += jac.transpose() * jac;
+    vec += jac.transpose() * fun;
+}
+
+bool WrappingPath::Solver::calcPathCorrection(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines,
-        double pathErr, double, const WrappingArgs& args)
+        double pathErr, double)
 {
-    if (lines.size() != obs.size() + 1) {
-        throw std::runtime_error("invalid number of line segments");
+    for (int i = 0; i < _mat.rows(); ++i) {
+        _mat(i,i) = pathErr;
     }
 
-    resize(obs);
+    addPathErrorToCost(obs, lines, _g, _J, _vec, _mat, PathErrorKind::Normal);
+    addPathErrorToCost(obs, lines, _g, _J, _vec, _mat, PathErrorKind::Binormal);
 
-    _P *= args.m_CostW ? (pathErr + 1e-4) : 0.;
+    solve();
 
-    if (args.m_CostL) {
+    return true;
+}
+
+void WrappingPathSolver::solve()
+{
+    _pathCorrections = -_mat.colPivHouseholderQr().solve(_vec);
+}
+
+void WrappingPathSolver::print(std::ostream& os) const
+{
+    os << "WrappingPathSolver{\n";
+    os << "    maxStep: {max... },\n";
+    os << "}\n";
+}
+
+void OptSolver::print(std::ostream& os) const
+{
+    WrappingPathSolver::print(os);
+}
+
+void WrappingPath::Solver::print(std::ostream& os) const
+{
+    WrappingPathSolver::print(os);
+}
+
+bool OptSolver::calcPathCorrection(
+        const std::vector<WrapObstacle> &obs,
+        const std::vector<LineSeg> &lines,
+        double pathErr, double)
+{
+    _P *= _opts.m_CostW ? (pathErr + 1e-4) : 0.;
+
+    if (_opts.m_CostL) {
         calcPathLengthJacobian(obs, lines, _JL);
         _l = calcPathLength(obs, lines);
         _d += _JL * 0.1;
@@ -2173,7 +2120,7 @@ bool SolverT::calcPathCorrection(
         }
     }
 
-    if (args.m_CostT) {
+    if (_opts.m_CostT) {
         calcPathErrorJacobian(obs, lines, _JT, PathErrorKind::Tangent);
         calcPathError(obs, lines, _gT, PathErrorKind::Tangent);
 
@@ -2181,17 +2128,17 @@ bool SolverT::calcPathCorrection(
         _d += _JT.transpose() * _gT;
     }
 
-    if (args.m_CostN || args.m_AugN) {
+    if (_opts.m_CostN || _opts.m_AugN) {
         calcPathErrorJacobian(obs, lines, _JN, PathErrorKind::Normal);
         calcPathError(obs, lines, _gN, PathErrorKind::Normal);
 
-        if (args.m_CostN) {
+        if (_opts.m_CostN) {
             _P += _JN.transpose() * _JN;
             _d += _JN.transpose() * _gN;
         }
     }
 
-    if (args.m_CostB) {
+    if (_opts.m_CostB) {
         calcPathErrorJacobian(obs, lines, _JB, PathErrorKind::Binormal);
         calcPathError(obs, lines, _gB, PathErrorKind::Binormal);
 
@@ -2200,7 +2147,7 @@ bool SolverT::calcPathCorrection(
     }
 
     _vec = _P.colPivHouseholderQr().solve(_d);
-    if (args.m_AugN) {
+    if (_opts.m_AugN) {
         _JJT = _JN * _JN.transpose();
         _JJTinv = _JJT.colPivHouseholderQr().inverse();
         _pathCorrections = _JN.transpose() * _JJTinv * (_JN * _vec - _gN) - _vec;
@@ -2209,8 +2156,6 @@ bool SolverT::calcPathCorrection(
     }
 
     /* calcScaledToFit<Eigen::VectorXd>(_pathCorrections, 1e-1); */
-
-
     return true;
 }
 
@@ -2334,7 +2279,7 @@ size_t WrappingPath::calcPath(
         }
 
         // Compute path corrections.
-        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError, _pathErrorBoundWide, getOpts())) {
+        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError, _pathErrorBoundWide)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
             std::cout << "Exiciting with error : Failed to invert\n";
             return loopIter;

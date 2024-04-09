@@ -725,73 +725,6 @@ struct CorrectionBounds
     double maxRepositioning = 1e2;
 };
 
-// Captures the smoothness of the wrapping path.
-class PathContinuityError final
-{
-public:
-    ~PathContinuityError()                                         = default;
-    PathContinuityError()                                          = default;
-    PathContinuityError(const PathContinuityError&)                = default;
-    PathContinuityError(PathContinuityError&&) noexcept            = default;
-    PathContinuityError& operator=(const PathContinuityError&)     = default;
-    PathContinuityError& operator=(PathContinuityError&&) noexcept = default;
-
-    // Maximum alignment error of the tangents.
-    double calcMaxPathError() const;
-
-    // Maximum natural geodesic correction for reducing the path error.
-    double calcMaxCorrectionStep() const;
-
-    /* private: */
-    // Pointer to first geodesic's correction.
-    const Geodesic::Correction* begin() const;
-    // Pointer to one past last geodesic's correction.
-    const Geodesic::Correction* end() const;
-
-    // Get access to the path error and path error jacobian.
-    Eigen::VectorXd& updPathError();
-    Eigen::MatrixXd& updPathErrorJacobian();
-
-    // Compute the geodesic corrections from the path error and path error
-    // jacobian.
-    bool calcPathCorrection(const WrappingArgs& args);
-
-    static const size_t NUMBER_OF_CONSTRAINTS = 6;
-
-    void resize(size_t nSurfaces, const WrappingArgs& args);
-
-    CorrectionBounds maxStep;
-
-    double _eps = 1e-10;
-    Eigen::VectorXd _solverError; // For debugging.
-    Eigen::VectorXd _pathCorrections;
-
-    Eigen::VectorXd _pathError;
-    Eigen::MatrixXd _pathErrorJacobian;
-
-    Eigen::MatrixXd _costP;
-    Eigen::MatrixXd _costQ;
-    Eigen::MatrixXd _costL;
-    Eigen::VectorXd _vecL;
-
-    Eigen::MatrixXd _mat;
-    Eigen::VectorXd _vec;
-    Eigen::VectorXd _solve;
-
-    Eigen::MatrixXd _matSmall;
-    Eigen::VectorXd _vecSmall;
-    Eigen::VectorXd _solveSmall;
-
-    double _length = 0.;
-    Eigen::VectorXd _lengthJacobian;
-
-    Eigen::JacobiSVD<Eigen::MatrixXd> _svd;
-    size_t _nSurfaces = 0;
-
-    friend Surface; // TODO change to whomever is calculating the path.
-    friend WrappingPath;
-};
-
 struct LineSeg
 {
     LineSeg(const Vector3& a, const Vector3& b) : l((b-a).norm()), d((b-a)/l) {}
@@ -799,16 +732,54 @@ struct LineSeg
     Vector3 d {NAN, NAN, NAN};
 };
 
-// Captures the smoothness of the wrapping path.
-class SolverT final
+class WrappingPathSolver
 {
 public:
-    ~SolverT()                                         = default;
-    SolverT()                                          = default;
-    SolverT(const SolverT&)                = default;
-    SolverT(SolverT&&) noexcept            = default;
-    SolverT& operator=(const SolverT&)     = default;
-    SolverT& operator=(SolverT&&) noexcept = default;
+    virtual ~WrappingPathSolver() = default;
+    WrappingPathSolver()                              = default;
+    WrappingPathSolver(const WrappingPathSolver&)     = default;
+    WrappingPathSolver(WrappingPathSolver&&) noexcept = default;
+    WrappingPathSolver& operator                      = (const WrappingPathSolver&)     = default;
+    WrappingPathSolver& operator                      = (WrappingPathSolver&&) noexcept = default;
+
+    // Maximum natural geodesic correction for reducing the path error.
+    double calcMaxCorrectionStep() const;
+
+    // Pointer to first geodesic's correction.
+    const Geodesic::Correction* begin() const;
+
+    // Get access to the path error and path error jacobian.
+
+    // Compute the geodesic corrections from the path error and path error
+    // jacobian.
+    virtual bool calcPathCorrection(
+            const std::vector<WrapObstacle>& obs,
+            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) = 0;
+
+    virtual void resize(size_t nActive);
+
+    virtual void print(std::ostream& os) const;
+
+    void solve();
+
+    CorrectionBounds _maxStep;
+
+    Eigen::VectorXd _pathCorrections;
+    Eigen::MatrixXd _mat;
+    Eigen::VectorXd _vec;
+    double _weight;
+};
+
+// Captures the smoothness of the wrapping path.
+class OptSolver: WrappingPathSolver
+{
+public:
+    ~OptSolver()                                         = default;
+    OptSolver()                                          = default;
+    OptSolver(const OptSolver&)                = default;
+    OptSolver(OptSolver&&) noexcept            = default;
+    OptSolver& operator=(const OptSolver&)     = default;
+    OptSolver& operator=(OptSolver&&) noexcept = default;
 
     // Maximum natural geodesic correction for reducing the path error.
     double calcMaxCorrectionStep() const;
@@ -822,17 +793,15 @@ public:
     // jacobian.
     bool calcPathCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd, const WrappingArgs& args);
+            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) override;
 
-    bool calcNormalsCorrection(
-            const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr);
+    void resize(size_t nActive) override;
+    void print(std::ostream& os) const override;
 
-    void resize(const std::vector<WrapObstacle>& obs, bool warmStart = false);
+    WrappingArgs& updOpts() {return _opts;}
+    const WrappingArgs& getOpts() {return _opts;}
 
-    CorrectionBounds maxStep;
-
-    Eigen::VectorXd _pathCorrections;
+    WrappingArgs _opts;
 
     Eigen::VectorXd _qT;
     Eigen::VectorXd _gT;
@@ -860,14 +829,8 @@ public:
     Eigen::MatrixXd _inv;
     Eigen::VectorXd _vec;
     Eigen::VectorXd _vecL;
-
-    double _weight = 0.;
-
-    friend Surface; // TODO change to whomever is calculating the path.
-    friend WrappingPath;
 };
 
-// The result of computing a path over surfaces.
 class WrappingPath
 {
     public:
@@ -879,9 +842,45 @@ class WrappingPath
         WarmStartFailed        = 3,
     };
 
-    WrappingPath() = default;
+    class Solver: public WrappingPathSolver
+    {
+        public:
+            ~Solver()                 = default;
+            Solver()                  = default;
+            Solver(const Solver&)     = default;
+            Solver(Solver&&) noexcept = default;
+            Solver& operator          = (const Solver&)     = default;
+            Solver& operator          = (Solver&&) noexcept = default;
 
-    WrappingPath(Vector3 pathStart, Vector3 pathEnd) : _startPoint(std::move(pathStart)), _endPoint(std::move(pathEnd)) {}
+            // Compute the geodesic corrections from the path error and path error
+            // jacobian.
+            bool calcPathCorrection(
+                    const std::vector<WrapObstacle>& obs,
+                    const std::vector<LineSeg>& lines, 
+                    double pathErr,
+                    double pathErrBnd) override;
+
+            void resize(size_t nActive) override;
+
+            void print(std::ostream& os) const override;
+
+            Eigen::VectorXd _g;
+            Eigen::MatrixXd _J;
+
+            Eigen::MatrixXd _mat;
+            Eigen::VectorXd _vec;
+    };
+
+    WrappingPath(std::unique_ptr<WrappingPathSolver> solver) : _smoothness(std::move(solver)) {}
+
+    template<typename SOLVER, typename ...Args>
+    static WrappingPath create(Args...args) {
+        return WrappingPath(std::make_unique<SOLVER>(std::forward<Args>(args)...));
+    }
+
+    WrappingPath() {
+        *this = WrappingPath::create<Solver>();
+    }
 
     std::vector<WrapObstacle>& updSegments() {return _segments;}
 
@@ -891,11 +890,11 @@ class WrappingPath
     const std::vector<LineSeg>& getLineSegments() const
     {return _lineSegments;}
 
-    const SolverT& getSolver() const
-    {return _smoothness;}
+    const WrappingPathSolver& getSolver() const
+    {return *_smoothness;}
 
-    SolverT& updSolver()
-    {return _smoothness;}
+    WrappingPathSolver& updSolver()
+    {return *_smoothness;}
 
     size_t calcInitPath(
         double eps     = 1e-6,
@@ -922,9 +921,6 @@ class WrappingPath
         return _pathPoints;
     }
 
-    WrappingArgs& updOpts() {return _opts;}
-    const WrappingArgs& getOpts() {return _opts;}
-
     size_t getLoopIter() const {return loopIter;}
     double getPathError() const {return _pathError;}
     double getPathErrorBound() const {return _pathErrorBound;}
@@ -944,10 +940,9 @@ class WrappingPath
     std::vector<WrapObstacle> _segments = {};
     std::vector<LineSeg> _lineSegments = {};
     std::vector<Vector3> _pathPoints = {};
-    SolverT _smoothness = {};
+    std::unique_ptr<WrappingPathSolver> _smoothness = nullptr;
 
     Status _status = Status::Ok;
-    WrappingArgs _opts;
     double _pathError = NAN;
     double _pathErrorBound = std::abs(1. - cos(1. / 180. * M_PI));
     double _pathErrorBoundWide = std::abs(1. - cos(5. / 180. * M_PI));
