@@ -1707,7 +1707,7 @@ using ActiveLambda  = std::function<void(size_t, size_t, size_t)>;
 
 void forEachActive(
         const std::vector<WrapObstacle>& obs,
-        ActiveLambda& f)
+        ActiveLambda& f, bool skipInActive = true)
 {
     const ptrdiff_t n = obs.size();
     ptrdiff_t next = 0;
@@ -1716,7 +1716,7 @@ void forEachActive(
     for (ptrdiff_t i = 0; i < n; ++i)
     {
         // Call function f for each active segment.
-        if (!isActive(obs.at(i).getStatus())) {
+        if (skipInActive && !isActive(obs.at(i).getStatus())) {
             continue;
         }
 
@@ -2175,64 +2175,25 @@ Geodesic::Status clearErrorFlag()
         | Geodesic::Status::IntegratorFailed);
 }
 
-size_t WrappingPath::calcInitPath(
-    double,
+void WrappingPath::calcInitPath(
+    double eps,
     size_t maxIter)
 {
     calcInitZeroLengthGeodesics(getStart(), updSegments());
 
-    for (WrapObstacle& o: _segments) {
-        o.calcGeodesicInGround();
-    }
-
-    for (size_t loopIter = 0; loopIter < maxIter; ++loopIter) {
-        // Compute the line segments.
-        calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
-
-        // Evaluate path error, and stop when converged.
-        _pathError = calcMaxPathError(getSegments(), getLineSegments(), PathErrorKind::Normal);
-        if (_pathError < _pathErrorBound) {
-            break;
-        }
-
-        // Optionally return on error.
-        for (const WrapObstacle& o: getSegments()) {
-            if(isError(o.getStatus())) {
-                _status = _status | Status::WarmStartFailed;
-            }
-        }
-
-        // Compute path corrections.
-        if (!updSolver().calcNormalsCorrection(getSegments(), _lineSegments, _pathError)) {
-            updStatus() = _status | WrappingPath::Status::FailedToInvertJacobian;
-            _status = _status | Status::WarmStartFailed;
-            break;
-        }
-
-        // Apply path corrections.
-        const Geodesic::Correction* corrIt  = getSolver().begin();
-        for (WrapObstacle& o : updSegments()) {
-            if (!isActive(o.getStatus())) {
-                continue;
-            }
-            o._surface->applyVariation(*corrIt);
-            o.calcGeodesicInGround();
-            ++corrIt;
-        }
-    }
-
-    return maxIter;
+    calcPath(false, eps, maxIter, true);
 }
 
-size_t WrappingPath::calcPath(
+void WrappingPath::calcPath(
     bool breakOnErr,
     double,
-    size_t maxIter)
+    size_t maxIter,
+    bool preventLiftOff)
 {
     updStatus() = WrappingPath::Status::Ok;
     const size_t n = getSegments().size();
     if (n == 0) {
-        return 0;
+        return;
     }
 
     // Clear the error flags.
@@ -2246,24 +2207,28 @@ size_t WrappingPath::calcPath(
         o.calcGeodesicInGround();
     }
 
+    // Helper for detecting touchdown and liftoff.
+    ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i)
+    {
+        const Vector3 p_O = prev == n ? getStart() : getSegments().at(prev).getGeodesic().K_Q.p();
+        const Vector3 p_I = next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
+        if (!getSegments().at(i).isAboveSurface(p_O, 0.)) {
+            updSegments().at(i).updStatus() |= Geodesic::Status::PrevLineSegmentInsideSurface;
+        }
+        if (!getSegments().at(i).isAboveSurface(p_I, 0.)) {
+            updSegments().at(i).updStatus() |= Geodesic::Status::NextLineSegmentInsideSurface;
+        }
+        if (preventLiftOff) {
+            updSegments().at(i).attemptTouchdown(p_O, p_I);
+            updSegments().at(i).detectLiftOff(p_O, p_I);
+        }
+    };
+
     const size_t prevLoopIter = loopIter;
     for (loopIter = 0; loopIter < maxIter; ++loopIter) {
 
         // Detect touchdown & liftoff.
-        ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i)
-        {
-            const Vector3 p_O = prev == n ? getStart() : getSegments().at(prev).getGeodesic().K_Q.p();
-            const Vector3 p_I = next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
-            if (!getSegments().at(i).isAboveSurface(p_O, 0.)) {
-                updSegments().at(i).updStatus() |= Geodesic::Status::PrevLineSegmentInsideSurface;
-            }
-            if (!getSegments().at(i).isAboveSurface(p_I, 0.)) {
-                updSegments().at(i).updStatus() |= Geodesic::Status::NextLineSegmentInsideSurface;
-            }
-            updSegments().at(i).attemptTouchdown(p_O, p_I);
-            updSegments().at(i).detectLiftOff(p_O, p_I);
-        };
-        forEachActive(getSegments(), TouchdownAndLiftOff);
+        forEachActive(getSegments(), TouchdownAndLiftOff, false);
 
         // Compute the line segments.
         calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
@@ -2272,15 +2237,14 @@ size_t WrappingPath::calcPath(
         _pathError = calcMaxPathError(getSegments(), getLineSegments(), PathErrorKind::Tangent);
         if (_pathError < _pathErrorBound) {
             loopIter = loopIter == 0 ? prevLoopIter : loopIter;
-            return loopIter;
+            return;
         }
 
         // Optionally return on error.
         if (breakOnErr) {
             for (const WrapObstacle& o: getSegments()) {
                 if(isError(o.getStatus())) {
-                    std::cout << "Exciting with error: " << o.getStatus() << "\n";
-                    return loopIter;
+                    return;
                 }
             }
         }
@@ -2288,8 +2252,7 @@ size_t WrappingPath::calcPath(
         // Compute path corrections.
         if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError, _pathErrorBoundWide)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
-            std::cout << "Exiciting with error : Failed to invert\n";
-            return loopIter;
+            return;
         }
 
         // Apply path corrections.
@@ -2305,7 +2268,6 @@ size_t WrappingPath::calcPath(
     }
 
     updStatus() = Status::ExceededMaxIterations;
-    return maxIter;
 }
 
 const std::vector<Vector3>& WrappingPath::calcPathPoints()

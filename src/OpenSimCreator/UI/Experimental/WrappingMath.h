@@ -896,14 +896,15 @@ class WrappingPath
     WrappingPathSolver& updSolver()
     {return *_smoothness;}
 
-    size_t calcInitPath(
+    void calcInitPath(
         double eps     = 1e-6,
         size_t maxIter = 10);
 
-    size_t calcPath(
+    void calcPath(
         bool breakOnErr = true,
         double eps     = 1e-6,
-        size_t maxIter = 100);
+        size_t maxIter = 100,
+        bool preventLiftOff = false);
 
     const Vector3& getStart() const {return _startPoint;}
     Vector3& updStart() {return _startPoint;}
