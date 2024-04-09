@@ -748,19 +748,22 @@ public:
     // Pointer to first geodesic's correction.
     const Geodesic::Correction* begin() const;
 
-    // Get access to the path error and path error jacobian.
-
-    // Compute the geodesic corrections from the path error and path error
-    // jacobian.
-    virtual bool calcPathCorrection(
+    bool calcPathCorrection(
             const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) = 0;
+            const std::vector<LineSeg>& lines, 
+            double pathErr,
+            double pathErrBnd);
 
     virtual void resize(size_t nActive);
 
     virtual void print(std::ostream& os) const;
 
     void solve();
+
+    protected:
+    virtual void calcPathCorrectionImpl(
+            const std::vector<WrapObstacle>& obs,
+            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) = 0;
 
     CorrectionBounds _maxStep;
 
@@ -791,7 +794,7 @@ public:
 
     // Compute the geodesic corrections from the path error and path error
     // jacobian.
-    bool calcPathCorrection(
+    void calcPathCorrectionImpl(
             const std::vector<WrapObstacle>& obs,
             const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) override;
 
@@ -854,7 +857,7 @@ class WrappingPath
 
             // Compute the geodesic corrections from the path error and path error
             // jacobian.
-            bool calcPathCorrection(
+            void calcPathCorrectionImpl(
                     const std::vector<WrapObstacle>& obs,
                     const std::vector<LineSeg>& lines, 
                     double pathErr,
@@ -866,9 +869,6 @@ class WrappingPath
 
             Eigen::VectorXd _g;
             Eigen::MatrixXd _J;
-
-            Eigen::MatrixXd _mat;
-            Eigen::VectorXd _vec;
     };
 
     WrappingPath(std::unique_ptr<WrappingPathSolver> solver) : _smoothness(std::move(solver)) {}

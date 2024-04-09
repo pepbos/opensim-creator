@@ -1990,14 +1990,13 @@ size_t countActive(const std::vector<WrapObstacle>& obs)
 void WrappingPathSolver::resize(size_t n)
 {
     constexpr size_t Q = Geodesic::DOF;
-    constexpr size_t C = 2;
 
     _pathCorrections.resize(n * Q);
-    _vec.resize(n * C);
-    _mat.resize(n * C, n * Q);
+    _vec.resize(n * Q);
+    _mat.resize(n * Q, n * Q);
 
     _pathCorrections.fill(NAN);
-    _vec.fill(NAN);
+    _vec.fill(0.);
     _mat.fill(0.);
 }
 
@@ -2016,12 +2015,7 @@ void OptSolver::resize(size_t n)
     _P.resize(n * Q, n * Q);
     _d.resize(n * Q);
 
-    _pathCorrections.resize(n * Q);
-
     _vecL.resize(n * Q);
-
-    _mat.resize(n * C, n * Q);
-    _vec.resize(n * C);
 
     // Reset values.
 
@@ -2064,7 +2058,18 @@ void addPathErrorToCost(
     vec += jac.transpose() * fun;
 }
 
-bool WrappingPath::Solver::calcPathCorrection(
+bool WrappingPathSolver::calcPathCorrection(
+        const std::vector<WrapObstacle> &obs,
+        const std::vector<LineSeg> &lines,
+        double pathErr, double pathErrBnd)
+{
+    resize(countActive(obs));
+    calcPathCorrectionImpl(obs, lines, pathErr, pathErrBnd);
+    solve();
+    return true;
+}
+
+void WrappingPath::Solver::calcPathCorrectionImpl(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines,
         double pathErr, double)
@@ -2075,10 +2080,6 @@ bool WrappingPath::Solver::calcPathCorrection(
 
     addPathErrorToCost(obs, lines, _g, _J, _vec, _mat, PathErrorKind::Normal);
     addPathErrorToCost(obs, lines, _g, _J, _vec, _mat, PathErrorKind::Binormal);
-
-    solve();
-
-    return true;
 }
 
 void WrappingPathSolver::solve()
@@ -2095,15 +2096,24 @@ void WrappingPathSolver::print(std::ostream& os) const
 
 void OptSolver::print(std::ostream& os) const
 {
-    WrappingPathSolver::print(os);
+    os << "OptSolver{\n";
+    os << "    maxStep: {max... },\n";
+    os << "}\n";
 }
 
 void WrappingPath::Solver::print(std::ostream& os) const
 {
-    WrappingPathSolver::print(os);
+    os << "Solver{\n";
+    os << "    maxStep: {max... },\n";
+    os << "    g: " << _g.transpose() << "\n";
+    os << "    J:\n" << _J << "\n";
+    os << "    vec: " << _vec.transpose() << "\n";
+    os << "    mat:\n" << _mat << "\n";
+    os << "    COR: " << _pathCorrections.transpose() << "\n";
+    os << "}\n";
 }
 
-bool OptSolver::calcPathCorrection(
+void OptSolver::calcPathCorrectionImpl(
         const std::vector<WrapObstacle> &obs,
         const std::vector<LineSeg> &lines,
         double pathErr, double)
@@ -2154,9 +2164,6 @@ bool OptSolver::calcPathCorrection(
     } else {
         _pathCorrections = -_vec;
     }
-
-    /* calcScaledToFit<Eigen::VectorXd>(_pathCorrections, 1e-1); */
-    return true;
 }
 
 Geodesic::Status clearErrorFlag()

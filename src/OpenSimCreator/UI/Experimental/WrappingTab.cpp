@@ -252,45 +252,15 @@ private:
 
             /* RunImplicitGeodesicTest(m_WrappingPath, "Path", std::cout); */
 
-            /* std::cout << "\n"; */
-            /* std::cout << "pathError: " << m_WrappingPath.updSolver()._pathError.transpose() << "\n"; */
-            /* std::cout << "pathJacobian:\n"; */
-            /* std::cout << m_WrappingPath.updSolver()._pathErrorJacobian << "\n"; */
-            /* std::cout << "CORRECTION: " << m_WrappingPath.updSolver()._pathCorrections.transpose() << "\n"; */
-
-            /* std::cout << "\n"; */
-
-            /* std::cout << "_matM:\n" << m_WrappingPath.updSolver()._matM << "\n"; */
-            /* std::cout << "_Minv:\n" << m_WrappingPath.updSolver()._Minv << "\n"; */
-
-            /* std::cout << "_vecL: "; */
-            /* std::cout << m_WrappingPath.updSolver()._vecL.transpose() << "\n"; */
-            /* std::cout << "_lengthJacobian: "; */
-            /* std::cout << m_WrappingPath.updSolver()._lengthJacobian.transpose() << "\n"; */
-            /* std::cout << "_length: "; */
-            /* std::cout << m_WrappingPath.updSolver()._length << "\n"; */
-
-            /* std::cout << "\n"; */
-
-            /* std::cout << "JB:\n"; */
-            /* std::cout << m_WrappingPath.updSolver()._pathErrorJacobianB << "\n"; */
-            /* std::cout << "gB: " << m_WrappingPath.updSolver()._pathErrorB.transpose() << "\n"; */
-            /* std::cout << "qB: " << m_WrappingPath.updSolver()._vecB.transpose() << "\n"; */
-
-            /* std::cout << "mat:\n"; */
-            /* std::cout << m_WrappingPath.updSolver()._mat << "\n"; */
-            /* std::cout << "inv:\n"; */
-            /* std::cout << m_WrappingPath.updSolver()._inv << "\n"; */
-            /* std::cout << "vec: " << m_WrappingPath.updSolver()._vec.transpose() << "\n"; */
-
-            /* std::cout << "\n"; */
-
-            /* std::cout << "status" << m_WrappingPath.getStatus() << "\n"; */
-            /* for (const WrapObstacle& o: m_WrappingPath.getSegments()) { */
-            /*     std::cout << "    " << o.getStatus() << "\n"; */
-            /* } */
-            /* std::cout << "\n"; */
-            /* std::cout << "\n"; */
+            for (size_t i = 0; i < 2; ++i) {
+            m_WrappingPath.at(i).getSolver().print(std::cout);
+            std::cout << "status" << m_WrappingPath.at(i).getStatus() << "\n";
+            for (const WrapObstacle& o: m_WrappingPath.at(i).getSegments()) {
+                std::cout << "    " << o.getStatus() << "\n";
+            }
+            std::cout << "\n";
+            }
+            std::cout << "\n";
         }
 
         for (size_t i = 0; i < 2; ++i) {
