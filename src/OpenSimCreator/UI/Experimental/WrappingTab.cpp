@@ -335,6 +335,8 @@ private:
                     ui::Text(buffer);
 
                     snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.at(i).getPathErrorBound());
+
+                    snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getPathPoints().size());
                     ui::Text(buffer);
                 }
             }

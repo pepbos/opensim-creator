@@ -4,10 +4,10 @@
 #include <Eigen/src/Core/util/Constants.h>
 #include <Eigen/src/Geometry/Quaternion.h>
 #include <cstddef>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
-#include <functional>
 #include <vector>
 
 namespace osc
@@ -72,43 +72,51 @@ void RungeKutta4(Y& y, double& t, double dt, std::function<D(const Y&)> f)
 template <typename Y, typename DY = Y, typename S = Y>
 class RungeKuttaMerson
 {
-    public:
+public:
     RungeKuttaMerson() = default;
 
-    RungeKuttaMerson(double hMin, double hMax, double accuracy): _h0(hMin), _hMin(hMin), _hMax(hMax), _accuracy(accuracy) {}
+    RungeKuttaMerson(double hMin, double hMax, double accuracy) :
+        _h0(hMin), _hMin(hMin), _hMax(hMax), _accuracy(accuracy)
+    {}
 
     // Integrate y0, populating y1, y2.
     double step(double h, std::function<DY(const Y&)>& f);
 
     double stepTo(
-            Y y0,
-            double x1,
-            std::function<DY(const Y&)>& f,
-            std::function<void(Y&)>& g
-            );
+        Y y0,
+        double x1,
+        std::function<DY(const Y&)>& f,
+        std::function<void(Y&)>& g);
 
     struct Sample
     {
-        Sample(double xk, const Y& yk) : x(xk), y({yk}) {}
+        Sample(double xk, const Y& yk) : x(xk), y({yk})
+        {}
 
         double x;
         S y;
     };
 
-    const std::vector<Sample>& getSamples() const {return _samples;}
-    size_t getNumberOfFailedSteps() const {return _failedCount;}
+    const std::vector<Sample>& getSamples() const
+    {
+        return _samples;
+    }
+    size_t getNumberOfFailedSteps() const
+    {
+        return _failedCount;
+    }
 
-    private:
+private:
     static constexpr size_t ORDER = 5;
 
-    std::array<DY, ORDER> _k {};
-    std::array<Y, 3> _y {};
+    std::array<DY, ORDER> _k{};
+    std::array<Y, 3> _y{};
 
-    std::vector<Sample> _samples {};
+    std::vector<Sample> _samples{};
 
-    double _h0 = 1e-6;
-    double _hMin = 1e-8;
-    double _hMax = 1e-1;
+    double _h0       = 1e-6;
+    double _hMin     = 1e-8;
+    double _hMax     = 1e-1;
     double _accuracy = 1e-8;
 
     size_t _failedCount = 0;
@@ -116,52 +124,83 @@ class RungeKuttaMerson
 
 class Darboux
 {
-    public:
+public:
     using Matrix = Eigen::Matrix<double, 3, 3, Eigen::ColMajor>;
 
     Darboux();
 
-    static Darboux FromTangenGuessAndNormal(Vector3 tangentGuess, Vector3 normal);
+    static Darboux FromTangenGuessAndNormal(
+        Vector3 tangentGuess,
+        Vector3 normal);
 
     Darboux(Vector3 tangent, Vector3 normal, Vector3 binormal);
 
-    const Vector3& t() const {return reinterpret_cast<const Vector3&>(*_rotation.data());}
-    const Vector3& n() const {return reinterpret_cast<const Vector3&>(*(_rotation.data() + 3));}
-    const Vector3& b() const {return reinterpret_cast<const Vector3&>(*(_rotation.data() + 6));}
+    const Vector3& t() const
+    {
+        return reinterpret_cast<const Vector3&>(*_rotation.data());
+    }
+    const Vector3& n() const
+    {
+        return reinterpret_cast<const Vector3&>(*(_rotation.data() + 3));
+    }
+    const Vector3& b() const
+    {
+        return reinterpret_cast<const Vector3&>(*(_rotation.data() + 6));
+    }
 
-    const Darboux::Matrix& matrix() const {return _rotation;}
+    const Darboux::Matrix& matrix() const
+    {
+        return _rotation;
+    }
 
-    private:
+private:
     Eigen::Matrix<double, 3, 3, Eigen::ColMajor> _rotation;
 };
 
 class Trihedron
 {
-    public:
-        Trihedron() = default;
+public:
+    Trihedron() = default;
 
-        Trihedron(Vector3 point, Darboux rotation);
+    Trihedron(Vector3 point, Darboux rotation);
 
-        Trihedron(Vector3 point,
-                Vector3 tangent,
-                Vector3 normal,
-                Vector3 binormal);
+    Trihedron(Vector3 point, Vector3 tangent, Vector3 normal, Vector3 binormal);
 
-        static Trihedron FromPointAndTangentGuessAndNormal(Vector3 point,
-                Vector3 tangentGuess, Vector3 normal);
+    static Trihedron FromPointAndTangentGuessAndNormal(
+        Vector3 point,
+        Vector3 tangentGuess,
+        Vector3 normal);
 
-        const Vector3& t() const {return _rotation.t();}
-        const Vector3& n() const {return _rotation.n();}
-        const Vector3& b() const {return _rotation.b();}
+    const Vector3& t() const
+    {
+        return _rotation.t();
+    }
+    const Vector3& n() const
+    {
+        return _rotation.n();
+    }
+    const Vector3& b() const
+    {
+        return _rotation.b();
+    }
 
-        const Darboux::Matrix& R() const {return _rotation.matrix(); }
-        const Vector3& p() const {return _point;}
+    const Darboux::Matrix& R() const
+    {
+        return _rotation.matrix();
+    }
+    const Vector3& p() const
+    {
+        return _point;
+    }
 
-        Vector3& updPoint() {return _point;}
+    Vector3& updPoint()
+    {
+        return _point;
+    }
 
-    private:
-        Vector3 _point = {NAN, NAN, NAN};
-        Darboux _rotation;
+private:
+    Vector3 _point = {NAN, NAN, NAN};
+    Darboux _rotation;
 };
 
 //==============================================================================
@@ -248,7 +287,7 @@ struct WrappingArgs
     bool m_CostT = true;
     bool m_CostN = false;
     bool m_CostB = false;
-    bool m_AugN = false;
+    bool m_AugN  = false;
     bool m_Cache = false;
 };
 
@@ -275,20 +314,43 @@ protected:
 
 public:
     Geodesic::Status calcGeodesic(Geodesic::InitialConditions g0);
-    const Geodesic& getGeodesic() {return _geodesic;}
+    const Geodesic& getGeodesic()
+    {
+        return _geodesic;
+    }
 
     void applyVariation(const Geodesic::Correction& var);
 
-    // Returns true if touchdown was detected, with the point written to argument p.
-    bool calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps);
-    bool isAboveSurface(Vector3 point, double bound) const {
-        return isAboveSurfaceImpl(std::move(point), bound);}
+    // Returns true if touchdown was detected, with the point written to
+    // argument p.
+    bool calcLocalLineToSurfaceTouchdownPoint(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps);
+    bool isAboveSurface(Vector3 point, double bound) const
+    {
+        return isAboveSurfaceImpl(std::move(point), bound);
+    }
 
-    Vector3 getPathStartGuess() const {return _pathLocalStartGuess;}
-    void setLocalPathStartGuess(Vector3 pathStartGuess) {_pathLocalStartGuess = std::move(pathStartGuess);}
+    Vector3 getPathStartGuess() const
+    {
+        return _pathLocalStartGuess;
+    }
+    void setLocalPathStartGuess(Vector3 pathStartGuess)
+    {
+        _pathLocalStartGuess = std::move(pathStartGuess);
+    }
 
-    Geodesic::Status getStatus() const {return _status;}
-    Geodesic::Status& updStatus() {return _status;}
+    Geodesic::Status getStatus() const
+    {
+        return _status;
+    }
+    Geodesic::Status& updStatus()
+    {
+        return _status;
+    }
 
     // For convenience:
     // (Assumes the point lies on the surface)
@@ -311,58 +373,89 @@ private:
     virtual bool isAboveSurfaceImpl(Vector3 point, double bound) const = 0;
 
     virtual Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const = 0;
-    virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const = 0;
-    virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const = 0;
+    virtual double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent)
+        const = 0;
+    virtual double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent)
+        const = 0;
 
-    virtual void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const = 0;
+    virtual void calcPathPointsImpl(
+        std::vector<Vector3>& points,
+        Transf transform) const = 0;
 
-    virtual std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) = 0;
+    virtual std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps) = 0;
 
     // TODO this should not be surface dependent.
     // TODO weird guess (keep until fixed)
     Vector3 _pathLocalStartGuess = {1., 1., 1.};
 
-    Geodesic _geodesic {};
+    Geodesic _geodesic{};
     Geodesic::Status _status = Geodesic::Status::Ok;
 };
 
 class WrapObstacle
 {
-    private:
+private:
     WrapObstacle() = default;
     WrapObstacle(
-            std::shared_ptr<Transf> transform,
-            std::unique_ptr<Surface> surface) :
+        std::shared_ptr<Transf> transform,
+        std::unique_ptr<Surface> surface) :
         _transform(std::move(transform)),
-        _surface(std::move(surface)) {}
+        _surface(std::move(surface))
+    {}
 
-    public:
-    template<typename SURFACE, typename ...Args>
-    static WrapObstacle Create(std::shared_ptr<Transf> transform, Args&&...args)
+public:
+    template <typename SURFACE, typename... Args>
+    static WrapObstacle Create(
+        std::shared_ptr<Transf> transform,
+        Args&&... args)
     {
         return WrapObstacle(
-                std::move(transform),
-                std::make_unique<SURFACE>(std::forward<Args>(args)...));
+            std::move(transform),
+            std::make_unique<SURFACE>(std::forward<Args>(args)...));
     }
 
     /* Surface* updSurface() {return _surface.get();} */
     /* const Surface& getSurface() const {return *_surface;} */
 
     Vector3 getPathStartGuess() const;
-    void setLocalPathStartGuess(Vector3 point) {_surface->setLocalPathStartGuess(std::move(point));}
+    void setLocalPathStartGuess(Vector3 point)
+    {
+        _surface->setLocalPathStartGuess(std::move(point));
+    }
 
-    Geodesic::Status& updStatus() {return _surface->updStatus();}
-    Geodesic::Status getStatus() const {return _surface->getStatus();}
+    Geodesic::Status& updStatus()
+    {
+        return _surface->updStatus();
+    }
+    Geodesic::Status getStatus() const
+    {
+        return _surface->getStatus();
+    }
 
     const Geodesic& calcGeodesic(Geodesic::InitialConditions g0);
     const Geodesic& calcGeodesicInGround();
-    const Geodesic& getGeodesic() const {return _geodesic;}
+    const Geodesic& getGeodesic() const
+    {
+        return _geodesic;
+    }
 
-    void attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size_t maxIter = 20, double eps = 1e-3);
+    void attemptTouchdown(
+        const Vector3& p_O,
+        const Vector3& p_I,
+        size_t maxIter = 20,
+        double eps     = 1e-3);
     void detectLiftOff(const Vector3& p_O, const Vector3& p_I);
     bool isAboveSurface(const Vector3& p, double bound) const;
 
-    const Transf& getOffsetFrame() const {return *_transform;}
+    const Transf& getOffsetFrame() const
+    {
+        return *_transform;
+    }
 
     void calcPathPoints(std::vector<Vector3>& points) const;
 
@@ -372,8 +465,7 @@ class WrapObstacle
     double calcNormalCurvature(Vector3 point, Vector3 tangent) const;
     double calcGeodesicTorsion(Vector3 point, Vector3 tangent) const;
 
-    private:
-
+private:
     std::shared_ptr<Transf> _transform;
     std::unique_ptr<Surface> _surface;
     Geodesic _geodesic;
@@ -411,16 +503,16 @@ struct ImplicitGeodesicStateDerivative
 };
 
 ImplicitGeodesicState operator*(
-        double dt,
-        const ImplicitGeodesicStateDerivative& dy);
+    double dt,
+    const ImplicitGeodesicStateDerivative& dy);
 
 ImplicitGeodesicState operator+(
-        const ImplicitGeodesicState& lhs,
-        const ImplicitGeodesicState& rhs);
+    const ImplicitGeodesicState& lhs,
+    const ImplicitGeodesicState& rhs);
 
 ImplicitGeodesicState operator-(
-        const ImplicitGeodesicState& lhs,
-        const ImplicitGeodesicState& rhs);
+    const ImplicitGeodesicState& lhs,
+    const ImplicitGeodesicState& rhs);
 
 //==============================================================================
 //                      IMPLICIT SURFACE
@@ -463,26 +555,36 @@ private:
         Geodesic& geodesic) override;
 
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
-    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
-    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent)
+        const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent)
+        const override;
 
-    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps) override;
 
-    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
+        const override;
 
-    RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative> _rkm;
+    RungeKuttaMerson<ImplicitGeodesicState, ImplicitGeodesicStateDerivative>
+        _rkm;
 };
 
 void RunIntegratorTests();
 
 class SphereSurface final
 {
-    public:
-    explicit SphereSurface(double radius) : _radius(radius) {}
+public:
+    explicit SphereSurface(double radius) : _radius(radius)
+    {}
 
     double getRadius() const;
 
-    private:
+private:
     double _radius = NAN;
 };
 
@@ -500,7 +602,8 @@ public:
         double xRadius,
         double yRadius,
         double zRadius) :
-        _xRadius(xRadius), _yRadius(yRadius), _zRadius(zRadius)
+        _xRadius(xRadius),
+        _yRadius(yRadius), _zRadius(zRadius)
     {}
 
     Vector3 getRadii() const
@@ -589,11 +692,19 @@ private:
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
-    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
-    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent)
+        const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent)
+        const override;
 
-    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
-    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps) override;
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
+        const override;
 
     double _radius = 1.;
 };
@@ -662,11 +773,19 @@ private:
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     Vector3 calcLocalSurfaceNormalImpl(Vector3 point) const override;
-    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent) const override;
-    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent) const override;
+    double calcLocalNormalCurvatureImpl(Vector3 point, Vector3 tangent)
+        const override;
+    double calcLocalGeodesicTorsionImpl(Vector3 point, Vector3 tangent)
+        const override;
 
-    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps) override;
-    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const override;
+    std::pair<bool, size_t> calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps) override;
+    void calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
+        const override;
 
     double _radius = 1.;
 };
@@ -682,8 +801,7 @@ public:
     ImplicitTorusSurface() = default;
 
     explicit ImplicitTorusSurface(double smallRadius, double bigRadius) :
-        _smallRadius(smallRadius),
-        _bigRadius(bigRadius)
+        _smallRadius(smallRadius), _bigRadius(bigRadius)
     {}
 
     double getBigRadius() const
@@ -699,7 +817,7 @@ public:
     void setRadii(double a, double b)
     {
         _smallRadius = std::min(std::abs(a), std::abs(b));
-        _bigRadius = std::max(std::abs(a), std::abs(b));
+        _bigRadius   = std::max(std::abs(a), std::abs(b));
     }
 
 private:
@@ -711,7 +829,7 @@ private:
     bool isAboveSurfaceImpl(Vector3 point, double bound) const override;
 
     double _smallRadius = 0.1;
-    double _bigRadius = 1.;
+    double _bigRadius   = 1.;
 };
 
 //==============================================================================
@@ -727,20 +845,22 @@ struct CorrectionBounds
 
 struct LineSeg
 {
-    LineSeg(const Vector3& a, const Vector3& b) : l((b-a).norm()), d((b-a)/l) {}
+    LineSeg(const Vector3& a, const Vector3& b) :
+        l((b - a).norm()), d((b - a) / l)
+    {}
     double l = NAN;
-    Vector3 d {NAN, NAN, NAN};
+    Vector3 d{NAN, NAN, NAN};
 };
 
 class WrappingPathSolver
 {
 public:
-    virtual ~WrappingPathSolver() = default;
-    WrappingPathSolver()                              = default;
-    WrappingPathSolver(const WrappingPathSolver&)     = default;
-    WrappingPathSolver(WrappingPathSolver&&) noexcept = default;
-    WrappingPathSolver& operator                      = (const WrappingPathSolver&)     = default;
-    WrappingPathSolver& operator                      = (WrappingPathSolver&&) noexcept = default;
+    virtual ~WrappingPathSolver()                                = default;
+    WrappingPathSolver()                                         = default;
+    WrappingPathSolver(const WrappingPathSolver&)                = default;
+    WrappingPathSolver(WrappingPathSolver&&) noexcept            = default;
+    WrappingPathSolver& operator=(const WrappingPathSolver&)     = default;
+    WrappingPathSolver& operator=(WrappingPathSolver&&) noexcept = default;
 
     // Maximum natural geodesic correction for reducing the path error.
     double calcMaxCorrectionStep() const;
@@ -749,10 +869,10 @@ public:
     const Geodesic::Correction* begin() const;
 
     bool calcPathCorrection(
-            const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, 
-            double pathErr,
-            double pathErrBnd);
+        const std::vector<WrapObstacle>& obs,
+        const std::vector<LineSeg>& lines,
+        double pathErr,
+        double pathErrBnd);
 
     virtual void resize(size_t nActive);
 
@@ -760,10 +880,12 @@ public:
 
     void solve();
 
-    protected:
+protected:
     virtual void calcPathCorrectionImpl(
-            const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) = 0;
+        const std::vector<WrapObstacle>& obs,
+        const std::vector<LineSeg>& lines,
+        double pathErr,
+        double pathErrBnd) = 0;
 
     CorrectionBounds _maxStep;
 
@@ -774,11 +896,11 @@ public:
 };
 
 // Captures the smoothness of the wrapping path.
-class OptSolver: WrappingPathSolver
+class OptSolver : WrappingPathSolver
 {
 public:
-    ~OptSolver()                                         = default;
-    OptSolver()                                          = default;
+    ~OptSolver()                               = default;
+    OptSolver()                                = default;
     OptSolver(const OptSolver&)                = default;
     OptSolver(OptSolver&&) noexcept            = default;
     OptSolver& operator=(const OptSolver&)     = default;
@@ -795,14 +917,22 @@ public:
     // Compute the geodesic corrections from the path error and path error
     // jacobian.
     void calcPathCorrectionImpl(
-            const std::vector<WrapObstacle>& obs,
-            const std::vector<LineSeg>& lines, double pathErr, double pathErrBnd) override;
+        const std::vector<WrapObstacle>& obs,
+        const std::vector<LineSeg>& lines,
+        double pathErr,
+        double pathErrBnd) override;
 
     void resize(size_t nActive) override;
     void print(std::ostream& os) const override;
 
-    WrappingArgs& updOpts() {return _opts;}
-    const WrappingArgs& getOpts() {return _opts;}
+    WrappingArgs& updOpts()
+    {
+        return _opts;
+    }
+    const WrappingArgs& getOpts()
+    {
+        return _opts;
+    }
 
     WrappingArgs _opts;
 
@@ -836,7 +966,7 @@ public:
 
 class WrappingPath
 {
-    public:
+public:
     enum Status
     {
         Ok                     = 0,
@@ -845,75 +975,107 @@ class WrappingPath
         WarmStartFailed        = 3,
     };
 
-    class Solver: public WrappingPathSolver
+    class Solver : public WrappingPathSolver
     {
-        public:
-            ~Solver()                 = default;
-            Solver()                  = default;
-            Solver(const Solver&)     = default;
-            Solver(Solver&&) noexcept = default;
-            Solver& operator          = (const Solver&)     = default;
-            Solver& operator          = (Solver&&) noexcept = default;
+    public:
+        ~Solver()                            = default;
+        Solver()                             = default;
+        Solver(const Solver&)                = default;
+        Solver(Solver&&) noexcept            = default;
+        Solver& operator=(const Solver&)     = default;
+        Solver& operator=(Solver&&) noexcept = default;
 
-            // Compute the geodesic corrections from the path error and path error
-            // jacobian.
-            void calcPathCorrectionImpl(
-                    const std::vector<WrapObstacle>& obs,
-                    const std::vector<LineSeg>& lines, 
-                    double pathErr,
-                    double pathErrBnd) override;
+        // Compute the geodesic corrections from the path error and path error
+        // jacobian.
+        void calcPathCorrectionImpl(
+            const std::vector<WrapObstacle>& obs,
+            const std::vector<LineSeg>& lines,
+            double pathErr,
+            double pathErrBnd) override;
 
-            void resize(size_t nActive) override;
+        void resize(size_t nActive) override;
 
-            void print(std::ostream& os) const override;
+        void print(std::ostream& os) const override;
 
-            Eigen::VectorXd _g;
-            Eigen::MatrixXd _J;
+        Eigen::VectorXd _g;
+        Eigen::MatrixXd _J;
     };
 
-    WrappingPath(std::unique_ptr<WrappingPathSolver> solver) : _smoothness(std::move(solver)) {}
+    WrappingPath(std::unique_ptr<WrappingPathSolver> solver) :
+        _smoothness(std::move(solver))
+    {}
 
-    template<typename SOLVER, typename ...Args>
-    static WrappingPath create(Args...args) {
-        return WrappingPath(std::make_unique<SOLVER>(std::forward<Args>(args)...));
+    template <typename SOLVER, typename... Args>
+    static WrappingPath create(Args... args)
+    {
+        return WrappingPath(
+            std::make_unique<SOLVER>(std::forward<Args>(args)...));
     }
 
-    WrappingPath() {
+    WrappingPath()
+    {
         *this = WrappingPath::create<Solver>();
     }
 
-    std::vector<WrapObstacle>& updSegments() {return _segments;}
+    std::vector<WrapObstacle>& updSegments()
+    {
+        return _segments;
+    }
 
     const std::vector<WrapObstacle>& getSegments() const
-    {return _segments;}
+    {
+        return _segments;
+    }
 
     const std::vector<LineSeg>& getLineSegments() const
-    {return _lineSegments;}
+    {
+        return _lineSegments;
+    }
 
     const WrappingPathSolver& getSolver() const
-    {return *_smoothness;}
+    {
+        return *_smoothness;
+    }
 
     WrappingPathSolver& updSolver()
-    {return *_smoothness;}
+    {
+        return *_smoothness;
+    }
 
-    void calcInitPath(
-        double eps     = 1e-6,
-        size_t maxIter = 10);
+    void calcInitPath(double eps = 1e-6, size_t maxIter = 10);
 
     void calcPath(
-        bool breakOnErr = true,
-        double eps     = 1e-6,
-        size_t maxIter = 100,
+        bool breakOnErr     = true,
+        double eps          = 1e-6,
+        size_t maxIter      = 100,
         bool preventLiftOff = false);
 
-    const Vector3& getStart() const {return _startPoint;}
-    Vector3& updStart() {return _startPoint;}
+    const Vector3& getStart() const
+    {
+        return _startPoint;
+    }
+    Vector3& updStart()
+    {
+        return _startPoint;
+    }
 
-    const Vector3& getEnd() const {return _endPoint;}
-    Vector3& updEnd() {return _endPoint;}
+    const Vector3& getEnd() const
+    {
+        return _endPoint;
+    }
+    Vector3& updEnd()
+    {
+        return _endPoint;
+    }
 
-    Status getStatus() const {return _status;}
-    Status& updStatus() {return _status;}
+    Status getStatus() const
+    {
+        return _status;
+    }
+    Status& updStatus()
+    {
+        return _status;
+    }
 
     double getLength() const;
     const std::vector<Vector3>& calcPathPoints();
@@ -922,11 +1084,20 @@ class WrappingPath
         return _pathPoints;
     }
 
-    size_t getLoopIter() const {return loopIter;}
-    double getPathError() const {return _pathError;}
-    double getPathErrorBound() const {return _pathErrorBound;}
+    size_t getLoopIter() const
+    {
+        return loopIter;
+    }
+    double getPathError() const
+    {
+        return _pathError;
+    }
+    double getPathErrorBound() const
+    {
+        return _pathErrorBound;
+    }
 
-    private:
+private:
     Vector3 _startPoint{
         NAN,
         NAN,
@@ -938,16 +1109,16 @@ class WrappingPath
         NAN,
     };
 
-    std::vector<WrapObstacle> _segments = {};
-    std::vector<LineSeg> _lineSegments = {};
-    std::vector<Vector3> _pathPoints = {};
+    std::vector<WrapObstacle> _segments             = {};
+    std::vector<LineSeg> _lineSegments              = {};
+    std::vector<Vector3> _pathPoints                = {};
     std::unique_ptr<WrappingPathSolver> _smoothness = nullptr;
 
-    Status _status = Status::Ok;
-    double _pathError = NAN;
-    double _pathErrorBound = std::abs(1. - cos(1. / 180. * M_PI));
+    Status _status             = Status::Ok;
+    double _pathError          = NAN;
+    double _pathErrorBound     = std::abs(1. - cos(1. / 180. * M_PI));
     double _pathErrorBoundWide = std::abs(1. - cos(5. / 180. * M_PI));
-    size_t loopIter = 0;
+    size_t loopIter            = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const WrappingPath::Status& s);

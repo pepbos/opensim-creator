@@ -246,7 +246,7 @@ Trihedron operator*(Eigen::Quaterniond lhs, const Trihedron& rhs)
     return {mat * rhs.p(), t, n, t.cross(n)};
 }
 
-} // namespace
+} // namespace osc
 
 //==============================================================================
 //                      TRANSFORM
@@ -603,7 +603,7 @@ ImplicitGeodesicState operator-(
     y.rDot     = lhs.rDot - rhs.rDot;
     return y;
 }
-}
+} // namespace osc
 
 //==============================================================================
 //                      IMPLICIT SURFACE HELPERS
@@ -731,33 +731,43 @@ size_t calcLineToImplicitSurfaceTouchdownPoint(
             break;
     }
 
-    alpha            = std::max(std::min(1., alpha), 0.);
-    p = a + (b - a) * alpha;
+    alpha = std::max(std::min(1., alpha), 0.);
+    p     = a + (b - a) * alpha;
     return iter;
 }
 
-std::pair<bool, size_t> ImplicitSurface::calcLocalLineToSurfaceTouchdownPointImpl(
+std::pair<bool, size_t> ImplicitSurface::
+    calcLocalLineToSurfaceTouchdownPointImpl(
         Vector3 a,
         Vector3 b,
-        Vector3& p, size_t maxIter, double eps)
+        Vector3& p,
+        size_t maxIter,
+        double eps)
 {
-    const size_t iter = calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, p, maxIter, eps);
+    const size_t iter =
+        calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, p, maxIter, eps);
     return {calcSurfaceConstraint(p) < 0., iter};
 }
 
-std::pair<bool, size_t> AnalyticSphereSurface::calcLocalLineToSurfaceTouchdownPointImpl(
+std::pair<bool, size_t> AnalyticSphereSurface::
+    calcLocalLineToSurfaceTouchdownPointImpl(
         Vector3 a,
         Vector3 b,
-        Vector3& p, size_t maxIter, double eps)
+        Vector3& p,
+        size_t maxIter,
+        double eps)
 {
     throw std::runtime_error("not yet implemented");
     std::cout << p << a << b << eps << maxIter << std::endl;
 }
 
-std::pair<bool, size_t> AnalyticCylinderSurface::calcLocalLineToSurfaceTouchdownPointImpl(
+std::pair<bool, size_t> AnalyticCylinderSurface::
+    calcLocalLineToSurfaceTouchdownPointImpl(
         Vector3 a,
         Vector3 b,
-        Vector3& p, size_t maxIter, double eps)
+        Vector3& p,
+        size_t maxIter,
+        double eps)
 {
     throw std::runtime_error("not yet implemented");
     std::cout << p << a << b << eps << maxIter << std::endl;
@@ -846,7 +856,7 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
             _y.at(1) = _y.at(0);
             _y.at(2) = _y.at(0);
             ++_failedCount;
-        } else { // Accepted
+        } else {         // Accepted
             g(_y.at(2)); // Enforce constraints.
             _y.at(0) = _y.at(2);
             _y.at(1) = _y.at(2);
@@ -873,27 +883,20 @@ double RungeKuttaMerson<Y, DY, S>::stepTo(
 void RunIntegratorTests()
 {
 
-    const Vector3 w {1., 2., 3.};
-    std::function<Vector3(const Vector3&)> f = [&](const Vector3& yk) -> Vector3
-    {
-        return w.cross(yk);
-    };
+    const Vector3 w{1., 2., 3.};
+    std::function<Vector3(const Vector3&)> f =
+        [&](const Vector3& yk) -> Vector3 { return w.cross(yk); };
 
-    std::function<void(Vector3&)> g = [&](Vector3& yk)
-    {
-        yk.normalize();
-    };
+    std::function<void(Vector3&)> g = [&](Vector3& yk) { yk.normalize(); };
 
     // Fixed step integrator test.
     {
-        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-3, 1e-3, 1e-6);
+        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm(1e-3, 1e-3, 1e-6);
 
-
-
-        const Vector3 y0 {1., 0., 0.};
+        const Vector3 y0{1., 0., 0.};
         const double x = 1.;
 
-        const double e = rkm.stepTo(y0, x, f, g);
+        const double e   = rkm.stepTo(y0, x, f, g);
         const Vector3 y1 = rkm.getSamples().back().y;
 
         // Check the result
@@ -902,7 +905,7 @@ void RunIntegratorTests()
         Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
 
         const Vector3 y1_expected = q * y0;
-        const double e_real = (y1 - y1_expected).norm();
+        const double e_real       = (y1 - y1_expected).norm();
 
         if (e_real > 1e-10) {
             std::cout << "y0     = " << y0 << std::endl;
@@ -910,23 +913,24 @@ void RunIntegratorTests()
             std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
             std::cout << "e      = " << e << std::endl;
             std::cout << "e_exp  = " << e_real << std::endl;
-            throw std::runtime_error("Failed RungeKuttaMerson fixed step integrator test");
+            throw std::runtime_error(
+                "Failed RungeKuttaMerson fixed step integrator test");
         }
     }
 
     // Variable step integrator test.
     {
         const double accuracy = 1e-6;
-        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm (1e-5, 1e-1, accuracy);
+        RungeKuttaMerson<Vector3, Vector3, Vector3> rkm(1e-5, 1e-1, accuracy);
 
-        const Vector3 y0 {1., 0., 0.};
+        const Vector3 y0{1., 0., 0.};
         const double x = 1.;
 
         double e = NAN;
         Vector3 y1;
 
         for (size_t i = 0; i < 20; ++i) {
-            e = rkm.stepTo(y0, x, f, g);
+            e  = rkm.stepTo(y0, x, f, g);
             y1 = rkm.getSamples().back().y;
         }
 
@@ -936,22 +940,23 @@ void RunIntegratorTests()
         Eigen::Quaterniond q(Eigen::AngleAxisd(angle, axis));
 
         const Vector3 y1_expected = q * y0;
-        const double e_real = (y1 - y1_expected).norm();
+        const double e_real       = (y1 - y1_expected).norm();
 
         bool failed = false;
         failed |= rkm.getSamples().size() != 26;
         failed |= e_real > 10. * accuracy;
         if (failed) {
             std::cout << "n      = " << rkm.getSamples().size() << std::endl;
-            std::cout << "failed = " << rkm.getNumberOfFailedSteps() << std::endl;
+            std::cout << "failed = " << rkm.getNumberOfFailedSteps()
+                      << std::endl;
             std::cout << "y0     = " << y0 << std::endl;
             std::cout << "y1     = " << y1.transpose() << std::endl;
             std::cout << "y1_exp = " << y1_expected.transpose() << std::endl;
             std::cout << "e      = " << e << std::endl;
             std::cout << "e_exp  = " << e_real << std::endl;
-            throw std::runtime_error("Failed RungeKuttaMerson variable step integrator test");
+            throw std::runtime_error(
+                "Failed RungeKuttaMerson variable step integrator test");
         }
-
     }
 }
 
@@ -1002,7 +1007,7 @@ Geodesic::InitialConditions applyNaturalGeodesicVariation(
 
     Vector3 t = g.K_P.t() + w.cross(g.K_P.t());
     Vector3 p = g.K_P.p() + v;
-    double l = g.length + correction[Geodesic::DOF-1];
+    double l  = g.length + correction[Geodesic::DOF - 1];
 
     return {p, t, l};
 }
@@ -1012,11 +1017,17 @@ void Surface::applyVariation(const Geodesic::Correction& c)
     _status = calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
 }
 
-bool Surface::calcLocalLineToSurfaceTouchdownPoint(Vector3 a, Vector3 b, Vector3& p, size_t maxIter, double eps)
+bool Surface::calcLocalLineToSurfaceTouchdownPoint(
+    Vector3 a,
+    Vector3 b,
+    Vector3& p,
+    size_t maxIter,
+    double eps)
 {
-    std::pair<bool, size_t> y = calcLocalLineToSurfaceTouchdownPointImpl(a, b, p, maxIter, eps);
+    std::pair<bool, size_t> y =
+        calcLocalLineToSurfaceTouchdownPointImpl(a, b, p, maxIter, eps);
     const bool touchdown = y.first;
-    const size_t iter = y.second;
+    const size_t iter    = y.second;
     if (iter >= maxIter) {
         updStatus() |= Geodesic::Status::TouchDownFailed;
     }
@@ -1065,24 +1076,26 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     Geodesic& geodesic)
 {
 
-    std::function<ImplicitGeodesicStateDerivative(const ImplicitGeodesicState&)> f =
-        [&](const ImplicitGeodesicState& q) -> ImplicitGeodesicStateDerivative
-        {
-            return calcImplicitGeodesicStateDerivative(q, calcAcceleration(*this, q.position, q.velocity), calcGaussianCurvature(*this, q));
-        };
+    std::function<ImplicitGeodesicStateDerivative(const ImplicitGeodesicState&)>
+        f = [&](const ImplicitGeodesicState& q)
+        -> ImplicitGeodesicStateDerivative {
+        return calcImplicitGeodesicStateDerivative(
+            q,
+            calcAcceleration(*this, q.position, q.velocity),
+            calcGaussianCurvature(*this, q));
+    };
     std::function<void(ImplicitGeodesicState&)> g =
-        [&](ImplicitGeodesicState& q)
-        {
+        [&](ImplicitGeodesicState& q) {
             // Position reprojection.
-            Vector3& p = q.position;
-            const double c = calcSurfaceConstraint(p);
+            Vector3& p      = q.position;
+            const double c  = calcSurfaceConstraint(p);
             const Vector3 g = calcSurfaceConstraintGradient(p);
             p += -g * c / g.dot(g);
             // Tangent reprojection.
-            Vector3 n = calcSurfaceConstraintGradient(p);
+            Vector3 n  = calcSurfaceConstraintGradient(p);
             Vector3& v = q.velocity;
-            v = v - n.dot(v) * n / n.dot(n);
-            v = v / v.norm();
+            v          = v - n.dot(v) * n / n.dot(n);
+            v          = v / v.norm();
         };
 
     calcFastSurfaceProjection(*this, initPosition, initVelocity);
@@ -1090,24 +1103,24 @@ void ImplicitSurface::calcLocalGeodesicImpl(
     const ImplicitGeodesicState q0{initPosition, initVelocity};
     _rkm.stepTo(q0, length, f, g);
 
-    if(_rkm.getSamples().empty()) {
+    if (_rkm.getSamples().empty()) {
         throw std::runtime_error("failed to shoot geodesic");
     }
 
     calcGeodesicBoundaryState(
-            *this,
-            _rkm.getSamples().front().y,
-            false,
-            geodesic.K_P,
-            geodesic.v_P,
-            geodesic.w_P);
+        *this,
+        _rkm.getSamples().front().y,
+        false,
+        geodesic.K_P,
+        geodesic.v_P,
+        geodesic.w_P);
     calcGeodesicBoundaryState(
-            *this,
-            _rkm.getSamples().back().y,
-            true,
-            geodesic.K_Q,
-            geodesic.v_Q,
-            geodesic.w_Q);
+        *this,
+        _rkm.getSamples().back().y,
+        true,
+        geodesic.K_Q,
+        geodesic.v_Q,
+        geodesic.w_Q);
     geodesic.length = length;
 }
 
@@ -1130,9 +1143,11 @@ double ImplicitSurface::calcLocalNormalCurvatureImpl(
     return ::calcNormalCurvature(*this, std::move(point), std::move(tangent));
 }
 
-void ImplicitSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform) const
+void ImplicitSurface::calcPathPointsImpl(
+    std::vector<Vector3>& points,
+    Transf transform) const
 {
-    for (const auto& q:  _rkm.getSamples()) {
+    for (const auto& q : _rkm.getSamples()) {
         points.push_back(calcPointInGround(transform, q.y.position));
     }
 }
@@ -1283,7 +1298,8 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
     /* size_t nSamples = 10; */
     /* for (size_t i = 0; i < nSamples; ++i) { */
     /*     const double angle_i = */
-    /*         angle * static_cast<double>(i) / static_cast<double>(nSamples); */
+    /*         angle * static_cast<double>(i) / static_cast<double>(nSamples);
+     */
     /*     const Rotation dq{Eigen::AngleAxisd(angle_i, axis)}; */
     /*     geodesic.samples.emplace_back(dq * K_P); */
     /* } */
@@ -1314,12 +1330,14 @@ double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     return 0.;
 }
 
-void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf) const
+void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
+    const
 {
     throw std::runtime_error("NOTYETIMPLEMENTED");
 }
 
-void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf) const
+void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
+    const
 {
     throw std::runtime_error("NOTYETIMPLEMENTED");
 }
@@ -1577,7 +1595,6 @@ bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 //                      WRAP OBSTACLE
 //==============================================================================
 
-
 const Geodesic& WrapObstacle::calcGeodesic(Geodesic::InitialConditions g0)
 {
     calcInLocal(getOffsetFrame(), g0);
@@ -1596,26 +1613,31 @@ const Geodesic& WrapObstacle::calcGeodesicInGround()
 
 Vector3 WrapObstacle::getPathStartGuess() const
 {
-    return calcPointInGround(getOffsetFrame(),_surface->getPathStartGuess());
+    return calcPointInGround(getOffsetFrame(), _surface->getPathStartGuess());
 }
 
-void WrapObstacle::attemptTouchdown(const Vector3& p_O, const Vector3& p_I, size_t maxIter, double eps)
+void WrapObstacle::attemptTouchdown(
+    const Vector3& p_O,
+    const Vector3& p_I,
+    size_t maxIter,
+    double eps)
 {
     Geodesic::Status s = getStatus();
-    const bool active = isActive(s & ~Geodesic::Status::LiftOff);
+    const bool active  = isActive(s & ~Geodesic::Status::LiftOff);
     const bool liftoff = (s & Geodesic::Status::LiftOff) > 0;
 
     // Only attempt touchdown if segment is active, and in liftoff.
-    if (!active || !liftoff) return;
+    if (!active || !liftoff)
+        return;
 
     // Attempt touchdown.
     const Transf& q = getOffsetFrame();
     const Vector3 a = calcPointInLocal(q, p_O);
     const Vector3 b = calcPointInLocal(q, p_I);
-    Vector3 p = {NAN, NAN, NAN};
+    Vector3 p       = {NAN, NAN, NAN};
 
-    if (!_surface->calcLocalLineToSurfaceTouchdownPoint(a, b, p, maxIter, eps))
-    {
+    if (!_surface
+             ->calcLocalLineToSurfaceTouchdownPoint(a, b, p, maxIter, eps)) {
         // Stop if no touchdown detected.
         return;
     }
@@ -1647,24 +1669,25 @@ void WrapObstacle::detectLiftOff(const Vector3& p_O, const Vector3& p_I)
 Vector3 WrapObstacle::calcSurfaceNormal(Vector3 point) const
 {
     const Transf& offset = getOffsetFrame();
-    return calcVectorInGround(offset, _surface->calcSurfaceNormal(
-                calcPointInLocal(offset, point)));
+    return calcVectorInGround(
+        offset,
+        _surface->calcSurfaceNormal(calcPointInLocal(offset, point)));
 }
 
 double WrapObstacle::calcNormalCurvature(Vector3 point, Vector3 tangent) const
 {
     const Transf& offset = getOffsetFrame();
     return _surface->calcNormalCurvature(
-                calcPointInLocal(offset, point),
-                calcVectorInLocal(offset, tangent));
+        calcPointInLocal(offset, point),
+        calcVectorInLocal(offset, tangent));
 }
 
 double WrapObstacle::calcGeodesicTorsion(Vector3 point, Vector3 tangent) const
 {
     const Transf& offset = getOffsetFrame();
     return _surface->calcGeodesicTorsion(
-                calcPointInLocal(offset, point),
-                calcVectorInLocal(offset, tangent));
+        calcPointInLocal(offset, point),
+        calcVectorInLocal(offset, tangent));
 }
 
 void WrapObstacle::calcPathPoints(std::vector<Vector3>& points) const
@@ -1672,16 +1695,19 @@ void WrapObstacle::calcPathPoints(std::vector<Vector3>& points) const
     _surface->calcPathPoints(points, getOffsetFrame());
 }
 
-bool WrapObstacle::isAboveSurface(const Vector3 &p, double bound) const
+bool WrapObstacle::isAboveSurface(const Vector3& p, double bound) const
 {
-    return _surface->isAboveSurface(calcPointInLocal(getOffsetFrame(), p), bound);
+    return _surface->isAboveSurface(
+        calcPointInLocal(getOffsetFrame(), p),
+        bound);
 }
 
 //==============================================================================
 //                      WRAP PATH
 //==============================================================================
 
-enum class PathErrorKind {
+enum class PathErrorKind
+{
     Tangent,
     Normal,
     Binormal,
@@ -1690,10 +1716,14 @@ enum class PathErrorKind {
 Vector3 getAxis(const Trihedron& K, PathErrorKind kind)
 {
     switch (kind) {
-        case PathErrorKind::Tangent: return K.t();
-        case PathErrorKind::Normal: return K.n();
-        case PathErrorKind::Binormal: return K.b();
-        default: break;
+    case PathErrorKind::Tangent:
+        return K.t();
+    case PathErrorKind::Normal:
+        return K.n();
+    case PathErrorKind::Binormal:
+        return K.b();
+    default:
+        break;
     }
     return {NAN, NAN, NAN};
 }
@@ -1703,18 +1733,18 @@ double getOutput(PathErrorKind kind)
     return kind == PathErrorKind::Tangent ? 1. : 0.;
 }
 
-using ActiveLambda  = std::function<void(size_t, size_t, size_t)>;
+using ActiveLambda = std::function<void(size_t, size_t, size_t)>;
 
 void forEachActive(
-        const std::vector<WrapObstacle>& obs,
-        ActiveLambda& f, bool skipInActive = true)
+    const std::vector<WrapObstacle>& obs,
+    ActiveLambda& f,
+    bool skipInActive = true)
 {
     const ptrdiff_t n = obs.size();
-    ptrdiff_t next = 0;
-    ptrdiff_t prev = -1;
+    ptrdiff_t next    = 0;
+    ptrdiff_t prev    = -1;
 
-    for (ptrdiff_t i = 0; i < n; ++i)
-    {
+    for (ptrdiff_t i = 0; i < n; ++i) {
         // Call function f for each active segment.
         if (skipInActive && !isActive(obs.at(i).getStatus())) {
             continue;
@@ -1722,14 +1752,14 @@ void forEachActive(
 
         // Find the active segment before the current.
         if (i > 0) {
-            if (isActive(obs.at(i-1).getStatus())) {
+            if (isActive(obs.at(i - 1).getStatus())) {
                 prev = i - 1;
             }
         }
 
         // Find the active segment after the current.
-        if(next <= i) {
-            for(; ++next < n;) {
+        if (next <= i) {
+            for (; ++next < n;) {
                 const WrapObstacle& o = obs.at(next);
                 if (isActive(o.getStatus())) {
                     break;
@@ -1741,10 +1771,7 @@ void forEachActive(
     }
 }
 
-double calcPathError(
-    const LineSeg& e,
-    const Trihedron& K,
-    PathErrorKind kind)
+double calcPathError(const LineSeg& e, const Trihedron& K, PathErrorKind kind)
 {
     return e.d.dot(getAxis(K, kind)) - getOutput(kind);
 }
@@ -1755,12 +1782,12 @@ void calcPathError(
     Eigen::VectorXd& pathError,
     PathErrorKind kind)
 {
-    size_t i = 0;
+    size_t i      = 0;
     ptrdiff_t row = -1;
-    for(const WrapObstacle& o : obs) {
+    for (const WrapObstacle& o : obs) {
         const Geodesic& g = o.getGeodesic();
-        pathError(++row) = calcPathError(lines.at(i), g.K_P, kind);
-        pathError(++row) = calcPathError(lines.at(++i), g.K_Q, kind);
+        pathError(++row)  = calcPathError(lines.at(i), g.K_P, kind);
+        pathError(++row)  = calcPathError(lines.at(++i), g.K_Q, kind);
     }
 }
 
@@ -1774,66 +1801,69 @@ void calcPathErrorJacobian(
     size_t col = 0;
 
     constexpr size_t Q = Geodesic::DOF;
-    const size_t n = obs.size();
+    const size_t n     = obs.size();
 
     pathErrorJacobian.fill(0.);
 
-    ActiveLambda f = [&](
-            size_t prev,
-            size_t next,
-            size_t i)
-        {
-            const LineSeg& l_P = lines.at(i);
-            const LineSeg& l_Q = lines.at(i+1);
+    ActiveLambda f = [&](size_t prev, size_t next, size_t i) {
+        const LineSeg& l_P = lines.at(i);
+        const LineSeg& l_Q = lines.at(i + 1);
 
-            const Geodesic& g = obs.at(i).getGeodesic();
-            const Vector3 a_P = getAxis(g.K_P, kind);
-            const Vector3 a_Q = getAxis(g.K_Q, kind);
+        const Geodesic& g = obs.at(i).getGeodesic();
+        const Vector3 a_P = getAxis(g.K_P, kind);
+        const Vector3 a_Q = getAxis(g.K_Q, kind);
 
-            pathErrorJacobian.block<1, Q>(row, col) = calcPathErrorJacobian(l_P, a_P, g.v_P, g.w_P);
-            if (prev != n) {
-                pathErrorJacobian.block<1, Q>(row, col-Q) = -calcDirectionJacobian(l_P, a_P, obs.at(prev).getGeodesic().v_Q);
-            }
-            ++row;
+        pathErrorJacobian.block<1, Q>(row, col) =
+            calcPathErrorJacobian(l_P, a_P, g.v_P, g.w_P);
+        if (prev != n) {
+            pathErrorJacobian.block<1, Q>(row, col - Q) =
+                -calcDirectionJacobian(
+                    l_P,
+                    a_P,
+                    obs.at(prev).getGeodesic().v_Q);
+        }
+        ++row;
 
-            pathErrorJacobian.block<1, Q>(row, col) = calcPathErrorJacobian(l_Q, a_Q, g.v_Q, g.w_Q, true);
-            if (next != n) {
-                pathErrorJacobian.block<1, Q>(row, col+Q) = calcDirectionJacobian(l_Q, a_Q, obs.at(next).getGeodesic().v_P);
-            }
-            ++row;
-            col += Q;
-        };
+        pathErrorJacobian.block<1, Q>(row, col) =
+            calcPathErrorJacobian(l_Q, a_Q, g.v_Q, g.w_Q, true);
+        if (next != n) {
+            pathErrorJacobian.block<1, Q>(row, col + Q) =
+                calcDirectionJacobian(l_Q, a_Q, obs.at(next).getGeodesic().v_P);
+        }
+        ++row;
+        col += Q;
+    };
 
     forEachActive(obs, f);
 }
 
 double calcPathLength(
-        const std::vector<WrapObstacle>& obs,
-        const std::vector<LineSeg>& lines)
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines)
 {
     double lTot = 0.;
-    for (const LineSeg& l: lines) {
+    for (const LineSeg& l : lines) {
         lTot += l.l;
     }
 
-    for (const WrapObstacle& o: obs)
-    {
-        if (!isActive(o.getStatus())) continue;
+    for (const WrapObstacle& o : obs) {
+        if (!isActive(o.getStatus()))
+            continue;
         lTot += std::abs(o.getGeodesic().length);
     }
     return lTot;
 }
 
 void calcPathLengthJacobian(
-        const std::vector<WrapObstacle>& obs,
-        const std::vector<LineSeg>& lines,
-        Eigen::VectorXd& lengthJacobian)
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
+    Eigen::VectorXd& lengthJacobian)
 {
-    size_t i = 0;
+    size_t i           = 0;
     constexpr size_t Q = Geodesic::DOF;
-    for (const WrapObstacle& o: obs)
-    {
-        if (!isActive(o.getStatus())) continue;
+    for (const WrapObstacle& o : obs) {
+        if (!isActive(o.getStatus()))
+            continue;
         const Geodesic& g = o.getGeodesic();
 
         // Length of curve segment.
@@ -1841,7 +1871,7 @@ void calcPathLengthJacobian(
 
         // Length of previous line segment.
         const Vector3 e_P = lines.at(i).d;
-        const Vector3 e_Q = lines.at(i+1).d;
+        const Vector3 e_Q = lines.at(i + 1).d;
 
         jacobian += e_P.transpose() * g.v_P;
         jacobian -= e_Q.transpose() * g.v_Q;
@@ -1854,10 +1884,10 @@ void calcPathLengthJacobian(
 }
 
 void calcLineSegments(
-        Vector3 p_O,
-        Vector3 p_I,
+    Vector3 p_O,
+    Vector3 p_I,
     const std::vector<WrapObstacle>& obs,
-std::vector<LineSeg>& lines)
+    std::vector<LineSeg>& lines)
 {
     const size_t n = obs.size();
     lines.clear();
@@ -1869,20 +1899,22 @@ std::vector<LineSeg>& lines)
         }
 
         const Geodesic& g = obs.at(i).getGeodesic();
-        const Vector3 b = g.K_P.p();
+        const Vector3 b   = g.K_P.p();
         lines.push_back({a, b});
         a = g.K_Q.p();
     }
     lines.push_back({a, p_I});
 }
 
-double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<LineSeg>& lines, PathErrorKind kind)
+double calcMaxPathError(
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
+    PathErrorKind kind)
 {
-    size_t i = 0;
+    size_t i         = 0;
     double maxAbsErr = 0.;
-    const double y = getOutput(kind);
-    for(const WrapObstacle& o: obs)
-    {
+    const double y   = getOutput(kind);
+    for (const WrapObstacle& o : obs) {
         if (!isActive(o.getStatus())) {
             continue;
         }
@@ -1890,9 +1922,9 @@ double calcMaxPathError(const std::vector<WrapObstacle>& obs, const std::vector<
         const Geodesic& g = o.getGeodesic();
 
         double err = lines.at(i).d.dot(getAxis(g.K_P, kind)) - y;
-        maxAbsErr = std::max(maxAbsErr, std::abs(err));
+        maxAbsErr  = std::max(maxAbsErr, std::abs(err));
 
-        err = lines.at(++i).d.dot(getAxis(g.K_Q, kind)) - y;
+        err       = lines.at(++i).d.dot(getAxis(g.K_Q, kind)) - y;
         maxAbsErr = std::max(maxAbsErr, std::abs(err));
     }
     return maxAbsErr;
@@ -1903,7 +1935,7 @@ void calcInitZeroLengthGeodesics(
     std::vector<WrapObstacle>& obs)
 {
     Vector3 prev = p_O;
-    for (WrapObstacle& o: obs) {
+    for (WrapObstacle& o : obs) {
         if (!isActive(o.getStatus())) {
             continue;
         }
@@ -1979,7 +2011,7 @@ const Geodesic::Correction* WrappingPathSolver::begin() const
 size_t countActive(const std::vector<WrapObstacle>& obs)
 {
     size_t n = 0;
-    for (const WrapObstacle& o: obs) {
+    for (const WrapObstacle& o : obs) {
         if (isActive(o.getStatus())) {
             ++n;
         }
@@ -2007,9 +2039,15 @@ void OptSolver::resize(size_t n)
     constexpr size_t Q = Geodesic::DOF;
     constexpr size_t C = 2;
 
-    _gT.resize(n * C); _qT.resize(n * Q); _JT.resize(n * C, n * Q);
-    _gN.resize(n * C); _JN.resize(n * C, n * Q); _qN.resize(n * Q);
-    _gB.resize(n * C); _JB.resize(n * C, n * Q); _qB.resize(n * Q);
+    _gT.resize(n * C);
+    _qT.resize(n * Q);
+    _JT.resize(n * C, n * Q);
+    _gN.resize(n * C);
+    _JN.resize(n * C, n * Q);
+    _qN.resize(n * Q);
+    _gB.resize(n * C);
+    _JB.resize(n * C, n * Q);
+    _qB.resize(n * Q);
     _JL.resize(n * Q);
 
     _P.resize(n * Q, n * Q);
@@ -2019,11 +2057,19 @@ void OptSolver::resize(size_t n)
 
     // Reset values.
 
-    _JT.fill(0.); _gT.fill(0.); _qT.fill(0.);
-    _JN.fill(0.); _gN.fill(0.); _qN.fill(0.);
-    _JB.fill(0.); _gB.fill(0.); _qB.fill(0.);
-    _JL.fill(0.); _l = 0.;
-    _P.setIdentity(); _d.fill(0.);
+    _JT.fill(0.);
+    _gT.fill(0.);
+    _qT.fill(0.);
+    _JN.fill(0.);
+    _gN.fill(0.);
+    _qN.fill(0.);
+    _JB.fill(0.);
+    _gB.fill(0.);
+    _qB.fill(0.);
+    _JL.fill(0.);
+    _l = 0.;
+    _P.setIdentity();
+    _d.fill(0.);
 
     _pathCorrections.fill(NAN);
 }
@@ -2043,8 +2089,8 @@ void WrappingPath::Solver::resize(size_t n)
 }
 
 void addPathErrorToCost(
-    const std::vector<WrapObstacle> &obs,
-    const std::vector<LineSeg> &lines,
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
     Eigen::VectorXd& fun,
     Eigen::MatrixXd& jac,
     Eigen::VectorXd& vec,
@@ -2059,9 +2105,10 @@ void addPathErrorToCost(
 }
 
 bool WrappingPathSolver::calcPathCorrection(
-        const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSeg> &lines,
-        double pathErr, double pathErrBnd)
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
+    double pathErr,
+    double pathErrBnd)
 {
     resize(countActive(obs));
     calcPathCorrectionImpl(obs, lines, pathErr, pathErrBnd);
@@ -2070,12 +2117,13 @@ bool WrappingPathSolver::calcPathCorrection(
 }
 
 void WrappingPath::Solver::calcPathCorrectionImpl(
-        const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSeg> &lines,
-        double pathErr, double)
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
+    double pathErr,
+    double)
 {
     for (int i = 0; i < _mat.rows(); ++i) {
-        _mat(i,i) = pathErr;
+        _mat(i, i) = pathErr;
     }
 
     addPathErrorToCost(obs, lines, _g, _J, _vec, _mat, PathErrorKind::Normal);
@@ -2114,9 +2162,10 @@ void WrappingPath::Solver::print(std::ostream& os) const
 }
 
 void OptSolver::calcPathCorrectionImpl(
-        const std::vector<WrapObstacle> &obs,
-        const std::vector<LineSeg> &lines,
-        double pathErr, double)
+    const std::vector<WrapObstacle>& obs,
+    const std::vector<LineSeg>& lines,
+    double pathErr,
+    double)
 {
     _P *= _opts.m_CostW ? (pathErr + 1e-4) : 0.;
 
@@ -2126,7 +2175,7 @@ void OptSolver::calcPathCorrectionImpl(
         _d += _JL * 0.1;
         /* _P += _JL * _JL.transpose(); */
         for (int i = 0; i < _P.rows(); ++i) {
-            _P(i,i) += 1.;
+            _P(i, i) += 1.;
         }
     }
 
@@ -2158,9 +2207,10 @@ void OptSolver::calcPathCorrectionImpl(
 
     _vec = _P.colPivHouseholderQr().solve(_d);
     if (_opts.m_AugN) {
-        _JJT = _JN * _JN.transpose();
+        _JJT    = _JN * _JN.transpose();
         _JJTinv = _JJT.colPivHouseholderQr().inverse();
-        _pathCorrections = _JN.transpose() * _JJTinv * (_JN * _vec - _gN) - _vec;
+        _pathCorrections =
+            _JN.transpose() * _JJTinv * (_JN * _vec - _gN) - _vec;
     } else {
         _pathCorrections = -_vec;
     }
@@ -2168,16 +2218,14 @@ void OptSolver::calcPathCorrectionImpl(
 
 Geodesic::Status clearErrorFlag()
 {
-    return ~(Geodesic::Status::InitialTangentParallelToNormal
-        | Geodesic::Status::PrevLineSegmentInsideSurface
-        | Geodesic::Status::NextLineSegmentInsideSurface
-        | Geodesic::Status::TouchDownFailed
-        | Geodesic::Status::IntegratorFailed);
+    return ~(
+        Geodesic::Status::InitialTangentParallelToNormal |
+        Geodesic::Status::PrevLineSegmentInsideSurface |
+        Geodesic::Status::NextLineSegmentInsideSurface |
+        Geodesic::Status::TouchDownFailed | Geodesic::Status::IntegratorFailed);
 }
 
-void WrappingPath::calcInitPath(
-    double eps,
-    size_t maxIter)
+void WrappingPath::calcInitPath(double eps, size_t maxIter)
 {
     calcInitZeroLengthGeodesics(getStart(), updSegments());
 
@@ -2190,7 +2238,7 @@ void WrappingPath::calcPath(
     size_t maxIter,
     bool preventLiftOff)
 {
-    updStatus() = WrappingPath::Status::Ok;
+    updStatus()    = WrappingPath::Status::Ok;
     const size_t n = getSegments().size();
     if (n == 0) {
         return;
@@ -2198,25 +2246,29 @@ void WrappingPath::calcPath(
 
     // Clear the error flags.
     static const Geodesic::Status clearErrMap = clearErrorFlag();
-    for (WrapObstacle& o: updSegments()) {
+    for (WrapObstacle& o : updSegments()) {
         o.updStatus() = o.getStatus() & clearErrMap;
     }
-    
+
     // Update the frame offsets.
-    for (WrapObstacle& o: _segments) {
+    for (WrapObstacle& o : _segments) {
         o.calcGeodesicInGround();
     }
 
     // Helper for detecting touchdown and liftoff.
-    ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i)
-    {
-        const Vector3 p_O = prev == n ? getStart() : getSegments().at(prev).getGeodesic().K_Q.p();
-        const Vector3 p_I = next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
+    ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i) {
+        const Vector3 p_O = prev == n
+                                ? getStart()
+                                : getSegments().at(prev).getGeodesic().K_Q.p();
+        const Vector3 p_I =
+            next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
         if (!getSegments().at(i).isAboveSurface(p_O, 0.)) {
-            updSegments().at(i).updStatus() |= Geodesic::Status::PrevLineSegmentInsideSurface;
+            updSegments().at(i).updStatus() |=
+                Geodesic::Status::PrevLineSegmentInsideSurface;
         }
         if (!getSegments().at(i).isAboveSurface(p_I, 0.)) {
-            updSegments().at(i).updStatus() |= Geodesic::Status::NextLineSegmentInsideSurface;
+            updSegments().at(i).updStatus() |=
+                Geodesic::Status::NextLineSegmentInsideSurface;
         }
         if (preventLiftOff) {
             updSegments().at(i).attemptTouchdown(p_O, p_I);
@@ -2234,7 +2286,10 @@ void WrappingPath::calcPath(
         calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
 
         // Evaluate path error, and stop when converged.
-        _pathError = calcMaxPathError(getSegments(), getLineSegments(), PathErrorKind::Tangent);
+        _pathError = calcMaxPathError(
+            getSegments(),
+            getLineSegments(),
+            PathErrorKind::Tangent);
         if (_pathError < _pathErrorBound) {
             loopIter = loopIter == 0 ? prevLoopIter : loopIter;
             return;
@@ -2242,21 +2297,25 @@ void WrappingPath::calcPath(
 
         // Optionally return on error.
         if (breakOnErr) {
-            for (const WrapObstacle& o: getSegments()) {
-                if(isError(o.getStatus())) {
+            for (const WrapObstacle& o : getSegments()) {
+                if (isError(o.getStatus())) {
                     return;
                 }
             }
         }
 
         // Compute path corrections.
-        if (!updSolver().calcPathCorrection(getSegments(), _lineSegments, _pathError, _pathErrorBoundWide)) {
+        if (!updSolver().calcPathCorrection(
+                getSegments(),
+                _lineSegments,
+                _pathError,
+                _pathErrorBoundWide)) {
             updStatus() = WrappingPath::Status::FailedToInvertJacobian;
             return;
         }
 
         // Apply path corrections.
-        const Geodesic::Correction* corrIt  = getSolver().begin();
+        const Geodesic::Correction* corrIt = getSolver().begin();
         for (WrapObstacle& o : updSegments()) {
             if (!isActive(o.getStatus())) {
                 continue;
@@ -2274,9 +2333,9 @@ const std::vector<Vector3>& WrappingPath::calcPathPoints()
 {
     _pathPoints.clear();
     _pathPoints.push_back(getStart());
-    for (const WrapObstacle& o: getSegments())
-    {
-        if (!isActive(o.getStatus())) continue;
+    for (const WrapObstacle& o : getSegments()) {
+        if (!isActive(o.getStatus()))
+            continue;
         o.calcPathPoints(_pathPoints);
     }
     _pathPoints.push_back(getEnd());
