@@ -250,15 +250,28 @@ private:
             m_FreezePath = true;
             m_SingleStep = false;
 
-            /* RunImplicitGeodesicTest(m_WrappingPath, "Path", std::cout); */
+            std::ostringstream oss;
+            for (size_t i = 0; i < 2; ++i) {
+                std::cout << "\n\n\n";
+                size_t j = 0;
+                for (WrapObstacle& o: m_WrappingPath.at(i).updSegments()) {
+                    std::cout << "\n\n";
+                    oss << "Path[" << i << "]";
+                    oss << "(Surface[" << j << "])";
+                    RunGeodesicTest(o, m_TestBnds,oss.str(), std::cout);
+                    oss.clear();
+                }
+                ++j;
+            }
 
             for (size_t i = 0; i < 2; ++i) {
-            m_WrappingPath.at(i).getSolver().print(std::cout);
-            std::cout << "status" << m_WrappingPath.at(i).getStatus() << "\n";
-            for (const WrapObstacle& o: m_WrappingPath.at(i).getSegments()) {
-                std::cout << "    " << o.getStatus() << "\n";
-            }
-            std::cout << "\n";
+                m_WrappingPath.at(i).getSolver().print(std::cout);
+                std::cout << "status" << m_WrappingPath.at(i).getStatus() << "\n";
+                for (const WrapObstacle& o: m_WrappingPath.at(i).getSegments()) {
+                    std::cout << "    " << o.getStatus() << "\n";
+                    std::cout << "    " << o.getGeodesic() << "\n";
+                }
+                std::cout << "\n";
             }
             std::cout << "\n";
         }
@@ -469,6 +482,11 @@ private:
 
     Eulers m_CameraEulers{};
     Vec3 m_Angles = {0., 10., 0.};
+
+    double m_IntegratorAccuracy = 1e-6;
+    GeodesicTestBounds m_TestBnds {
+        1e-6,
+    };
 };
 
 // public API
