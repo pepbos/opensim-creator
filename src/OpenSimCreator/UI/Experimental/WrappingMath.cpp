@@ -985,17 +985,17 @@ bool isError(Geodesic::Status s)
 
 Geodesic::Status Surface::calcGeodesic(Geodesic::InitialConditions g0)
 {
-    Geodesic::Status status = Geodesic::Status::Ok;
+    _status = Geodesic::Status::Ok;
     if (g0.l < 0.) {
-        status |= Geodesic::Status::NegativeLength;
+        _status |= Geodesic::Status::NegativeLength;
         g0.l = 0.;
     }
     try {
         calcLocalGeodesicImpl(g0.p, g0.t, g0.l, _geodesic);
     } catch (const std::exception& e) {
-        status |= Geodesic::Status::IntegratorFailed;
+        _status |= Geodesic::Status::IntegratorFailed;
     }
-    return status;
+    return _status;
 }
 
 Geodesic::InitialConditions applyNaturalGeodesicVariation(
@@ -1014,7 +1014,7 @@ Geodesic::InitialConditions applyNaturalGeodesicVariation(
 
 void Surface::applyVariation(const Geodesic::Correction& c)
 {
-    _status = calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
+    calcGeodesic(applyNaturalGeodesicVariation(_geodesic, c));
 }
 
 bool Surface::calcLocalLineToSurfaceTouchdownPoint(
