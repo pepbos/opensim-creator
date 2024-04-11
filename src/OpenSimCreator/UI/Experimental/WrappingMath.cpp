@@ -1595,6 +1595,12 @@ bool ImplicitTorusSurface::isAboveSurfaceImpl(Vector3 point, double bound) const
 //                      WRAP OBSTACLE
 //==============================================================================
 
+void WrapObstacle::applyVariation(const Geodesic::Correction& c)
+{
+    _surface->applyVariation(c);
+    calcGeodesicInGround();
+}
+
 const Geodesic& WrapObstacle::calcGeodesic(Geodesic::InitialConditions g0)
 {
     calcInLocal(getOffsetFrame(), g0);
@@ -2349,8 +2355,7 @@ void WrappingPath::calcPath(
             if (!isActive(o.getStatus())) {
                 continue;
             }
-            o._surface->applyVariation(*corrIt);
-            o.calcGeodesicInGround();
+            o.applyVariation(*corrIt);
             ++corrIt;
         }
     }

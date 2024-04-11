@@ -106,6 +106,15 @@ public:
         return _failedCount;
     }
 
+    void setAccuracy(double accuracy) {_accuracy = accuracy;}
+    double getAccuracy() const {return _accuracy;}
+
+    void setMinStepSize(double hMin) {_hMin = hMin;}
+    double getMinStepSize() const {return _hMin;}
+
+    void setMaxStepSize(double hMax) {_hMax = hMax;}
+    double getMaxStepSize() const {return _hMax;}
+
 private:
     static constexpr size_t ORDER = 5;
 
@@ -399,8 +408,16 @@ private:
 
 class WrapObstacle
 {
+public:
+    ~WrapObstacle()                                  = default;
+    WrapObstacle()                                   = default;
+    WrapObstacle(WrapObstacle&&) noexcept            = default;
+    WrapObstacle& operator=(WrapObstacle&&) noexcept = default;
+
+    WrapObstacle(const WrapObstacle& other)      = delete;
+    WrapObstacle& operator=(const WrapObstacle&) = delete;
+
 private:
-    WrapObstacle() = default;
     WrapObstacle(
         std::shared_ptr<Transf> transform,
         std::unique_ptr<Surface> surface) :
@@ -443,6 +460,8 @@ public:
     {
         return _geodesic;
     }
+
+    void applyVariation(const Geodesic::Correction& var);
 
     void attemptTouchdown(
         const Vector3& p_O,
