@@ -299,17 +299,14 @@ void calcInLocal(const Transf& transform, Geodesic::InitialConditions& g0)
 //                      SOME MATHS
 //==============================================================================
 
-Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
+Vector3 calcPointOnLineNearOrigin(Vector3 a, Vector3 b)
 {
-    Vector3 p0 = a - point;
-    Vector3 p1 = b - point;
+    const Vector3 e = b - a;
 
-    const Vector3 e = p1 - p0;
+    Vector3 p = a - a.dot(e) * e / e.dot(e);
 
-    Vector3 p = p0 - p0.dot(e) * e / e.dot(e);
-
-    const double d0 = p0.dot(p0);
-    const double d1 = p1.dot(p1);
+    const double d0 = a.dot(a);
+    const double d1 = b.dot(b);
     const double d  = p.dot(p);
 
     if (d0 < d) {
@@ -318,7 +315,12 @@ Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
     if (d1 < d) {
         return b;
     }
-    return p + point;
+    return p;
+};
+
+Vector3 calcPointOnLineNearPoint(Vector3 a, Vector3 b, Vector3 point)
+{
+    return calcPointOnLineNearOrigin(a - point, b - point) + point;
 };
 
 double sign(double x)
@@ -747,30 +749,6 @@ std::pair<bool, size_t> ImplicitSurface::
     const size_t iter =
         calcLineToImplicitSurfaceTouchdownPoint(*this, a, b, p, maxIter, eps);
     return {calcSurfaceConstraint(p) < 0., iter};
-}
-
-std::pair<bool, size_t> AnalyticSphereSurface::
-    calcLocalLineToSurfaceTouchdownPointImpl(
-        Vector3 a,
-        Vector3 b,
-        Vector3& p,
-        size_t maxIter,
-        double eps)
-{
-    throw std::runtime_error("not yet implemented");
-    std::cout << p << a << b << eps << maxIter << std::endl;
-}
-
-std::pair<bool, size_t> AnalyticCylinderSurface::
-    calcLocalLineToSurfaceTouchdownPointImpl(
-        Vector3 a,
-        Vector3 b,
-        Vector3& p,
-        size_t maxIter,
-        double eps)
-{
-    throw std::runtime_error("not yet implemented");
-    std::cout << p << a << b << eps << maxIter << std::endl;
 }
 
 //==============================================================================
@@ -1236,6 +1214,22 @@ bool ImplicitSphereSurface::isAboveSurfaceImpl(Vector3 point, double bound)
 //                      ANALYTIC SPHERE SURFACE
 //==============================================================================
 
+std::pair<bool, size_t> AnalyticSphereSurface::
+    calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t,
+        double)
+{
+    Vector3 pLine = calcPointOnLineNearOrigin(a, b);
+    const bool touchdown = pLine.dot(pLine) < _radius * _radius;
+    if (touchdown) {
+        p = pLine;
+    }
+    return {touchdown, 0};
+}
+
 void AnalyticSphereSurface::calcLocalGeodesicImpl(
     Vector3 initPosition,
     Vector3 initVelocity,
@@ -1294,16 +1288,6 @@ void AnalyticSphereSurface::calcLocalGeodesicImpl(
         v_Q.col(i) = w_Q.col(i).cross(K_Q.n()) * r;
     }
 
-    // TODO seems a waste...
-    /* size_t nSamples = 10; */
-    /* for (size_t i = 0; i < nSamples; ++i) { */
-    /*     const double angle_i = */
-    /*         angle * static_cast<double>(i) / static_cast<double>(nSamples);
-     */
-    /*     const Rotation dq{Eigen::AngleAxisd(angle_i, axis)}; */
-    /*     geodesic.samples.emplace_back(dq * K_P); */
-    /* } */
-
     geodesic.length = length;
 }
 
@@ -1330,16 +1314,32 @@ double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     return 0.;
 }
 
-void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
+void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
     const
 {
-    throw std::runtime_error("NOTYETIMPLEMENTED");
-}
+    const Geodesic& g = getGeodesic();
 
-void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
-    const
-{
-    throw std::runtime_error("NOTYETIMPLEMENTED");
+    // Push the start point.
+    Vector3 p = g.K_P.p();
+    points.push_back(calcPointInGround(transform, p));
+
+    const double angle = g.length / _radius;
+    size_t n = static_cast<size_t>(std::abs(angle / _sampleSpacing));
+    n = std::min(_maxNrOfSamples, n);
+
+    if (n > 0) {
+        const Vector3 axis = -g.K_P.b();
+        const double c = 1. / static_cast<double>(n+1);
+        const Rotation dq{Eigen::AngleAxisd(angle * c, axis)};
+        for (size_t i = 0; i < n; ++i) {
+            p = dq * p;
+            // TODO can be made more efficient by computing dq = R * dq * RT
+            points.push_back(calcPointInGround(transform, p));
+        }
+    }
+
+    // Push the end point.
+    points.push_back(calcPointInGround(transform, g.K_Q.p()));
 }
 
 //==============================================================================
@@ -1522,6 +1522,24 @@ double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     const
 {
     return 0.;
+}
+
+void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
+    const
+{
+    throw std::runtime_error("NOTYETIMPLEMENTED");
+}
+
+std::pair<bool, size_t> AnalyticCylinderSurface::
+    calcLocalLineToSurfaceTouchdownPointImpl(
+        Vector3 a,
+        Vector3 b,
+        Vector3& p,
+        size_t maxIter,
+        double eps)
+{
+    throw std::runtime_error("not yet implemented");
+    std::cout << p << a << b << eps << maxIter << std::endl;
 }
 
 //==============================================================================

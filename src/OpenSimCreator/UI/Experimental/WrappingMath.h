@@ -747,6 +747,8 @@ private:
         const override;
 
     double _radius = 1.;
+    size_t _maxNrOfSamples = 100;
+    double _sampleSpacing = 5. / 180. * M_PI;
 };
 
 //==============================================================================
