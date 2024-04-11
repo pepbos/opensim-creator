@@ -299,6 +299,18 @@ void calcInLocal(const Transf& transform, Geodesic::InitialConditions& g0)
 //                      SOME MATHS
 //==============================================================================
 
+double calcPointOnLineNearOriginAsFactor(Eigen::Vector<double, 2> a, Eigen::Vector<double, 2> b)
+{
+    using Vector2 = Eigen::Vector<double, 2>;
+
+    const Vector2 e = b - a;
+    const double eTe = e.dot(e);
+
+    Vector2 d = - a.dot(e) * e / eTe;
+    const double c = e.dot(d) / eTe;
+    return std::max(0., std::min(c, 1.));
+}
+
 Vector3 calcPointOnLineNearOrigin(Vector3 a, Vector3 b)
 {
     const Vector3 e = b - a;
@@ -1479,18 +1491,6 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
     w_Q.col(3) = dAlpha_dl * z;
 
-    /* size_t nSamples = 10; */
-    /* for (size_t i = 0; i < nSamples; ++i) { */
-    /*     const double factor = */
-    /*         static_cast<double>(i) / static_cast<double>(nSamples); */
-    /*     const double angle_i = alpha * factor; */
-    /*     const double h_i     = h * factor; */
-    /*     const Rotation dq{Eigen::AngleAxisd(angle_i, z)}; */
-    /*     const Darboux f   = dq * f_P; */
-    /*     const Vector3 p_i = dq * K_P.p() + h_i * z; */
-    /*     geodesic.samples.emplace_back(p_i, f); */
-    /* } */
-
     geodesic.length = length;
 }
 
@@ -1524,10 +1524,37 @@ double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     return 0.;
 }
 
-void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>&, Transf)
+void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
     const
 {
-    throw std::runtime_error("NOTYETIMPLEMENTED");
+    const Geodesic& g = getGeodesic();
+
+    // Push the start point.
+    Vector3 p = g.K_P.p();
+    points.push_back(calcPointInGround(transform, p));
+
+    const double angle = g.length / _radius;
+    size_t n = static_cast<size_t>(std::abs(angle / _sampleSpacing));
+    n = std::min(_maxNrOfSamples, n);
+
+    if (n > 0) {
+        const Vector3 z {0., 0., 1.};
+        const double d = 1. / static_cast<double>(n+1);
+
+        const double s = sin(angle * d);
+        const double c = cos(angle * d);
+
+        const double dh = (g.K_Q.p()[2] - g.K_P.p()[2]) * d;
+        for (size_t i = 0; i < n; ++i) {
+            p = {c * p[0] - s * p[1], s * p[0] + c * p[1], p[2] + dh};
+
+            // TODO can be made more efficient by computing dq = R * dq * RT
+            points.push_back(calcPointInGround(transform, p));
+        }
+    }
+
+    // Push the end point.
+    points.push_back(calcPointInGround(transform, g.K_Q.p()));
 }
 
 std::pair<bool, size_t> AnalyticCylinderSurface::
@@ -1535,11 +1562,21 @@ std::pair<bool, size_t> AnalyticCylinderSurface::
         Vector3 a,
         Vector3 b,
         Vector3& p,
-        size_t maxIter,
-        double eps)
+        size_t,
+        double)
 {
-    throw std::runtime_error("not yet implemented");
-    std::cout << p << a << b << eps << maxIter << std::endl;
+    using Vector2 = Eigen::Vector<double, 2>;
+    const double c = calcPointOnLineNearOriginAsFactor(Vector2{a[0], a[1]}, Vector2{b[0], b[1]});
+
+    const Vector3 pl = a + (b - a) * c;
+
+    const bool touchdown = pl.dot(pl) < _radius * _radius;
+
+    if (touchdown) {
+        p = pl;
+    }
+
+    return {touchdown, 0};
 }
 
 //==============================================================================
@@ -2266,6 +2303,7 @@ void WrappingPath::calcInitPath(double eps, size_t maxIter)
 {
     calcInitZeroLengthGeodesics(getStart(), updSegments());
 
+    return;
     calcPath(false, eps, maxIter, true);
 }
 
@@ -2392,4 +2430,15 @@ const std::vector<Vector3>& WrappingPath::calcPathPoints()
     }
     _pathPoints.push_back(getEnd());
     return _pathPoints;
+}
+
+double WrappingPath::getLength() const {
+    double l = 0.;
+    for (const LineSeg& s: getLineSegments()) {
+        l += s.l;
+    }
+    for (const WrapObstacle& o: getSegments()) {
+        l += o.getGeodesic().length;
+    }
+    return l;
 }

@@ -323,7 +323,7 @@ protected:
 
 public:
     Geodesic::Status calcGeodesic(Geodesic::InitialConditions g0);
-    const Geodesic& getGeodesic()
+    const Geodesic& getGeodesic() const
     {
         return _geodesic;
     }
@@ -748,7 +748,7 @@ private:
 
     double _radius = 1.;
     size_t _maxNrOfSamples = 100;
-    double _sampleSpacing = 5. / 180. * M_PI;
+    double _sampleSpacing = 20. / 180. * M_PI;
 };
 
 //==============================================================================
@@ -830,6 +830,8 @@ private:
         const override;
 
     double _radius = 1.;
+    size_t _maxNrOfSamples = 100;
+    double _sampleSpacing = 20. / 180. * M_PI;
 };
 
 //==============================================================================

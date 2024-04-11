@@ -64,7 +64,7 @@ namespace
     {
         Transf o = {Vector3{0., 0., 0.}};
         std::shared_ptr<Transf> offset = std::make_shared<Transf>(o);
-        WrapObstacle obs  = WrapObstacle::Create<ImplicitSphereSurface>(offset, radius);
+        WrapObstacle obs  = WrapObstacle::Create<AnalyticSphereSurface>(offset, radius);
         return std::make_pair<SceneSurface, WrapObstacle>(
             SceneSurface{
             offset,
@@ -126,6 +126,7 @@ namespace
                 x.m_Mesh,
                 {
                 .scale    = x.m_Scale,
+                .rotation = x.m_Quat,
                 .position = ToVec3(
                         x.m_Offset->position),
                 },
