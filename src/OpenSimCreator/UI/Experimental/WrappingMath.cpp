@@ -1733,23 +1733,31 @@ double getOutput(PathErrorKind kind)
     return kind == PathErrorKind::Tangent ? 1. : 0.;
 }
 
-using ActiveLambda = std::function<void(size_t, size_t, size_t)>;
+using ActiveLambda = std::function<void(size_t prev, size_t next, size_t current, bool isActive)>;
 
+void CallMe(size_t prev, size_t next, size_t current, bool isActive, ActiveLambda& f)
+{
+    f(prev, next, current, isActive);
+}
+
+template<typename... FUNCS>
+void CallMe(size_t prev, size_t next, size_t current, bool isActive, ActiveLambda& f, FUNCS&&... fs)
+{
+    f(prev, next, current, isActive);
+    CallMe(prev, next, current, isActive, std::forward<FUNCS>(fs)...);
+}
+
+template<typename... FUNCS>
 void forEachActive(
     const std::vector<WrapObstacle>& obs,
     ActiveLambda& f,
-    bool skipInActive = true)
+    FUNCS&&... fs)
 {
     const ptrdiff_t n = obs.size();
     ptrdiff_t next    = 0;
     ptrdiff_t prev    = -1;
 
     for (ptrdiff_t i = 0; i < n; ++i) {
-        // Call function f for each active segment.
-        if (skipInActive && !isActive(obs.at(i).getStatus())) {
-            continue;
-        }
-
         // Find the active segment before the current.
         if (i > 0) {
             if (isActive(obs.at(i - 1).getStatus())) {
@@ -1767,7 +1775,7 @@ void forEachActive(
             }
         }
 
-        f(prev < 0 ? n : prev, next, i);
+        CallMe(prev < 0 ? n : prev, next, i, isActive(obs.at(i).getStatus()), f, std::forward<FUNCS>(fs)...);
     }
 }
 
@@ -1805,7 +1813,11 @@ void calcPathErrorJacobian(
 
     pathErrorJacobian.fill(0.);
 
-    ActiveLambda f = [&](size_t prev, size_t next, size_t i) {
+    ActiveLambda f = [&](size_t prev, size_t next, size_t i, bool isActive) {
+        if (!isActive) {
+            return;
+        }
+
         const LineSeg& l_P = lines.at(i);
         const LineSeg& l_Q = lines.at(i + 1);
 
@@ -2255,13 +2267,21 @@ void WrappingPath::calcPath(
         o.calcGeodesicInGround();
     }
 
-    // Helper for detecting touchdown and liftoff.
-    ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i) {
-        const Vector3 p_O = prev == n
+    auto GetPrevPoint = [&](size_t i) {
+        return i == n
                                 ? getStart()
-                                : getSegments().at(prev).getGeodesic().K_Q.p();
-        const Vector3 p_I =
-            next == n ? getEnd() : getSegments().at(next).getGeodesic().K_Q.p();
+                                : getSegments().at(i).getGeodesic().K_Q.p();
+    };
+    auto GetNextPoint = [&](size_t i) {
+        return i == n
+                                ? getEnd()
+                                : getSegments().at(i).getGeodesic().K_P.p();
+    };
+
+    // Helper for detecting if start/end points lie inside the surfacce.
+    ActiveLambda DetectInsideSurfaceError = [&](size_t prev, size_t next, size_t i, bool) {
+        const Vector3 p_O = GetPrevPoint(prev);
+        const Vector3 p_I = GetNextPoint(next);
         if (!getSegments().at(i).isAboveSurface(p_O, 0.)) {
             updSegments().at(i).updStatus() |=
                 Geodesic::Status::PrevLineSegmentInsideSurface;
@@ -2270,17 +2290,25 @@ void WrappingPath::calcPath(
             updSegments().at(i).updStatus() |=
                 Geodesic::Status::NextLineSegmentInsideSurface;
         }
-        if (preventLiftOff) {
-            updSegments().at(i).attemptTouchdown(p_O, p_I);
-            updSegments().at(i).detectLiftOff(p_O, p_I);
-        }
+    };
+
+    // Helper for detecting touchdown and liftoff.
+    ActiveLambda TouchdownAndLiftOff = [&](size_t prev, size_t next, size_t i, bool) {
+        const Vector3 p_O = GetPrevPoint(prev);
+        const Vector3 p_I = GetNextPoint(next);
+        updSegments().at(i).attemptTouchdown(p_O, p_I);
+        updSegments().at(i).detectLiftOff(p_O, p_I);
     };
 
     const size_t prevLoopIter = loopIter;
     for (loopIter = 0; loopIter < maxIter; ++loopIter) {
 
         // Detect touchdown & liftoff.
-        forEachActive(getSegments(), TouchdownAndLiftOff, false);
+        if (preventLiftOff) {
+            forEachActive(getSegments(), DetectInsideSurfaceError);
+        } else {
+            forEachActive(getSegments(), DetectInsideSurfaceError, TouchdownAndLiftOff);
+        }
 
         // Compute the line segments.
         calcLineSegments(getStart(), getEnd(), getSegments(), _lineSegments);
