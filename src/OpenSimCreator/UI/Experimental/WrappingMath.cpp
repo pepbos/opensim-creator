@@ -119,7 +119,6 @@ void AssertEq(
         os << "    rhs = " << rhs << std::endl;
         os << "    err = " << lhs - rhs << std::endl;
         os << "    bnd = " << eps << std::endl;
-        /* throw std::runtime_error(msg); */
         std::string msg = os.str();
         throw std::runtime_error(msg.c_str());
         OSC_ASSERT(isOk && msg.c_str());
@@ -299,14 +298,16 @@ void calcInLocal(const Transf& transform, Geodesic::InitialConditions& g0)
 //                      SOME MATHS
 //==============================================================================
 
-double calcPointOnLineNearOriginAsFactor(Eigen::Vector<double, 2> a, Eigen::Vector<double, 2> b)
+double calcPointOnLineNearOriginAsFactor(
+    Eigen::Vector<double, 2> a,
+    Eigen::Vector<double, 2> b)
 {
     using Vector2 = Eigen::Vector<double, 2>;
 
-    const Vector2 e = b - a;
+    const Vector2 e  = b - a;
     const double eTe = e.dot(e);
 
-    Vector2 d = - a.dot(e) * e / eTe;
+    Vector2 d      = -a.dot(e) * e / eTe;
     const double c = e.dot(d) / eTe;
     return std::max(0., std::min(c, 1.));
 }
@@ -1234,7 +1235,7 @@ std::pair<bool, size_t> AnalyticSphereSurface::
         size_t,
         double)
 {
-    Vector3 pLine = calcPointOnLineNearOrigin(a, b);
+    Vector3 pLine        = calcPointOnLineNearOrigin(a, b);
     const bool touchdown = pLine.dot(pLine) < _radius * _radius;
     if (touchdown) {
         p = pLine;
@@ -1326,8 +1327,9 @@ double AnalyticSphereSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
     return 0.;
 }
 
-void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
-    const
+void AnalyticSphereSurface::calcPathPointsImpl(
+    std::vector<Vector3>& points,
+    Transf transform) const
 {
     const Geodesic& g = getGeodesic();
 
@@ -1336,12 +1338,12 @@ void AnalyticSphereSurface::calcPathPointsImpl(std::vector<Vector3>& points, Tra
     points.push_back(calcPointInGround(transform, p));
 
     const double angle = g.length / _radius;
-    size_t n = static_cast<size_t>(std::abs(angle / _sampleSpacing));
-    n = std::min(_maxNrOfSamples, n);
+    size_t n           = static_cast<size_t>(std::abs(angle / _sampleSpacing));
+    n                  = std::min(_maxNrOfSamples, n);
 
     if (n > 0) {
         const Vector3 axis = -g.K_P.b();
-        const double c = 1. / static_cast<double>(n+1);
+        const double c     = 1. / static_cast<double>(n + 1);
         const Rotation dq{Eigen::AngleAxisd(angle * c, axis)};
         for (size_t i = 0; i < n; ++i) {
             p = dq * p;
@@ -1422,10 +1424,15 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     K_P = Trihedron(p_P, f_P);
 
     // Rotation angle between start and end frame about cylinder axis.
-    const double alpha = (l / r) * z.cross(K_P.n()).dot(K_P.t());
+    const double alpha = -l / r * K_P.b()[2];
+    AssertEq(
+        alpha,
+        (l / r) * z.cross(K_P.n()).dot(K_P.t()),
+        "Rewriting alpha check");
 
     // Distance along cylinder axis between start and end frame.
-    const double h = l * z.dot(K_P.t());
+    const double h = l * K_P.t()[2];
+    AssertEq(h, l * z.dot(K_P.t()), "Rewriting h check");
 
     AssertEq(alpha * alpha * r * r + h * h, l * l, "(alpha * r)^2 + h^2 = l^2");
 
@@ -1436,17 +1443,28 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     AssertEq(K_P.t().dot(z) * l, h, "t.T z * l = h");
 
     // Rotation angle variation to initial direction variation.
-    const double dAlpha_dTheta =
-        -(l / r) * z.cross(K_P.n()).dot(K_P.n().cross(K_P.t()));
+    const double dAlpha_dTheta = (l / r) * K_P.t()[2];
+    AssertEq(
+        dAlpha_dTheta,
+        -(l / r) * z.cross(K_P.n()).dot(K_P.n().cross(K_P.t())),
+        "Rewriting dAlpha_dTheta check");
 
     // Distance along axis variation to initial direction variation.
-    const double dh_dTheta = -l * z.dot(K_P.n().cross(K_P.t()));
+    const double dh_dTheta = l * K_P.b()[2];
+    AssertEq(
+        dh_dTheta,
+        -l * z.dot(K_P.n().cross(K_P.t())),
+        "Rewriting dh_dTheta check");
 
     // Rotation angle variation to length variation.
-    const double dAlpha_dl = (1. / r) * z.cross(K_P.n()).dot(K_P.t());
+    const double dAlpha_dl = -1. / r * K_P.b()[2];
+    AssertEq(
+        dAlpha_dl,
+        (1. / r) * z.cross(K_P.n()).dot(K_P.t()),
+        "Rewriting dAlpha_dl");
 
     // Distance along axis variation to length variation.
-    const double dh_dl = z.dot(K_P.t());
+    const double dh_dl = K_P.t()[2];
 
     // Start position variation.
     const Vector3 zeros{0., 0., 0.};
@@ -1457,8 +1475,9 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     v_P.col(3) = zeros;
 
     // Start frame variation.
-    w_P.col(0) = z * K_P.t().dot(z.cross(K_P.n())) / r;
-    w_P.col(1) = z * K_P.t().dot(z) / r;
+    /* w_P.col(0) = z * K_P.t().dot(z.cross(K_P.n())) / r; */
+    w_P.col(0) = z * dAlpha_dl;
+    w_P.col(1) = z * K_P.t()[2] / r;
     w_P.col(2) = -K_P.n();
     w_P.col(3) = zeros;
 
@@ -1486,7 +1505,8 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     v_Q.col(2) = z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta;
     v_Q.col(3) = z.cross(p_Q) * dAlpha_dl + z * dh_dl;
 
-    w_Q.col(0) = z * f_Q.t().dot(z.cross(f_Q.n())) / r;
+    /* w_Q.col(0) = z * f_Q.t().dot(z.cross(f_Q.n())) / r; */
+    w_Q.col(0) = -z * f_Q.b()[2] / r;
     w_Q.col(1) = z * f_Q.t().dot(z) / r;
     w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
     w_Q.col(3) = dAlpha_dl * z;
