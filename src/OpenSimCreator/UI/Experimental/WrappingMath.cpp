@@ -1902,6 +1902,7 @@ void calcLineSegments(
     std::vector<LineSeg>& lines)
 {
     const size_t n = obs.size();
+    lines.reserve(n+1);
     lines.clear();
 
     Vector3 a = std::move(p_O);
@@ -1912,10 +1913,10 @@ void calcLineSegments(
 
         const Geodesic& g = obs.at(i).getGeodesic();
         const Vector3 b   = g.K_P.p();
-        lines.push_back({a, b});
+        lines.emplace_back(a, b);
         a = g.K_Q.p();
     }
-    lines.push_back({a, p_I});
+    lines.emplace_back(a, p_I);
 }
 
 double calcMaxPathError(
