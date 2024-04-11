@@ -81,15 +81,14 @@ namespace osc
 
 bool RunAllWrappingTests(std::ostream& os);
 
-bool RunImplicitGeodesicTest(
-    const ImplicitSurface& s,
-    const Geodesic& g,
+bool RunGeodesicTest(
+    WrapObstacle& s,
     GeodesicTestBounds bnds,
     const std::string& name,
     std::ostream& os);
 
 std::vector<Trihedron> calcImplicitTestSamples(
-    const ImplicitSurface& s,
+    const WrapObstacle& s,
     Trihedron K,
     double l, size_t steps = 1000);
 

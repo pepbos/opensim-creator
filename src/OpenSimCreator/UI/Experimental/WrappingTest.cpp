@@ -98,7 +98,7 @@ Tri operator+(const Tri& lhs, const Tri& rhs)
     return y;
 }
 
-void TrihedronStep(const ImplicitSurface& s, Tri& q, double& l, double dl)
+void TrihedronStep(const WrapObstacle& s, Tri& q, double& l, double dl)
 {
     RungeKutta4<Tri, TrihedronDerivative>(
         q,
@@ -117,7 +117,7 @@ void TrihedronStep(const ImplicitSurface& s, Tri& q, double& l, double dl)
 }
 
 std::vector<Tri> calcImplicitGeodesic(
-    const ImplicitSurface& s,
+    const WrapObstacle& s,
     Tri q,
     double l,
     size_t n)
@@ -216,11 +216,11 @@ bool RunRungeKutta4Test(std::ostream& os)
 }
 
 std::vector<Tri> RunImplicitGeodesicShooterTest(
-        const ImplicitSurface& s,
-        const Geodesic& g,
+        const WrapObstacle& s,
         GeodesicTestBounds bnds,
         TestRapport& o)
 {
+    const Geodesic g = s.getGeodesic();
     const double l = g.length;
     const size_t n = bnds.integratorSteps;
 
@@ -317,14 +317,14 @@ std::vector<Tri> RunImplicitGeodesicShooterTest(
 }
 
 void BinormalVariationTest(
-    ImplicitSurface& s,
-    const Geodesic& gZero,
+    WrapObstacle& s,
     std::vector<Tri> samplesZero,
     Geodesic::Correction c,
     GeodesicTestBounds bnds,
     const std::string& msg,
     TestRapport& o)
 {
+    const Geodesic gZero = s.getGeodesic();
 
     auto ToDarbouxFrame = [&](const Trihedron q, Vector3 v) -> Vector3
     {
@@ -349,7 +349,7 @@ void BinormalVariationTest(
 
     const double d = bnds.variation;
     c *= d;
-    Geodesic gOne = gZero;
+
     s.applyVariation(c);
 
     auto ToTriFrame = [&](const Tri q, Vector3 v) -> Vector3
@@ -357,7 +357,7 @@ void BinormalVariationTest(
         return Vector3{q.t.dot(v), q.n.dot(v), q.b.dot(v)};
     };
 
-    std::vector<Tri> samplesOne = RunImplicitGeodesicShooterTest(s, gOne, bnds, o);
+    std::vector<Tri> samplesOne = RunImplicitGeodesicShooterTest(s, bnds, o);
 
     o._verbose = true;
     o.newSubSection(msg + " => shooter v_P, w_P");
@@ -375,6 +375,8 @@ void BinormalVariationTest(
         o.assertEq(ToTriFrame(K_Q_zero, K_Q_one.p - K_Q_zero.p) / d, v_Q,       "Shooter v_Q", bnds.varEps);
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Shooter w_Q", bnds.varEps);
     }
+
+    const Geodesic gOne = s.getGeodesic();
 
     o.newSubSection(msg + " => geodesic v_P, w_P");
     {
@@ -394,34 +396,36 @@ void BinormalVariationTest(
         o.assertEq(calcApproxRate(K_Q_zero, K_Q_one, d), w_Q, "Geodesic w_Q", bnds.varEps);
     }
     o._verbose = false;
+
+    // Reset to original geodesic.
+    s.calcGeodesic({gZero.K_P.p(), gZero.K_P.t(), gZero.length});
 }
 
 void RunImplicitGeodesicVariationTest(
-    ImplicitSurface& s,
-    const Geodesic& gZero,
+    WrapObstacle& s,
     GeodesicTestBounds bnds,
     TestRapport& o)
 {
     // Verify geodesic numerically.
     o.newSection("Unconstrained comparison");
-    std::vector<Tri> samplesZero = RunImplicitGeodesicShooterTest(s, gZero, bnds, o);
+    std::vector<Tri> samplesZero = RunImplicitGeodesicShooterTest(s, bnds, o);
 
     if (!o.success()) {
         return;
     }
 
     o.newSection("Tangential variation");
-    BinormalVariationTest(s, gZero, samplesZero, {1., 0., 0., 0.}, bnds, "ds", o);
+    BinormalVariationTest(s, samplesZero, {1., 0., 0., 0.}, bnds, "ds", o);
     o.newSection("Binormal variation");
-    BinormalVariationTest(s, gZero, samplesZero, {0., 1., 0., 0.}, bnds, "dB", o);
+    BinormalVariationTest(s, samplesZero, {0., 1., 0., 0.}, bnds, "dB", o);
     o.newSection("Directional variation");
-    BinormalVariationTest(s, gZero, samplesZero, {0., 0., 1., 0.}, bnds, "do", o);
+    BinormalVariationTest(s, samplesZero, {0., 0., 1., 0.}, bnds, "do", o);
     o.newSection("Lengthening variation");
-    BinormalVariationTest(s, gZero, samplesZero, {0., 0., 0., 1.}, bnds, "dl", o);
+    BinormalVariationTest(s, samplesZero, {0., 0., 0., 1.}, bnds, "dl", o);
     o.newSection("Mixed variation");
-    BinormalVariationTest(s, gZero, samplesZero, {1., 1., 1., 1.}, bnds, "dl", o);
+    BinormalVariationTest(s, samplesZero, {1., 1., 1., 1.}, bnds, "dl", o);
     o.newSection("Mixed signed variation");
-    BinormalVariationTest(s, gZero, samplesZero, {1., -1., 1., -1.}, bnds, "dl", o);
+    BinormalVariationTest(s, samplesZero, {1., -1., 1., -1.}, bnds, "dl", o);
 }
 
 } // namespace
@@ -618,14 +622,13 @@ namespace osc
     }
 
 bool RunGeodesicTest(
-        ImplicitSurface& s,
-        const Geodesic& g,
+        WrapObstacle& s,
         GeodesicTestBounds bnds,
         const std::string& name,
         std::ostream& os)
 {
     TestRapport o(name);
-    RunImplicitGeodesicVariationTest(s, g, bnds, o);
+    RunImplicitGeodesicVariationTest(s, bnds, o);
     o.finalize();
     o.print(os);
     return o.success();
@@ -643,7 +646,7 @@ bool RunAllWrappingTests(std::ostream& os)
 }
 
 std::vector<Trihedron> calcImplicitTestSamples(
-    ImplicitSurface& s,
+    const WrapObstacle& s,
     Trihedron K,
     double l,
     size_t steps)
