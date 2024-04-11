@@ -552,12 +552,25 @@ protected:
     ImplicitSurface& operator=(const ImplicitSurface&)     = default;
     ImplicitSurface& operator=(ImplicitSurface&&) noexcept = default;
 
+    ImplicitSurface(double hMin, double hMax, double accuracy) :
+        _rkm({hMin, hMax, accuracy})
+    {}
+
 public:
     // TODO put local in front of everything?
 
     double calcSurfaceConstraint(Vector3 position) const;
     Vector3 calcSurfaceConstraintGradient(Vector3 position) const;
     Hessian calcSurfaceConstraintHessian(Vector3 position) const;
+
+    void setAccuracy(double accuracy) {_rkm.setAccuracy(accuracy);}
+    double getAccuracy() const {return _rkm.getAccuracy();}
+
+    void setMinStepSize(double hMin) {_rkm.setMinStepSize(hMin);}
+    double getMinStepSize() const {return _rkm.getMinStepSize();}
+
+    void setMaxStepSize(double hMax) {_rkm.setMinStepSize(hMax);}
+    double getMaxStepSize() const {return _rkm.getMinStepSize();}
 
 private:
     // Implicit surface constraint.
@@ -621,6 +634,14 @@ public:
         double xRadius,
         double yRadius,
         double zRadius) :
+        _xRadius(xRadius),
+        _yRadius(yRadius), _zRadius(zRadius)
+    {}
+
+    explicit ImplicitEllipsoidSurface(
+        double xRadius, double yRadius, double zRadius,
+        double hMin, double hMax, double accuracy) :
+        ImplicitSurface(hMin, hMax, accuracy),
         _xRadius(xRadius),
         _yRadius(yRadius), _zRadius(zRadius)
     {}

@@ -91,11 +91,11 @@ namespace
     }
 
     std::pair<SceneSurface, WrapObstacle>
-    CreateEllipsoid(float rx, float ry, float rz)
+    CreateEllipsoid(float rx, float ry, float rz, double accuracy)
     {
         Transf o = {Vector3{0., 0., 0.}};
         std::shared_ptr<Transf> offset = std::make_shared<Transf>(o);
-        WrapObstacle obs  = WrapObstacle::Create<ImplicitEllipsoidSurface>(offset, rx, ry, rz);
+        WrapObstacle obs  = WrapObstacle::Create<ImplicitEllipsoidSurface>(offset, rx, ry, rz, 1e-9, 1e-1, accuracy);
 
         return std::make_pair<SceneSurface, WrapObstacle>(
                 SceneSurface{
@@ -159,8 +159,8 @@ public:
         };
         // Add an ellipsoid.
         {
-            AppendSurface(CreateEllipsoid(1., 5., 2.), {-1., 1., 1.});
-            AppendSurface(CreateEllipsoid(1., 5., 2.), {-1., 1., 1.}, true);
+            AppendSurface(CreateEllipsoid(1., 5., 2., m_IntegratorAccuracy), {-1., 1., 1.});
+            AppendSurface(CreateEllipsoid(1., 5., 2., m_IntegratorAccuracy), {-1., 1., 1.}, true);
         }
         const bool ok = false;
 
