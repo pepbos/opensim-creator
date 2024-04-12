@@ -78,7 +78,7 @@ namespace
     {
         Transf o = {Vector3{0., 0., 0.}};
         std::shared_ptr<Transf> offset = std::make_shared<Transf>(o);
-        WrapObstacle obs  = WrapObstacle::Create<ImplicitCylinderSurface>(offset, radius);
+        WrapObstacle obs  = WrapObstacle::Create<AnalyticCylinderSurface>(offset, radius);
         Rotation q    = Rotation(Eigen::AngleAxisd(M_PI/2., Vector3{1., 0., 0.}));
 
         return std::make_pair<SceneSurface, WrapObstacle>(
@@ -328,6 +328,8 @@ private:
             ui::Checkbox("Freeze", &m_FreezePath);
             ui::Checkbox("Single", &m_SingleStep);
 
+            char buffer[32];
+
             for (size_t i = 0; i < 2; ++i) {
                 if (ui::Begin(c_PathNames.at(i))) {
 
@@ -341,7 +343,6 @@ private:
                     /* ui::Checkbox("CostL", &m_WrappingPath.at(i).updOpts().m_CostL); */
                     /* ui::Checkbox("AugN", &m_WrappingPath.at(i).updOpts().m_AugN); */
 
-                    char buffer[32];
                     snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getLoopIter());
                     ui::Text(buffer);
 
@@ -349,15 +350,18 @@ private:
                     ui::Text(buffer);
 
                     snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.at(i).getPathErrorBound());
+                    ui::Text(buffer);
 
                     snprintf(buffer, sizeof(buffer), "%zu", m_WrappingPath.at(i).getPathPoints().size());
+                    ui::Text(buffer);
+
+                    snprintf(buffer, sizeof(buffer), "%g", m_WrappingPath.at(i).getLength());
                     ui::Text(buffer);
                 }
             }
 
             // Surface specific stuff.
-            if(false)
-            {
+            if (false){
                 size_t i = 0;
                 for (WrapObstacle& o: m_WrappingPath.at(0).updSegments()) {
                     ui::Text(c_SurfNames.at(i));
@@ -371,6 +375,9 @@ private:
 
                     ImGui::SliderFloat3("p_S", m_Surface.at(0).at(i).m_OffsetPos.begin(), m_EndPoint.max, m_EndPoint.min);
                     m_Surface.at(0).at(i).m_Offset->position = ToVector3(m_Surface.at(0).at(i).m_OffsetPos);
+
+                    snprintf(buffer, sizeof(buffer), "%g", o.getGeodesic().length);
+                    ui::Text(buffer);
                     ++i;
                 }
             }
