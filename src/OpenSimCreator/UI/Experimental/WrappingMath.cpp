@@ -1547,8 +1547,9 @@ double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(
     return 0.;
 }
 
-void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>& points, Transf transform)
-    const
+void AnalyticCylinderSurface::calcPathPointsImpl(
+    std::vector<Vector3>& points,
+    Transf transform) const
 {
     const Geodesic& g = getGeodesic();
 
@@ -1556,13 +1557,12 @@ void AnalyticCylinderSurface::calcPathPointsImpl(std::vector<Vector3>& points, T
     Vector3 p = g.K_P.p();
     points.push_back(calcPointInGround(transform, p));
 
-    const double angle = g.length / _radius;
-    size_t n = static_cast<size_t>(std::abs(angle / _sampleSpacing));
-    n = std::min(_maxNrOfSamples, n);
+    const double angle = -g.length / _radius * g.K_P.b()[2];
+    size_t n           = static_cast<size_t>(std::abs(angle / _sampleSpacing));
+    n                  = std::min(_maxNrOfSamples, n);
 
     if (n > 0) {
-        const Vector3 z {0., 0., 1.};
-        const double d = 1. / static_cast<double>(n+1);
+        const double d = 1. / static_cast<double>(n + 1);
 
         const double s = sin(angle * d);
         const double c = cos(angle * d);
@@ -1588,8 +1588,10 @@ std::pair<bool, size_t> AnalyticCylinderSurface::
         size_t,
         double)
 {
-    using Vector2 = Eigen::Vector<double, 2>;
-    const double c = calcPointOnLineNearOriginAsFactor(Vector2{a[0], a[1]}, Vector2{b[0], b[1]});
+    using Vector2  = Eigen::Vector<double, 2>;
+    const double c = calcPointOnLineNearOriginAsFactor(
+        Vector2{a[0], a[1]},
+        Vector2{b[0], b[1]});
 
     const Vector3 pl = a + (b - a) * c;
 
