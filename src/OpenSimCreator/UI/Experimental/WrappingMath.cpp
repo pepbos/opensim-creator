@@ -1475,11 +1475,12 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     v_P.col(3) = zeros;
 
     // Start frame variation.
-    /* w_P.col(0) = z * K_P.t().dot(z.cross(K_P.n())) / r; */
     w_P.col(0) = z * dAlpha_dl;
     w_P.col(1) = z * K_P.t()[2] / r;
     w_P.col(2) = -K_P.n();
     w_P.col(3) = zeros;
+
+    AssertEq(w_P.col(0), z * K_P.t().dot(z.cross(K_P.n())) / r, "Rewriting w_P.col(0) check");
 
     // Integration of the angular rotation about cylinder axis.
     const Rotation dq{Eigen::AngleAxisd(alpha, z)};
@@ -1505,11 +1506,12 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     v_Q.col(2) = z.cross(p_Q) * dAlpha_dTheta + z * dh_dTheta;
     v_Q.col(3) = z.cross(p_Q) * dAlpha_dl + z * dh_dl;
 
-    /* w_Q.col(0) = z * f_Q.t().dot(z.cross(f_Q.n())) / r; */
     w_Q.col(0) = -z * f_Q.b()[2] / r;
     w_Q.col(1) = z * f_Q.t().dot(z) / r;
     w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
     w_Q.col(3) = dAlpha_dl * z;
+
+    AssertEq(w_Q.col(0), z * f_Q.t().dot(z.cross(f_Q.n())) / r, "Rewriting w_Q.col(0) check");
 
     geodesic.length = length;
 }
@@ -1526,9 +1528,8 @@ double AnalyticCylinderSurface::calcLocalNormalCurvatureImpl(
     Vector3 point,
     Vector3 tangent) const
 {
-    const Vector3& p = point;
-    const Vector3& t = tangent;
-    return -(t.x() * p.y() - t.y() * p.x()) / _radius;
+    AssertEq(ImplicitCylinderSurface(_radius).calcNormalCurvature(point, tangent), -4. * _radius, "Verify AnalyticCylinderSurface::kn");
+    return - 4. * _radius;
 }
 
 Vector3 AnalyticCylinderSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
@@ -1538,9 +1539,11 @@ Vector3 AnalyticCylinderSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
     return Vector3{x, y, 0.} / std::sqrt(x * x + y * y);
 }
 
-double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(Vector3, Vector3)
-    const
+double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(
+    Vector3 point,
+    Vector3 tangent) const
 {
+    AssertEq(ImplicitCylinderSurface(_radius).calcGeodesicTorsion(point, tangent), 0., "Verify AnalyticCylinderSurface::tau_g");
     return 0.;
 }
 
