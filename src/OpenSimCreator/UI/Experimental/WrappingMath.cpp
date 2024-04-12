@@ -1480,7 +1480,10 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     w_P.col(2) = -K_P.n();
     w_P.col(3) = zeros;
 
-    AssertEq(w_P.col(0), z * K_P.t().dot(z.cross(K_P.n())) / r, "Rewriting w_P.col(0) check");
+    AssertEq(
+        w_P.col(0),
+        z * K_P.t().dot(z.cross(K_P.n())) / r,
+        "Rewriting w_P.col(0) check");
 
     // Integration of the angular rotation about cylinder axis.
     const Rotation dq{Eigen::AngleAxisd(alpha, z)};
@@ -1511,7 +1514,10 @@ void AnalyticCylinderSurface::calcLocalGeodesicImpl(
     w_Q.col(2) = dAlpha_dTheta * z - f_Q.n();
     w_Q.col(3) = dAlpha_dl * z;
 
-    AssertEq(w_Q.col(0), z * f_Q.t().dot(z.cross(f_Q.n())) / r, "Rewriting w_Q.col(0) check");
+    AssertEq(
+        w_Q.col(0),
+        z * f_Q.t().dot(z.cross(f_Q.n())) / r,
+        "Rewriting w_Q.col(0) check");
 
     geodesic.length = length;
 }
@@ -1528,8 +1534,11 @@ double AnalyticCylinderSurface::calcLocalNormalCurvatureImpl(
     Vector3 point,
     Vector3 tangent) const
 {
-    AssertEq(ImplicitCylinderSurface(_radius).calcNormalCurvature(point, tangent), -4. * _radius, "Verify AnalyticCylinderSurface::kn");
-    return - 4. * _radius;
+    AssertEq(
+        ImplicitCylinderSurface(_radius).calcNormalCurvature(point, tangent),
+        -4. * _radius,
+        "Verify AnalyticCylinderSurface::kn");
+    return -4. * _radius;
 }
 
 Vector3 AnalyticCylinderSurface::calcLocalSurfaceNormalImpl(Vector3 point) const
@@ -1543,7 +1552,10 @@ double AnalyticCylinderSurface::calcLocalGeodesicTorsionImpl(
     Vector3 point,
     Vector3 tangent) const
 {
-    AssertEq(ImplicitCylinderSurface(_radius).calcGeodesicTorsion(point, tangent), 0., "Verify AnalyticCylinderSurface::tau_g");
+    AssertEq(
+        ImplicitCylinderSurface(_radius).calcGeodesicTorsion(point, tangent),
+        0.,
+        "Verify AnalyticCylinderSurface::tau_g");
     return 0.;
 }
 
@@ -1842,7 +1854,12 @@ void CallCurrentWithPrevAndNext(
     FUNCS&&... fs)
 {
     f(prev, next, current, isActive);
-    CallCurrentWithPrevAndNext(prev, next, current, isActive, std::forward<FUNCS>(fs)...);
+    CallCurrentWithPrevAndNext(
+        prev,
+        next,
+        current,
+        isActive,
+        std::forward<FUNCS>(fs)...);
 }
 
 template <typename... FUNCS>
@@ -2006,7 +2023,7 @@ void calcLineSegments(
     std::vector<LineSeg>& lines)
 {
     const size_t n = obs.size();
-    lines.reserve(n+1);
+    lines.reserve(n + 1);
     lines.clear();
 
     Vector3 a = std::move(p_O);
@@ -2476,12 +2493,13 @@ const std::vector<Vector3>& WrappingPath::calcPathPoints()
     return _pathPoints;
 }
 
-double WrappingPath::getLength() const {
+double WrappingPath::getLength() const
+{
     double l = 0.;
-    for (const LineSeg& s: getLineSegments()) {
+    for (const LineSeg& s : getLineSegments()) {
         l += s.l;
     }
-    for (const WrapObstacle& o: getSegments()) {
+    for (const WrapObstacle& o : getSegments()) {
         l += o.getGeodesic().length;
     }
     return l;
